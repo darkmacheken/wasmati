@@ -285,6 +285,8 @@ add_library(wabt STATIC
   src/wast-parser.cc
   src/wat-writer.h
   src/wat-writer.cc
+  src/ast-writer.h
+  src/ast-writer.cc
 )
 
 
@@ -329,25 +331,39 @@ if (NOT EMSCRIPTEN)
 
   if (BUILD_TOOLS)
     # wat2wasm
+    # wabt_executable(
+    #   NAME wat2wasm
+    #   SOURCES src/tools/wat2wasm.cc
+    #   INSTALL
+    # )
+
+    # # wasm2wat
+    # wabt_executable(
+    #   NAME wasm2wat
+    #   SOURCES src/tools/wasm2wat.cc
+    #   INSTALL
+    # )
+
+    # wasm2ast
     wabt_executable(
-      NAME wat2wasm
-      SOURCES src/tools/wat2wasm.cc
+      NAME wasm2ast
+      SOURCES src/tools/wasm2ast.cc
       INSTALL
     )
 
-    # wasm2wat
+    # wat2ast
     wabt_executable(
-      NAME wasm2wat
-      SOURCES src/tools/wasm2wat.cc
+      NAME wat2ast
+      SOURCES src/tools/wat2ast.cc
       INSTALL
     )
 
     # wasm-validate
-    wabt_executable(
-      NAME wasm-validate
-      SOURCES src/tools/wasm-validate.cc
-      INSTALL
-    )
+    # wabt_executable(
+    #   NAME wasm-validate
+    #   SOURCES src/tools/wasm-validate.cc
+    #   INSTALL
+    # )
   endif ()
 
   find_package(Threads)
@@ -377,11 +393,11 @@ if (NOT EMSCRIPTEN)
       src/literal.cc
       src/tests/test-hexfloat.cc
     )
-    wabt_executable(
-      NAME hexfloat_test
-      SOURCES ${HEXFLOAT_TEST_SRCS}
-      LIBS gtest_main gtest ${CMAKE_THREAD_LIBS_INIT}
-    )
+    # wabt_executable(
+    #   NAME hexfloat_test
+    #   SOURCES ${HEXFLOAT_TEST_SRCS}
+    #   LIBS gtest_main gtest ${CMAKE_THREAD_LIBS_INIT}
+    # )
 
     # wabt-unittests
     set(UNITTESTS_SRCS
@@ -395,11 +411,11 @@ if (NOT EMSCRIPTEN)
       src/tests/test-utf8.cc
       src/tests/test-wast-parser.cc
     )
-    wabt_executable(
-      NAME wabt-unittests
-      SOURCES ${UNITTESTS_SRCS}
-      LIBS gtest_main gtest ${CMAKE_THREAD_LIBS_INIT}
-    )
+    # wabt_executable(
+    #   NAME wabt-unittests
+    #   SOURCES ${UNITTESTS_SRCS}
+    #   LIBS gtest_main gtest ${CMAKE_THREAD_LIBS_INIT}
+    # )
 
     if (NOT CMAKE_VERSION VERSION_LESS "3.2")
       set(USES_TERMINAL USES_TERMINAL)
@@ -415,7 +431,7 @@ if (NOT EMSCRIPTEN)
       WORKING_DIRECTORY ${WABT_SOURCE_DIR}
       ${USES_TERMINAL}
     )
-    add_dependencies(run-tests wabt-unittests)
+    # add_dependencies(run-tests wabt-unittests)
   endif ()
 
   # install
