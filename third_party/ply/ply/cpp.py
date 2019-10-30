@@ -1,13 +1,50 @@
 # -----------------------------------------------------------------------------
-# cpp.py
+# ply: cpp.py
 #
-# Author:  David Beazley (http://www.dabeaz.com)
-# Copyright (C) 2007
-# All rights reserved
+# Copyright (C) 2001-2019
+# David M. Beazley (Dabeaz LLC)
+# All rights reserved.
 #
-# This module implements an ANSI-C style lexical preprocessor for PLY. 
+# Latest version: https://github.com/dabeaz/ply
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are
+# met:
+#
+# * Redistributions of source code must retain the above copyright notice,
+#   this list of conditions and the following disclaimer.
+# * Redistributions in binary form must reproduce the above copyright notice,
+#   this list of conditions and the following disclaimer in the documentation
+#   and/or other materials provided with the distribution.
+# * Neither the name of David Beazley or Dabeaz LLC may be used to
+#   endorse or promote products derived from this software without
+#   specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+# OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+# -----------------------------------------------------------------------------
+
+# This module implements an ANSI-C style lexical preprocessor for PLY.
 # -----------------------------------------------------------------------------
 from __future__ import generators
+
+import sys
+
+# Some Python 3 compatibility shims
+if sys.version_info.major < 3:
+    STRING_TYPES = (str, unicode)
+else:
+    STRING_TYPES = str
+    xrange = range
 
 # -----------------------------------------------------------------------------
 # Default preprocessor lexer definitions.   These tokens are enough to get
@@ -68,7 +105,8 @@ def t_CPP_COMMENT2(t):
     r'(//.*?(\n|$))'
     # replace with '/n'
     t.type = 'CPP_WS'; t.value = '\n'
-    
+    return t
+
 def t_error(t):
     t.type = t.value[0]
     t.value = t.value[0]
@@ -82,8 +120,8 @@ import os.path
 
 # -----------------------------------------------------------------------------
 # trigraph()
-# 
-# Given an input string, this function replaces all trigraph sequences. 
+#
+# Given an input string, this function replaces all trigraph sequences.
 # The following mapping is used:
 #
 #     ??=    #
@@ -253,7 +291,7 @@ class Preprocessor(object):
     # ----------------------------------------------------------------------
     # add_path()
     #
-    # Adds a search path to the preprocessor.  
+    # Adds a search path to the preprocessor.
     # ----------------------------------------------------------------------
 
     def add_path(self,path):
@@ -297,7 +335,7 @@ class Preprocessor(object):
 
     # ----------------------------------------------------------------------
     # tokenstrip()
-    # 
+    #
     # Remove leading/trailing whitespace tokens from a token list
     # ----------------------------------------------------------------------
 
@@ -323,7 +361,7 @@ class Preprocessor(object):
     # argument.  Each argument is represented by a list of tokens.
     #
     # When collecting arguments, leading and trailing whitespace is removed
-    # from each argument.  
+    # from each argument.
     #
     # This function properly handles nested parenthesis and commas---these do not
     # define new arguments.
@@ -335,7 +373,7 @@ class Preprocessor(object):
         current_arg = []
         nesting = 1
         tokenlen = len(tokenlist)
-    
+
         # Search for the opening '('.
         i = 0
         while (i < tokenlen) and (tokenlist[i].type in self.t_WS):
@@ -369,7 +407,7 @@ class Preprocessor(object):
             else:
                 current_arg.append(t)
             i += 1
-    
+
         # Missing end argument
         self.error(self.source,tokenlist[-1].lineno,"Missing ')' in macro arguments")
         return 0, [],[]
@@ -381,9 +419,9 @@ class Preprocessor(object):
     # This is used to speed up macro expansion later on---we'll know
     # right away where to apply patches to the value to form the expansion
     # ----------------------------------------------------------------------
-    
+
     def macro_prescan(self,macro):
-        macro.patch     = []             # Standard macro arguments 
+        macro.patch     = []             # Standard macro arguments
         macro.str_patch = []             # String conversion expansion
         macro.var_comma_patch = []       # Variadic macro comma patch
         i = 0
@@ -401,10 +439,11 @@ class Preprocessor(object):
                 elif (i > 0 and macro.value[i-1].value == '##'):
                     macro.patch.append(('c',argnum,i-1))
                     del macro.value[i-1]
+                    i -= 1
                     continue
                 elif ((i+1) < len(macro.value) and macro.value[i+1].value == '##'):
                     macro.patch.append(('c',argnum,i))
-                    i += 1
+                    del macro.value[i + 1]
                     continue
                 # Standard expansion
                 else:
@@ -425,12 +464,12 @@ class Preprocessor(object):
     # representing the replacement macro tokens
     # ----------------------------------------------------------------------
 
-    def macro_expand_args(self,macro,args):
+    def macro_expand_args(self,macro,args,expanded):
         # Make a copy of the macro token sequence
         rep = [copy.copy(_x) for _x in macro.value]
 
         # Make string expansion patches.  These do not alter the length of the replacement sequence
-        
+
         str_expansion = {}
         for argnum, i in macro.str_patch:
             if argnum not in str_expansion:
@@ -448,17 +487,17 @@ class Preprocessor(object):
         # Make all other patches.   The order of these matters.  It is assumed that the patch list
         # has been sorted in reverse order of patch location since replacements will cause the
         # size of the replacement sequence to expand from the patch point.
-        
-        expanded = { }
+
+        expanded_args = { }
         for ptype, argnum, i in macro.patch:
             # Concatenation.   Argument is left unexpanded
             if ptype == 'c':
                 rep[i:i+1] = args[argnum]
             # Normal expansion.  Argument is macro expanded first
             elif ptype == 'e':
-                if argnum not in expanded:
-                    expanded[argnum] = self.expand_macros(args[argnum])
-                rep[i:i+1] = expanded[argnum]
+                if argnum not in expanded_args:
+                    expanded_args[argnum] = self.expand_macros(args[argnum],expanded)
+                rep[i:i+1] = expanded_args[argnum]
 
         # Get rid of removed comma if necessary
         if comma_patch:
@@ -485,7 +524,7 @@ class Preprocessor(object):
                 if t.value in self.macros and t.value not in expanded:
                     # Yes, we found a macro match
                     expanded[t.value] = True
-                    
+
                     m = self.macros[t.value]
                     if not m.arglist:
                         # A simple macro
@@ -499,7 +538,7 @@ class Preprocessor(object):
                         j = i + 1
                         while j < len(tokens) and tokens[j].type in self.t_WS:
                             j += 1
-                        if tokens[j].value == '(':
+                        if j < len(tokens) and tokens[j].value == '(':
                             tokcount,args,positions = self.collect_args(tokens[j:])
                             if not m.variadic and len(args) !=  len(m.arglist):
                                 self.error(self.source,t.lineno,"Macro %s requires %d arguments" % (t.value,len(m.arglist)))
@@ -517,26 +556,32 @@ class Preprocessor(object):
                                     else:
                                         args[len(m.arglist)-1] = tokens[j+positions[len(m.arglist)-1]:j+tokcount-1]
                                         del args[len(m.arglist):]
-                                        
+
                                 # Get macro replacement text
-                                rep = self.macro_expand_args(m,args)
+                                rep = self.macro_expand_args(m,args,expanded)
                                 rep = self.expand_macros(rep,expanded)
                                 for r in rep:
                                     r.lineno = t.lineno
                                 tokens[i:j+tokcount] = rep
                                 i += len(rep)
+                        else:
+                            # This is not a macro. It is just a word which
+                            # equals to name of the macro. Hence, go to the
+                            # next token.
+                            i += 1
+
                     del expanded[t.value]
                     continue
                 elif t.value == '__LINE__':
                     t.type = self.t_INTEGER
                     t.value = self.t_INTEGER_TYPE(t.lineno)
-                
+
             i += 1
         return tokens
 
-    # ----------------------------------------------------------------------    
+    # ----------------------------------------------------------------------
     # evalexpr()
-    # 
+    #
     # Evaluate an expression token sequence for the purposes of evaluating
     # integral expressions.
     # ----------------------------------------------------------------------
@@ -572,25 +617,44 @@ class Preprocessor(object):
                 del tokens[i+1:j+1]
             i += 1
         tokens = self.expand_macros(tokens)
+        return self.evalexpr_expanded(tokens)
+
+    # ----------------------------------------------------------------------
+    # evalexpr_expanded()
+    #
+    # Helper for evalexpr that evaluates the expression that had its macros
+    # and defined(...) expressions expanded by evalexpr
+    # ----------------------------------------------------------------------
+
+    def evalexpr_expanded(self, tokens):
         for i,t in enumerate(tokens):
             if t.type == self.t_ID:
                 tokens[i] = copy.copy(t)
                 tokens[i].type = self.t_INTEGER
-                tokens[i].value = self.t_INTEGER_TYPE("0L")
+                tokens[i].value = self.t_INTEGER_TYPE("0")
             elif t.type == self.t_INTEGER:
                 tokens[i] = copy.copy(t)
                 # Strip off any trailing suffixes
                 tokens[i].value = str(tokens[i].value)
                 while tokens[i].value[-1] not in "0123456789abcdefABCDEF":
                     tokens[i].value = tokens[i].value[:-1]
-        
-        expr = "".join([str(x.value) for x in tokens])
+
+        return self.evalexpr_string("".join([str(x.value) for x in tokens]))
+
+    # ----------------------------------------------------------------------
+    # evalexpr_string()
+    #
+    # Helper for evalexpr that evaluates a string expression
+    # This implementation does basic C->python conversion and then uses eval()
+    # ----------------------------------------------------------------------
+    def evalexpr_string(self, expr):
         expr = expr.replace("&&"," and ")
         expr = expr.replace("||"," or ")
         expr = expr.replace("!"," not ")
+        expr = expr.replace(" not ="," !=")
         try:
             result = eval(expr)
-        except StandardError:
+        except Exception:
             self.error(self.source,tokens[0].lineno,"Couldn't evaluate expression")
             result = 0
         return result
@@ -608,7 +672,7 @@ class Preprocessor(object):
 
         if not source:
             source = ""
-            
+
         self.define("__FILE__ \"%s\"" % source)
 
         self.source = source
@@ -627,7 +691,7 @@ class Preprocessor(object):
                 for tok in x:
                     if tok.type in self.t_WS and '\n' in tok.value:
                         chunk.append(tok)
-                
+
                 dirtokens = self.tokenstrip(x[i+1:])
                 if dirtokens:
                     name = dirtokens[0].value
@@ -635,7 +699,7 @@ class Preprocessor(object):
                 else:
                     name = ""
                     args = []
-                
+
                 if name == 'define':
                     if enable:
                         for tok in self.expand_macros(chunk):
@@ -695,7 +759,7 @@ class Preprocessor(object):
                                     iftrigger = True
                     else:
                         self.error(self.source,dirtokens[0].lineno,"Misplaced #elif")
-                        
+
                 elif name == 'else':
                     if ifstack:
                         if ifstack[-1][0]:
@@ -760,7 +824,7 @@ class Preprocessor(object):
         for p in path:
             iname = os.path.join(p,filename)
             try:
-                data = open(iname,"r").read()
+                data = self.read_include_file(iname)
                 dname = os.path.dirname(iname)
                 if dname:
                     self.temp_path.insert(0,dname)
@@ -775,13 +839,26 @@ class Preprocessor(object):
             print("Couldn't find '%s'" % filename)
 
     # ----------------------------------------------------------------------
+    # read_include_file()
+    #
+    # Reads a source file for inclusion using #include
+    # Could be overridden to e.g. customize encoding, limit access to
+    # certain paths on the filesystem, or provide the contents of system
+    # include files
+    # ----------------------------------------------------------------------
+
+    def read_include_file(self, filepath):
+        with open(filepath, 'r', encoding='utf-8', errors='surrogateescape') as file:
+            return file.read()
+
+    # ----------------------------------------------------------------------
     # define()
     #
     # Define a new macro
     # ----------------------------------------------------------------------
 
     def define(self,tokens):
-        if isinstance(tokens,(str,unicode)):
+        if isinstance(tokens,STRING_TYPES):
             tokens = self.tokenize(tokens)
 
         linetok = tokens
@@ -865,7 +942,7 @@ class Preprocessor(object):
     def parse(self,input,source=None,ignore={}):
         self.ignore = ignore
         self.parser = self.parsegen(input,source)
-        
+
     # ----------------------------------------------------------------------
     # token()
     #
@@ -886,8 +963,8 @@ if __name__ == '__main__':
 
     # Run a preprocessor
     import sys
-    f = open(sys.argv[1])
-    input = f.read()
+    with open(sys.argv[1]) as f:
+        input = f.read()
 
     p = Preprocessor(lexer)
     p.parse(input,sys.argv[1])
@@ -895,14 +972,3 @@ if __name__ == '__main__':
         tok = p.token()
         if not tok: break
         print(p.source, tok)
-
-
-
-
-    
-
-
-
-
-
-

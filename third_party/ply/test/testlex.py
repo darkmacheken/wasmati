@@ -479,8 +479,10 @@ class LexBuildOptionTests(unittest.TestCase):
         
         os.mkdir("lexdir")
         os.mkdir("lexdir/sub")
-        open("lexdir/__init__.py","w").write("")
-        open("lexdir/sub/__init__.py","w").write("")
+        with open("lexdir/__init__.py","w") as f:
+            f.write("")
+        with open("lexdir/sub/__init__.py","w") as f:
+            f.write("")
         run_import("lex_optimize3")
         result = sys.stdout.getvalue()
         self.assert_(check_expected(result,
@@ -513,6 +515,26 @@ class LexBuildOptionTests(unittest.TestCase):
             shutil.rmtree("lexdir")
         except OSError:
             pass
+
+    def test_lex_optimize4(self):
+
+        # Regression test to make sure that reflags works correctly
+        # on Python 3.
+
+        for extension in ['py', 'pyc']:
+            try:
+                os.remove("opt4tab.{0}".format(extension))
+            except OSError:
+                pass
+
+        run_import("lex_optimize4")
+        run_import("lex_optimize4")
+
+        for extension in ['py', 'pyc']:
+            try:
+                os.remove("opt4tab.{0}".format(extension))
+            except OSError:
+                pass
 
     def test_lex_opt_alias(self):
         try:
