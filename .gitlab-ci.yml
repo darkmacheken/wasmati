@@ -1,0 +1,31 @@
+# use the official gcc image, based on debian
+# see https://hub.docker.com/_/gcc/
+image: gcc
+
+before_script:
+    # Install build dependencies
+    - apt-get update && apt-get -y install cmake
+
+build:
+    # Build the application
+    stage: build
+    script:
+        - mkdir build
+        - cd build
+        - cmake ..
+        - make
+    
+    artifacts:
+    paths:
+      - bin/
+      
+  # cache building
+   cache:
+     paths:
+       - "*.o"
+
+# run tests using the binary built before
+#test:
+#  stage: test
+#  script:
+#    - ./runmytests.sh
