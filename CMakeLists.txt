@@ -1,21 +1,5 @@
-#
-# Copyright 2016 WebAssembly Community Group participants
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-
 cmake_minimum_required(VERSION 2.6)
-project(WABT)
+project(WASM_AST)
 
 option(BUILD_TESTS "Build GTest-based tests" ON)
 option(USE_SYSTEM_GTEST "Use system GTest, instead of building" OFF)
@@ -68,12 +52,28 @@ include(CheckTypeSize)
 check_type_size(ssize_t SSIZE_T)
 check_type_size(size_t SIZEOF_SIZE_T)
 
+FIND_PACKAGE(Git QUIET REQUIRED)
+EXECUTE_PROCESS(COMMAND
+        "${GIT_EXECUTABLE}" --git-dir=${CMAKE_CURRENT_SOURCE_DIR}/third_party/wabt/.git describe --tags
+        RESULT_VARIABLE
+            GIT_HASH_RESULT
+        OUTPUT_VARIABLE
+            GIT_HASH
+        OUTPUT_STRIP_TRAILING_WHITESPACE)
+
+IF(${GIT_HASH_RESULT})
+    MESSAGE(WARNING "Error running git describe to determine version")
+    SET(WABT_VERSION_INFO "(unable to determine version)")
+ELSE()
+    SET(WABT_VERSION_INFO "${GIT_HASH}")
+ENDIF()
+
 configure_file(
-  ${WABT_SOURCE_DIR}/src/config.h.in
-  ${WABT_BINARY_DIR}/config.h
+  ${WASM_AST_SOURCE_DIR}/src/config/config.h.in
+  ${WASM_AST_BINARY_DIR}/config.h
 )
 
-include_directories(${WABT_SOURCE_DIR} ${WABT_BINARY_DIR})
+include_directories(${WASM_AST_SOURCE_DIR} ${WASM_AST_BINARY_DIR})
 
 if (COMPILER_IS_MSVC)
   # disable warning C4018: signed/unsigned mismatch
@@ -130,16 +130,16 @@ else ()
   if (NOT EMSCRIPTEN)
     # try to get the target architecture by compiling a dummy.c file and
     # checking the architecture using the file command.
-    file(WRITE ${WABT_BINARY_DIR}/dummy.c "main(){}")
+    file(WRITE ${WASM_AST_BINARY_DIR}/dummy.c "main(){}")
     try_compile(
       COMPILE_OK
-      ${WABT_BINARY_DIR}
-      ${WABT_BINARY_DIR}/dummy.c
-      COPY_FILE ${WABT_BINARY_DIR}/dummy
+      ${WASM_AST_BINARY_DIR}
+      ${WASM_AST_BINARY_DIR}/dummy.c
+      COPY_FILE ${WASM_AST_BINARY_DIR}/dummy
     )
     if (COMPILE_OK)
       execute_process(
-        COMMAND file ${WABT_BINARY_DIR}/dummy
+        COMMAND file ${WASM_AST_BINARY_DIR}/dummy
         RESULT_VARIABLE FILE_RESULT
         OUTPUT_VARIABLE FILE_OUTPUT
         ERROR_QUIET
@@ -188,7 +188,7 @@ SANITIZER(USE_LSAN "-fsanitize=leak")
 if (USE_UBSAN)
   # -fno-sanitize-recover was deprecated, see if we are compiling with a newer
   # clang that requires -fno-sanitize-recover=all.
-  set(UBSAN_BLACKLIST ${WABT_SOURCE_DIR}/ubsan.blacklist)
+  set(UBSAN_BLACKLIST ${WASM_AST_SOURCE_DIR}/ubsan.blacklist)
   include(CheckCXXCompilerFlag)
   CHECK_CXX_COMPILER_FLAG("-fsanitize=undefined -fno-sanitize-recover -Wall -Werror" HAS_UBSAN_RECOVER_BARE)
   if (HAS_UBSAN_RECOVER_BARE)
@@ -203,92 +203,34 @@ if (USE_UBSAN)
   endif ()
 endif ()
 
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${WABT_SOURCE_DIR}/cmake)
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${WASM_AST_SOURCE_DIR}/cmake)
 
-add_custom_target(everything)
+add_custom_target(everything_wasm)
 
-add_library(wabt STATIC
-  src/apply-names.h
-  src/apply-names.cc
-  src/binary.h
-  src/binary.cc
-  src/binary-reader.h
-  src/binary-reader.cc
-  src/binary-reader-ir.h
-  src/binary-reader-ir.cc
-  src/binary-reader-logging.h
-  src/binary-reader-logging.cc
-  src/binary-writer.h
-  src/binary-writer.cc
-  src/binary-writer-spec.h
-  src/binary-writer-spec.cc
-  src/binding-hash.h
-  src/binding-hash.cc
-  src/color.h
-  src/color.cc
-  src/common.h
-  src/common.cc
-  src/config.h
-  src/config.cc
-  src/decompiler.h
-  src/decompiler.cc
-  src/error-formatter.h
-  src/error-formatter.cc
-  src/expr-visitor.h
-  src/expr-visitor.cc
-  src/feature.h
-  src/feature.cc
-  src/filenames.h
-  src/filenames.cc
-  src/generate-names.h
-  src/generate-names.cc
-  src/hash-util.h
-  src/hash-util.cc
-  src/ir.h
-  src/ir.cc
-  src/ir-util.h
-  src/ir-util.cc
-  src/leb128.h
-  src/leb128.cc
-  src/lexer-source.h
-  src/lexer-source.cc
-  src/lexer-source-line-finder.h
-  src/lexer-source-line-finder.cc
-  src/literal.h
-  src/literal.cc
-  src/opcode.h
-  src/opcode.cc
-  src/opcode-code-table.h
-  src/opcode-code-table.c
-  src/opcode.def
-  src/option-parser.h
-  src/option-parser.cc
-  src/resolve-names.h
-  src/resolve-names.cc
-  src/stream.h
-  src/stream.cc
-  src/string-view.h
-  src/string-view.cc
-  src/token.h
-  src/token.cc
-  src/tracing.h
-  src/tracing.cc
-  src/type-checker.h
-  src/type-checker.cc
-  src/utf8.h
-  src/utf8.cc
-  src/validator.h
-  src/validator.cc
-  src/wast-lexer.h
-  src/wast-lexer.cc
-  src/wast-parser.h
-  src/wast-parser.cc
-  src/wat-writer.h
-  src/wat-writer.cc
+if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/third_party/wabt)
+    # we couldn't find the header files for FOO or they don't exist
+    message("Unable to find wabt.")
+
+    # we have a submodule setup for wabt
+    # now we need to clone this submodule
+    execute_process(COMMAND git submodule update --init -- third_party/wabt
+                    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
+    # set WABT_INCLUDE_DIR properly
+    set(WABT_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/wabt
+        CACHE PATH "WABT include directory")
+
+endif()
+
+add_subdirectory(third_party/wabt)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/wabt)
+
+add_library(wasm_ast STATIC
+  src/config/config.h
+  src/config/config.cc
   src/ast-writer.h
   src/ast-writer.cc
 )
-
 
 if (NOT EMSCRIPTEN)
   if (CODE_COVERAGE)
@@ -300,11 +242,11 @@ if (NOT EMSCRIPTEN)
     endif ()
   endif ()
 
-  function(wabt_executable)
+  function(wasm_ast_executable)
     cmake_parse_arguments(EXE "WITH_LIBM;INSTALL" "NAME" "SOURCES;LIBS" ${ARGN})
 
     # Always link libwabt.
-    set(EXE_LIBS "${EXE_LIBS};wabt")
+    set(EXE_LIBS "${EXE_LIBS};wasm_ast")
 
     # Optionally link libm.
     if (EXE_WITH_LIBM AND (COMPILER_IS_CLANG OR COMPILER_IS_GNU))
@@ -312,174 +254,37 @@ if (NOT EMSCRIPTEN)
     endif ()
 
     add_executable(${EXE_NAME} ${EXE_SOURCES})
-    add_dependencies(everything ${EXE_NAME})
-    target_link_libraries(${EXE_NAME} ${EXE_LIBS})
+    add_dependencies(everything_wasm ${EXE_NAME})
+    target_link_libraries(${EXE_NAME} ${EXE_LIBS} wabt)
     set_property(TARGET ${EXE_NAME} PROPERTY CXX_STANDARD 11)
     set_property(TARGET ${EXE_NAME} PROPERTY CXX_STANDARD_REQUIRED ON)
 
     if (EXE_INSTALL)
-      list(APPEND WABT_EXECUTABLES ${EXE_NAME})
-      set(WABT_EXECUTABLES ${WABT_EXECUTABLES} PARENT_SCOPE)
+      list(APPEND WASM_AST_EXECUTABLES ${EXE_NAME})
+      set(WASM_AST_EXECUTABLES ${WASM_AST_EXECUTABLES} PARENT_SCOPE)
 
       add_custom_target(${EXE_NAME}-copy-to-bin ALL
-        COMMAND ${CMAKE_COMMAND} -E make_directory ${WABT_SOURCE_DIR}/bin
-        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${EXE_NAME}> ${WABT_SOURCE_DIR}/bin
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${WASM_AST_SOURCE_DIR}/bin
+        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${EXE_NAME}> ${WASM_AST_SOURCE_DIR}/bin
         DEPENDS ${EXE_NAME}
       )
     endif ()
   endfunction()
 
   if (BUILD_TOOLS)
-    # wat2wasm
-    # wabt_executable(
-    #   NAME wat2wasm
-    #   SOURCES src/tools/wat2wasm.cc
-    #   INSTALL
-    # )
-
-    # # wasm2wat
-    # wabt_executable(
-    #   NAME wasm2wat
-    #   SOURCES src/tools/wasm2wat.cc
-    #   INSTALL
-    # )
-
     # wasm2ast
-    wabt_executable(
+    wasm_ast_executable(
       NAME wasm2ast
       SOURCES src/tools/wasm2ast.cc
       INSTALL
     )
 
     # wat2ast
-    wabt_executable(
+    wasm_ast_executable(
       NAME wat2ast
       SOURCES src/tools/wat2ast.cc
       INSTALL
     )
-
-    # wasm-validate
-    # wabt_executable(
-    #   NAME wasm-validate
-    #   SOURCES src/tools/wasm-validate.cc
-    #   INSTALL
-    # )
   endif ()
 
-  find_package(Threads)
-  if (BUILD_TESTS)
-    if (NOT USE_SYSTEM_GTEST)
-      if (NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/third_party/gtest/googletest)
-        message(FATAL_ERROR "Can't find third_party/gtest. Run git submodule update --init, or disable with CMake -DBUILD_TESTS=OFF.")
-      endif ()
-
-      include_directories(
-        third_party/gtest/googletest
-        third_party/gtest/googletest/include
-      )
-
-      # gtest
-      add_library(gtest STATIC
-        third_party/gtest/googletest/src/gtest-all.cc
-      )
-
-      add_library(gtest_main STATIC
-        third_party/gtest/googletest/src/gtest_main.cc
-      )
-    endif ()
-
-    # hexfloat-test
-    set(HEXFLOAT_TEST_SRCS
-      src/literal.cc
-      src/tests/test-hexfloat.cc
-    )
-    # wabt_executable(
-    #   NAME hexfloat_test
-    #   SOURCES ${HEXFLOAT_TEST_SRCS}
-    #   LIBS gtest_main gtest ${CMAKE_THREAD_LIBS_INIT}
-    # )
-
-    # wabt-unittests
-    set(UNITTESTS_SRCS
-      src/tests/test-binary-reader.cc
-      src/tests/test-circular-array.cc
-      src/tests/test-intrusive-list.cc
-      src/tests/test-literal.cc
-      src/tests/test-option-parser.cc
-      src/tests/test-string-view.cc
-      src/tests/test-filenames.cc
-      src/tests/test-utf8.cc
-      src/tests/test-wast-parser.cc
-    )
-    # wabt_executable(
-    #   NAME wabt-unittests
-    #   SOURCES ${UNITTESTS_SRCS}
-    #   LIBS gtest_main gtest ${CMAKE_THREAD_LIBS_INIT}
-    # )
-
-    if (NOT CMAKE_VERSION VERSION_LESS "3.2")
-      set(USES_TERMINAL USES_TERMINAL)
-    endif ()
-
-    # test running
-    find_package(PythonInterp 2.7 REQUIRED)
-    set(RUN_TESTS_PY ${WABT_SOURCE_DIR}/test/run-tests.py)
-    add_custom_target(run-tests
-      COMMAND ${CMAKE_BINARY_DIR}/wabt-unittests
-      COMMAND ${PYTHON_EXECUTABLE} ${RUN_TESTS_PY} --bindir ${CMAKE_BINARY_DIR}
-      DEPENDS ${WABT_EXECUTABLES}
-      WORKING_DIRECTORY ${WABT_SOURCE_DIR}
-      ${USES_TERMINAL}
-    )
-    # add_dependencies(run-tests wabt-unittests)
-  endif ()
-
-  # install
-  if (BUILD_TOOLS OR BUILD_TESTS)
-    install(TARGETS ${WABT_EXECUTABLES} DESTINATION bin)
-    if (UNIX)
-      if (NOT CMAKE_INSTALL_MANDIR)
-        include(GNUInstallDirs)
-      endif ()
-      file(GLOB MAN_FILES "${CMAKE_CURRENT_SOURCE_DIR}/man/*.1")
-      foreach(MAN_FILE ${MAN_FILES})
-        install(FILES ${MAN_FILE}
-          DESTINATION ${CMAKE_INSTALL_MANDIR}/man1/)
-      endforeach()
-    endif ()
-  endif ()
-
-else ()
-  # emscripten stuff
-
-  # just dump everything into one binary so we can reference it from JavaScript
-  add_definitions(-Wno-warn-absolute-paths)
-  add_executable(libwabtjs src/emscripten-helpers.cc)
-  add_dependencies(everything libwabtjs)
-  target_link_libraries(libwabtjs wabt)
-  set_target_properties(libwabtjs PROPERTIES OUTPUT_NAME libwabt)
-
-  set(WABT_POST_JS ${WABT_SOURCE_DIR}/src/wabt.post.js)
-  set(EMSCRIPTEN_EXPORTED_JSON ${WABT_SOURCE_DIR}/src/emscripten-exported.json)
-
-  set(LIBWABT_LINK_FLAGS
-    --memory-init-file 0
-    --post-js ${WABT_POST_JS}
-    -s EXPORTED_FUNCTIONS=\"@${EMSCRIPTEN_EXPORTED_JSON}\"
-    -s RESERVED_FUNCTION_POINTERS=10
-    -s NO_EXIT_RUNTIME=1
-    -s ALLOW_MEMORY_GROWTH=1
-    -s MODULARIZE=1
-    -s EXPORT_NAME=\"'WabtModule'\"
-    -s WASM=0
-    -Oz
-    --llvm-lto 1
-  )
-  string(REPLACE ";" " " LIBWABT_LINK_FLAGS_STR "${LIBWABT_LINK_FLAGS}")
-
-  set_target_properties(libwabtjs
-    PROPERTIES
-    LINK_FLAGS "${LIBWABT_LINK_FLAGS_STR}"
-    LINK_DEPENDS "${WABT_POST_JS};${EMSCRIPTEN_EXPORTED_JSON}"
-  )
-endif ()
+endif()

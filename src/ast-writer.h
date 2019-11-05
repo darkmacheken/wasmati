@@ -9,9 +9,9 @@ struct Module;
 class Stream;
 
 struct WriteAstOptions {
-  bool fold_exprs = false;  // Write folded expressions.
-  bool inline_export = false;
-  bool inline_import = false;
+	bool fold_exprs = false;  // Write folded expressions.
+	bool inline_export = false;
+	bool inline_import = false;
 };
 
 Result WriteAst(Stream*, const Module*, const WriteAstOptions&);
