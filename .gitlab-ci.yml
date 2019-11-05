@@ -5,7 +5,7 @@ image: gcc
 before_script:
     # Install build dependencies
     - apt-get update && apt-get -y install cmake
-
+    
 build:
     # Build the application
     stage: build
@@ -14,16 +14,16 @@ build:
         - cd build
         - cmake ..
         - make
-    
+        
     artifacts:
-    paths:
-      - bin/
-      
-  # cache building
-   cache:
-     paths:
-       - "*.o"
-
+        paths:
+        - bin/
+    
+    # cache building
+    cache:
+        paths:
+            - "*.o"
+        
 # run tests using the binary built before
 #test:
 #  stage: test
