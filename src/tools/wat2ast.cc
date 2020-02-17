@@ -28,6 +28,7 @@
 #include "src/error-formatter.h"
 #include "src/feature.h"
 #include "src/filenames.h"
+#include "src/generate-names.h"
 #include "src/ir.h"
 #include "src/option-parser.h"
 #include "src/resolve-names.h"
@@ -113,6 +114,10 @@ int ProgramMain(int argc, char** argv) {
 		if (Succeeded(result) && s_validate) {
 			ValidateOptions options(s_features);
 			result = ValidateModule(module.get(), &errors, options);
+		}
+
+		if (s_generate_names) {
+			result = GenerateNames(module.get());
 		}
 
 		if (Succeeded(result)) {
