@@ -8,6 +8,8 @@
 
 #cmakedefine WABT_VERSION_INFO "${WABT_VERSION_INFO}"
 
+#cmakedefine CMAKE_PROJECT_VERSION "${CMAKE_PROJECT_VERSION}"
+
 /* Whether <alloca.h> is available */
 #cmakedefine01 HAVE_ALLOCA_H
 

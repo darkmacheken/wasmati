@@ -1,5 +1,9 @@
-cmake_minimum_required(VERSION 2.6)
-project(WASM_AST)
+cmake_minimum_required(VERSION 3.0.0)
+project(WASM_AST VERSION 0.1.1)
+
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_PROJECT_VERSION "${CMAKE_PROJECT_VERSION} (${GIT_VERSION})")
+
 
 option(BUILD_TESTS "Build GTest-based tests" ON)
 option(USE_SYSTEM_GTEST "Use system GTest, instead of building" OFF)

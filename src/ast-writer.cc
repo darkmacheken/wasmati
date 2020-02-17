@@ -549,9 +549,9 @@ void AstWriter::WriteConst(const Const& const_) {
 
     case Type::V128: {
       WritePutsSpace(Opcode::V128Const_Opcode.GetName());
-      Writef("i32x4 0x%08x 0x%08x 0x%08x 0x%08x", const_.v128_bits.v[0],
-             const_.v128_bits.v[1], const_.v128_bits.v[2],
-             const_.v128_bits.v[3]);
+      Writef("i32x4 0x%08x 0x%08x 0x%08x 0x%08x", const_.vec128.v[0],
+             const_.vec128.v[1], const_.vec128.v[2],
+             const_.vec128.v[3]);
       WriteNewline(NO_FORCE_NEWLINE);
       break;
     }
@@ -620,6 +620,8 @@ class AstWriter::ExprVisitorDelegate : public ExprVisitor::Delegate {
   Result OnTableSetExpr(TableSetExpr*) override;
   Result OnTableGrowExpr(TableGrowExpr*) override;
   Result OnTableSizeExpr(TableSizeExpr*) override;
+  Result OnTableFillExpr(TableFillExpr*) override;
+  Result OnRefFuncExpr(RefFuncExpr*) override;
   Result OnRefNullExpr(RefNullExpr*) override;
   Result OnRefIsNullExpr(RefIsNullExpr*) override;
   Result OnNopExpr(NopExpr*) override;
@@ -864,7 +866,7 @@ Result AstWriter::ExprVisitorDelegate::OnElemDropExpr(ElemDropExpr* expr) {
 
 Result AstWriter::ExprVisitorDelegate::OnTableInitExpr(TableInitExpr* expr) {
   writer_->WritePutsSpace(Opcode::TableInit_Opcode.GetName());
-  writer_->WriteVar(expr->var, NextChar::Newline);
+  writer_->WriteVar(expr->segment_index, NextChar::Newline);
   return Result::Ok;
 }
 
@@ -888,6 +890,18 @@ Result AstWriter::ExprVisitorDelegate::OnTableGrowExpr(TableGrowExpr* expr) {
 
 Result AstWriter::ExprVisitorDelegate::OnTableSizeExpr(TableSizeExpr* expr) {
   writer_->WritePutsSpace(Opcode::TableSize_Opcode.GetName());
+  writer_->WriteVar(expr->var, NextChar::Newline);
+  return Result::Ok;
+}
+
+Result AstWriter::ExprVisitorDelegate::OnTableFillExpr(TableFillExpr* expr) {
+  writer_->WritePutsSpace(Opcode::TableFill_Opcode.GetName());
+  writer_->WriteVar(expr->var, NextChar::Newline);
+  return Result::Ok;
+}
+
+Result AstWriter::ExprVisitorDelegate::OnRefFuncExpr(RefFuncExpr* expr) {
+  writer_->WritePutsSpace(Opcode::RefFunc_Opcode.GetName());
   writer_->WriteVar(expr->var, NextChar::Newline);
   return Result::Ok;
 }
@@ -1366,13 +1380,26 @@ void AstWriter::WriteTable(const Table& table) {
 void AstWriter::WriteElemSegment(const ElemSegment& segment) {
   WriteOpenSpace("elem");
   WriteNameOrIndex(segment.name, elem_segment_index_, NextChar::Space);
-  if (segment.passive) {
-    WriteType(segment.elem_type, NextChar::Space);
-  } else {
+
+  uint8_t flags = segment.GetFlags(&module);
+
+  if (!(flags & SegPassive)) {
     WriteInitExpr(segment.offset);
   }
+
+  if (flags == SegDeclared) {
+    WritePuts("declare", NextChar::Space);
+  }
+
+  if (flags & SegUseElemExprs) {
+    WriteType(segment.elem_type, NextChar::Space);
+  } else {
+    assert(segment.elem_type == Type::Funcref);
+    WritePuts("func", NextChar::Space);
+  }
+
   for (const ElemExpr& expr : segment.elem_exprs) {
-    if (segment.passive) {
+    if (flags & SegUseElemExprs) {
       if (expr.kind == ElemExprKind::RefNull) {
         WriteOpenSpace("ref.null");
         WriteCloseSpace();
@@ -1403,7 +1430,7 @@ void AstWriter::WriteMemory(const Memory& memory) {
 void AstWriter::WriteDataSegment(const DataSegment& segment) {
   WriteOpenSpace("data");
   WriteNameOrIndex(segment.name, data_segment_index_, NextChar::Space);
-  if (!segment.passive) {
+  if (segment.kind != SegmentKind::Passive) {
     WriteInitExpr(segment.offset);
   }
   WriteQuotedData(segment.data.data(), segment.data.size());
