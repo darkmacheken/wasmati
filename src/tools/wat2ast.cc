@@ -37,6 +37,7 @@
 #include "src/wast-parser.h"
 
 using namespace wabt;
+using namespace wasmati;
 
 static int s_verbose;
 static std::string s_infile;
