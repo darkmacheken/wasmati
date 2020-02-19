@@ -78,11 +78,8 @@ static void ParseOptions(int argc, char** argv) {
 	s_features.AddOptions(&parser);
 	parser.AddOption("inline-exports", "Write all exports inline", []() { s_write_ast_options.inline_export = true; });
 	parser.AddOption("inline-imports", "Write all imports inline", []() { s_write_ast_options.inline_import = true; });
-	parser.AddOption("no-debug-names", "Ignore debug names in the binary file", []() { s_read_debug_names = false; });
 	parser.AddOption("ignore-custom-section-errors", "Ignore errors in custom sections",
 	                 []() { s_fail_on_custom_section_error = false; });
-	parser.AddOption("generate-names", "Give auto-generated names to non-named functions, types, etc.",
-	                 []() { s_generate_names = true; });
 	parser.AddOption("no-check", "Don't check for invalid modules", []() { s_validate = false; });
 	parser.AddArgument("filename", OptionParser::ArgumentCount::One, [](const char* argument) {
 		s_infile = argument;
@@ -116,9 +113,7 @@ int ProgramMain(int argc, char** argv) {
 			result = ValidateModule(module.get(), &errors, options);
 		}
 
-		if (s_generate_names) {
-			result = GenerateNames(module.get());
-		}
+		result = GenerateNames(module.get());
 
 		if (Succeeded(result)) {
 			FileStream stream(!s_outfile.empty() ? FileStream(s_outfile) : FileStream(stdout));

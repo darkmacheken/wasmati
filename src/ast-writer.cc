@@ -18,6 +18,7 @@
 #include "src/ir.h"
 #include "src/literal.h"
 #include "src/stream.h"
+#include "src/stream.h"
 
 #define WABT_TRACING 0
 #include "src/tracing.h"
@@ -25,8 +26,9 @@
 #define INDENT_SIZE 2
 #define NO_FORCE_NEWLINE 0
 #define FORCE_NEWLINE 1
+using namespace wabt;
 
-namespace wabt {
+namespace wasmati {
 
 namespace {
 
@@ -75,9 +77,9 @@ struct ExprTree {
 
 class AstWriter : ModuleContext {
  public:
-  AstWriter(Stream* stream,
+  AstWriter(wabt::Stream* stream,
             const WriteAstOptions& options,
-            const Module& module)
+            const wabt::Module& module)
       : ModuleContext(module), options_(options), stream_(stream) {}
 
   Result WriteModule();
@@ -166,7 +168,7 @@ class AstWriter : ModuleContext {
   void WriteInlineImport(ExternalKind, Index);
 
   const WriteAstOptions& options_;
-  Stream* stream_ = nullptr;
+  wabt::Stream* stream_ = nullptr;
   Result result_ = Result::Ok;
   int indent_ = 0;
   NextChar next_char_ = NextChar::None;
@@ -1678,11 +1680,11 @@ void AstWriter::WriteInlineImport(ExternalKind kind, Index index) {
 
 }  // end anonymous namespace
 
-Result WriteAst(Stream* stream,
-                const Module* module,
+Result WriteAst(wabt::Stream* stream,
+                const wabt::Module* module,
                 const WriteAstOptions& options) {
   AstWriter ast_writer(stream, options, *module);
   return ast_writer.WriteModule();
 }
 
-}  // namespace wabt
+}  // namespace wasmati 

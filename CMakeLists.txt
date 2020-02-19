@@ -4,7 +4,6 @@ project(WASM_AST VERSION 0.1.1)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_PROJECT_VERSION "${CMAKE_PROJECT_VERSION} (${GIT_VERSION})")
 
-
 option(BUILD_TESTS "Build GTest-based tests" ON)
 option(USE_SYSTEM_GTEST "Use system GTest, instead of building" OFF)
 option(BUILD_TOOLS "Build wabt commandline tools" ON)
@@ -234,6 +233,8 @@ add_library(wasm_ast STATIC
   src/config/config.cc
   src/ast-writer.h
   src/ast-writer.cc
+  src/graph.h
+  src/graph.cc
 )
 
 if (NOT EMSCRIPTEN)

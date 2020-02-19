@@ -16,9 +16,11 @@
 #include "src/stream.h"
 #include "src/validator.h"
 #include "src/wast-lexer.h"
-
+#include "src/decompiler.h"
+#include "src/graph.h"
 
 using namespace wabt;
+using namespace wasmati;
 
 static int s_verbose;
 static std::string s_infile;
@@ -44,9 +46,9 @@ examples:
 )";
 
 static void ParseOptions(int argc, char** argv) {
-	OptionParser parser("wasm2wat", s_description);
+  OptionParser parser("wasm2wat", s_description);
 
-	parser.AddOption('v', "verbose", "Use multiple times for more info", []() {
+  parser.AddOption('v', "verbose", "Use multiple times for more info", []() {
     s_verbose++;
     s_log_stream = FileStream::CreateStdout();
   });
@@ -93,7 +95,7 @@ int ProgramMain(int argc, char** argv) {
 	result = ReadFile(s_infile.c_str(), &file_data);
 	if (Succeeded(result)) {
 		Errors errors;
-		Module module;
+		wabt::Module module;
 		const bool kStopOnFirstError = true;
 		ReadBinaryOptions options(s_features, s_log_stream.get(), s_read_debug_names, kStopOnFirstError,
 		                          s_fail_on_custom_section_error);
@@ -104,9 +106,7 @@ int ProgramMain(int argc, char** argv) {
 				result = ValidateModule(&module, &errors, options);
 			}
 
-			if (s_generate_names) {
-				result = GenerateNames(&module);
-			}
+			result = GenerateNames(&module);
 
 			if (Succeeded(result)) {
 				/* TODO(binji): This shouldn't fail; if a name can't be applied
@@ -114,10 +114,16 @@ int ProgramMain(int argc, char** argv) {
 				Result dummy_result = ApplyNames(&module);
 				WABT_USE(dummy_result);
 			}
+            
+            Graph graph(&module);
+            graph.generateAST();
+            //DecompileOptions decompile_options;
+            //Decompile(module, decompile_options);
 
 			if (Succeeded(result)) {
 				FileStream stream(!s_outfile.empty() ? FileStream(s_outfile) : FileStream(stdout));
-				result = WriteAst(&stream, &module, s_write_ast_options);
+                graph.writeGraph(&stream);
+				//result = WriteAst(&stream, &module, s_write_ast_options);
 			}
 		}
 		FormatErrorsToFile(errors, Location::Type::Binary);
