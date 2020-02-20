@@ -1,0 +1,28 @@
+variables:
+  GIT_SUBMODULE_STRATEGY: recursive
+    
+build:
+    # Build the application
+    stage: build
+    tags:
+        - wasm-ast
+    script:
+        - mkdir build
+        - cd build
+        - cmake ..
+        - make
+        
+    artifacts:
+        paths:
+        - bin/
+    
+    # cache building
+    cache:
+        paths:
+            - "*.o"
+        
+# run tests using the binary built before
+#test:
+#  stage: test
+#  script:
+#    - ./runmytests.sh

@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cstdlib>
 
+
 #include "src/apply-names.h"
 #include "src/ast-writer.h"
 #include "src/binary-reader-ir.h"
@@ -15,8 +16,11 @@
 #include "src/stream.h"
 #include "src/validator.h"
 #include "src/wast-lexer.h"
+#include "src/decompiler.h"
+#include "src/graph.h"
 
 using namespace wabt;
+using namespace wasmati;
 
 static int s_verbose;
 static std::string s_infile;
@@ -48,7 +52,6 @@ static void ParseOptions(int argc, char** argv) {
     s_verbose++;
     s_log_stream = FileStream::CreateStdout();
   });
-  parser.AddHelpOption();
   parser.AddOption(
       'o', "output", "FILENAME",
       "Output file for the generated wast file, by default use stdout",
@@ -57,7 +60,7 @@ static void ParseOptions(int argc, char** argv) {
         ConvertBackslashToSlash(&s_outfile);
       });
   parser.AddOption('f', "fold-exprs", "Write folded expressions where possible",
-                   []() { s_write_ast_options.fold_exprs = true; });
+	               []() { s_write_ast_options.fold_exprs = true; });
   s_features.AddOptions(&parser);
   parser.AddOption("inline-exports", "Write all exports inline",
                    []() { s_write_ast_options.inline_export = true; });
@@ -83,52 +86,53 @@ static void ParseOptions(int argc, char** argv) {
 }
 
 int ProgramMain(int argc, char** argv) {
-  Result result;
+	Result result;
 
-  InitStdio();
-  ParseOptions(argc, argv);
+	InitStdio();
+	ParseOptions(argc, argv);
 
-  std::vector<uint8_t> file_data;
-  result = ReadFile(s_infile.c_str(), &file_data);
-  if (Succeeded(result)) {
-    Errors errors;
-    Module module;
-    const bool kStopOnFirstError = true;
-    ReadBinaryOptions options(s_features, s_log_stream.get(),
-                              s_read_debug_names, kStopOnFirstError,
-                              s_fail_on_custom_section_error);
-    result = ReadBinaryIr(s_infile.c_str(), file_data.data(), file_data.size(),
-                          options, &errors, &module);
-    if (Succeeded(result)) {
-      if (Succeeded(result) && s_validate) {
-        ValidateOptions options(s_features);
-        result = ValidateModule(&module, &errors, options);
-      }
+	std::vector<uint8_t> file_data;
+	result = ReadFile(s_infile.c_str(), &file_data);
+	if (Succeeded(result)) {
+		Errors errors;
+		wabt::Module module;
+		const bool kStopOnFirstError = true;
+		ReadBinaryOptions options(s_features, s_log_stream.get(), s_read_debug_names, kStopOnFirstError,
+		                          s_fail_on_custom_section_error);
+		result = ReadBinaryIr(s_infile.c_str(), file_data.data(), file_data.size(), options, &errors, &module);
+		if (Succeeded(result)) {
+			if (Succeeded(result) && s_validate) {
+				ValidateOptions options(s_features);
+				result = ValidateModule(&module, &errors, options);
+			}
 
-      if (s_generate_names) {
-        result = GenerateNames(&module);
-      }
+			result = GenerateNames(&module);
 
-      if (Succeeded(result)) {
-        /* TODO(binji): This shouldn't fail; if a name can't be applied
-         * (because the index is invalid, say) it should just be skipped. */
-        Result dummy_result = ApplyNames(&module);
-        WABT_USE(dummy_result);
-      }
+			if (Succeeded(result)) {
+				/* TODO(binji): This shouldn't fail; if a name can't be applied
+				 * (because the index is invalid, say) it should just be skipped. */
+				Result dummy_result = ApplyNames(&module);
+				WABT_USE(dummy_result);
+			}
+            
+            Graph graph(&module);
+            graph.generateAST();
+            //DecompileOptions decompile_options;
+            //Decompile(module, decompile_options);
 
-      if (Succeeded(result)) {
-        FileStream stream(!s_outfile.empty() ? FileStream(s_outfile)
-                                             : FileStream(stdout));
-        result = WriteAst(&stream, &module, s_write_ast_options);
-      }
-    }
-    FormatErrorsToFile(errors, Location::Type::Binary);
-  }
-  return result != Result::Ok;
+			if (Succeeded(result)) {
+				FileStream stream(!s_outfile.empty() ? FileStream(s_outfile) : FileStream(stdout));
+                graph.writeGraph(&stream);
+				//result = WriteAst(&stream, &module, s_write_ast_options);
+			}
+		}
+		FormatErrorsToFile(errors, Location::Type::Binary);
+	}
+	return result != Result::Ok;
 }
 
 int main(int argc, char** argv) {
-  WABT_TRY
-  return ProgramMain(argc, argv);
-  WABT_CATCH_BAD_ALLOC_AND_EXIT
+	WABT_TRY
+	return ProgramMain(argc, argv);
+	WABT_CATCH_BAD_ALLOC_AND_EXIT
 }

@@ -1,5 +1,7 @@
+[![pipeline status](https://turbina.gsd.inesc-id.pt:8080/pedrodaniel10/wasm-ast/badges/master/pipeline.svg)](https://turbina.gsd.inesc-id.pt:8080/pedrodaniel10/wasm-ast/commits/master)
 # wasm-ast
-This repository is a fork from [wabt](https://github.com/WebAssembly/wabt) in order to parse WAT and WASM files to get an AST.
+
+This project aims to parse WAT and WASM files and get an AST, CFG and PDG.
 
 ## Building using CMake directly (Linux and macOS)
 
@@ -95,9 +97,3 @@ So, for example, if you want to build the debug configuration on Visual Studio 2
 > cmake .. -DCMAKE_BUILD_TYPE=DEBUG -DCMAKE_INSTALL_PREFIX=..\ -G "Visual Studio 14 2015"
 > cmake --build . --config DEBUG --target install
 ```
-
-## Adding new keywords to the lexer
-
-If you want to add new keywords, you'll need to install
-[gperf](https://www.gnu.org/software/gperf/). Before you upload your PR, please
-run `make update-gperf` to update the prebuilt C++ sources in `src/prebuilt/`.

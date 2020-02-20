@@ -2,19 +2,18 @@
 #define WABT_AST_WRITER_H_
 
 #include "src/common.h"
+#include "src/stream.h"
+#include "src/ir.h"
 
-namespace wabt {
-
-struct Module;
-class Stream;
+namespace wasmati {
 
 struct WriteAstOptions {
-  bool fold_exprs = false;  // Write folded expressions.
-  bool inline_export = false;
-  bool inline_import = false;
+	bool fold_exprs = false;  // Write folded expressions.
+	bool inline_export = false;
+	bool inline_import = false;
 };
 
-Result WriteAst(Stream*, const Module*, const WriteAstOptions&);
+wabt::Result WriteAst(wabt::Stream*, const wabt::Module*, const WriteAstOptions&);
 
 }  // namespace wabt
 
