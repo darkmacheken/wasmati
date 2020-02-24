@@ -144,6 +144,9 @@ void Graph::generateAST(GenerateASTOptions options) {
 			FunctionSignature* fsign = new FunctionSignature();
 			this->insertNode(fsign);
 			new ASTEdge(func, fsign);
+
+			std::vector<std::string> localsNames;
+			getLocalsNames(f, &localsNames);
 			//// Parameters
 			Index numParameters = f->GetNumParams();
 			if (numParameters > 0) {
@@ -152,7 +155,7 @@ void Graph::generateAST(GenerateASTOptions options) {
 				new ASTEdge(fsign, parameters);
 
 				for (Index i = 0; i < numParameters; i++) {
-					NamedNode* node = new NamedNode("p" + std::to_string(i));
+					NamedNode* node = new NamedNode(localsNames[i]);
 					this->insertNode(node);
 					new ASTEdge(parameters, node);
 					TypeNode* tnode = new TypeNode(f->GetParamType(i));
@@ -168,7 +171,7 @@ void Graph::generateAST(GenerateASTOptions options) {
 				new ASTEdge(fsign, locals);
 
 				for (Index i = numParameters; i < f->GetNumParamsAndLocals(); i++) {
-					NamedNode* node = new NamedNode("l" + std::to_string(i));
+					NamedNode* node = new NamedNode(localsNames[i]);
 					this->insertNode(node);
 					new ASTEdge(locals, node);
 					TypeNode* tnode = new TypeNode(f->GetLocalType(i));
@@ -203,6 +206,17 @@ void Graph::generateAST(GenerateASTOptions options) {
 		func_index++;
 	}
 
+}
+
+void Graph::getLocalsNames(Func* f, std::vector<std::string>* names) {
+	Index size = f->GetNumParamsAndLocals();
+	names->reserve(size);
+	for (Index i = 0; i < size; i++) {
+		names->push_back("");
+	}
+	for (auto local : f->bindings) {
+		(*names)[local.second.index] = local.first;
+	}
 }
 
 void Graph::visitWabtNode(wasmati::Node* parentNode, wabt::Node* node) {

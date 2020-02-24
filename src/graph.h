@@ -259,6 +259,7 @@ private:
 
 	void writePuts(wabt::Stream* stream, const char* s);
 	void writeString(wabt::Stream* stream, const std::string& str);
+	void getLocalsNames(Func* f, std::vector<std::string>* names);
 
 public:
 	Graph(wabt::Module* mc);
