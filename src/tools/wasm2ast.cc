@@ -25,6 +25,7 @@ using namespace wasmati;
 static int s_verbose;
 static std::string s_infile;
 static std::string s_outfile;
+static GenerateASTOptions astOptions;
 static Features s_features;
 static WriteAstOptions s_write_ast_options;
 static bool s_read_debug_names = true;
@@ -58,8 +59,11 @@ static void ParseOptions(int argc, char** argv) {
         s_outfile = argument;
         ConvertBackslashToSlash(&s_outfile);
       });
-  parser.AddOption('f', "fold-exprs", "Write folded expressions where possible",
-	               []() { s_write_ast_options.fold_exprs = true; });
+  parser.AddOption('f', "function", "FUNCTIONNAME", "Output file for the given function.",
+      [](const char* argument) {
+          astOptions.funcName = argument;
+          astOptions.funcName = "$" + astOptions.funcName;
+      });
   s_features.AddOptions(&parser);
   parser.AddOption("inline-exports", "Write all exports inline",
                    []() { s_write_ast_options.inline_export = true; });
@@ -111,7 +115,7 @@ int ProgramMain(int argc, char** argv) {
 			}
             
             Graph graph(&module);
-            graph.generateAST();
+            graph.generateAST(astOptions);
 
 			if (Succeeded(result)) {
 				FileStream stream(!s_outfile.empty() ? FileStream(s_outfile) : FileStream(stdout));

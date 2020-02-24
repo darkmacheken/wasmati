@@ -112,7 +112,7 @@ void Graph::writeString(wabt::Stream* stream, const std::string& str) {
 	writePuts(stream, str.c_str());
 }
 
-void Graph::generateAST() {
+void Graph::generateAST(GenerateASTOptions options) {
 	Module* m;
 	if (_mc->module.name.empty()) {
 		m = new Module();
@@ -124,6 +124,10 @@ void Graph::generateAST() {
 	// Code
     Index func_index = 0;
     for (auto f : _mc->module.funcs) {
+		if (!options.funcName.empty() && options.funcName.compare(f->name) != 0) {
+			func_index++; 
+			continue;
+		}
 		auto isImport = _mc->module.IsImport(ExternalKind::Func, Var(func_index));
 		if (!isImport) {
 			AST ast(*_mc, f);
@@ -227,7 +231,8 @@ void Graph::visitWabtNode(wasmati::Node* parentNode, wabt::Node* node) {
 		break;
 	}
 	case wabt::NodeType::DeclInit: {
-		std::string s = Opcode::LocalSet_Opcode.GetName() + node->u.var->name();
+		std::string s = Opcode::LocalSet_Opcode.GetName();
+		s += " " + node->u.var->name();
 		Instruction<ExprType::LocalSet>* inst = 
 			new Instruction<ExprType::LocalSet>(cellRepr(s));
 		insertNode(inst);

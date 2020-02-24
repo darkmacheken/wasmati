@@ -12,15 +12,8 @@ namespace wasmati {
 
 class Edge;
 
-enum class NodeType {
-	Module,
-	Instructions,
-	Function,
-	IndexNode,
-	FunctionSignature,
-	Decl,
-	DeclInit,
-	Expr
+struct GenerateASTOptions {
+	std::string funcName;
 };
 
 class Node {
@@ -277,7 +270,7 @@ public:
 	}
 
 	inline void insertNode(Node* node) {_nodes.push_back(node);}
-	void generateAST();
+	void generateAST(GenerateASTOptions options);
 	void visitWabtNode(wasmati::Node* parentNode, wabt::Node* node);
 	wabt::Result writeGraph(wabt::Stream* stream);
 	std::string cellRepr(std::string content) {
