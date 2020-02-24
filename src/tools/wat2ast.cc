@@ -35,6 +35,8 @@
 #include "src/stream.h"
 #include "src/validator.h"
 #include "src/wast-parser.h"
+#include "src/apply-names.h"
+#include "src/graph.h"
 
 using namespace wabt;
 using namespace wasmati;
@@ -44,8 +46,6 @@ static std::string s_infile;
 static std::string s_outfile;
 static Features s_features;
 static WriteAstOptions s_write_ast_options;
-static bool s_generate_names;
-static bool s_read_debug_names = true;
 static bool s_fail_on_custom_section_error = true;
 static std::unique_ptr<FileStream> s_log_stream;
 static bool s_validate = true;
@@ -102,7 +102,7 @@ int ProgramMain(int argc, char** argv) {
 	}
 
 	Errors errors;
-	std::unique_ptr<Module> module;
+	std::unique_ptr<wabt::Module> module;
 	WastParseOptions parse_wast_options(s_features);
 	result = ParseWatModule(lexer.get(), &module, &errors, &parse_wast_options);
 
@@ -117,8 +117,19 @@ int ProgramMain(int argc, char** argv) {
 		result = GenerateNames(module.get());
 
 		if (Succeeded(result)) {
+			/* TODO(binji): This shouldn't fail; if a name can't be applied
+			 * (because the index is invalid, say) it should just be skipped. */
+			Result dummy_result = ApplyNames(module.get());
+			WABT_USE(dummy_result);
+		}	
+
+		Graph graph(module.get());
+		graph.generateAST();
+
+		if (Succeeded(result)) {
 			FileStream stream(!s_outfile.empty() ? FileStream(s_outfile) : FileStream(stdout));
-			result = WriteAst(&stream, module.get(), s_write_ast_options);
+			graph.writeGraph(&stream);
+			//result = WriteAst(&stream, module.get(), s_write_ast_options);
 		}
 	}
 
