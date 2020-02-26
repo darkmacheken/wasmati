@@ -231,10 +231,12 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/wabt)
 add_library(wasm_ast STATIC
   src/config/config.h
   src/config/config.cc
-  src/ast-writer.h
-  src/ast-writer.cc
   src/graph.h
   src/graph.cc
+  src/graph-visitor.h
+  src/graph-visitor.cc
+  src/dot-writer.h
+  src/dot-writer.cc
 )
 
 if (NOT EMSCRIPTEN)

@@ -18,6 +18,7 @@
 #include "src/wast-lexer.h"
 #include "src/decompiler.h"
 #include "src/graph.h"
+#include "src/dot-writer.h"
 
 using namespace wabt;
 using namespace wasmati;
@@ -119,7 +120,9 @@ int ProgramMain(int argc, char** argv) {
 
 			if (Succeeded(result)) {
 				FileStream stream(!s_outfile.empty() ? FileStream(s_outfile) : FileStream(stdout));
-                graph.writeGraph(&stream);
+                DotWriter writer(&stream, &graph);
+                writer.writeGraph();
+                //graph.writeGraph(&stream);
 				//result = WriteAst(&stream, &module, s_write_ast_options);
 			}
 		}
