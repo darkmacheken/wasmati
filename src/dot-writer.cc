@@ -16,15 +16,15 @@ void DotWriter::writeGraph() {
 }
 
 void DotWriter::visitASTEdge(ASTEdge* e) {
-	writeStringln(std::to_string(e->_src->getId()) + " -> " + std::to_string(e->_dest->getId()) + " [color=forestgreen]\n");
+	writeStringln(std::to_string(e->_src->getId()) + " -> " + std::to_string(e->_dest->getId()) + " [color=forestgreen]");
 }
 
 void DotWriter::visitCFGEdge(CFGEdge* e) {
-	writeStringln(std::to_string(e->_src->getId()) + " -> " + std::to_string(e->_dest->getId()) + " [color=red]\n");
+	writeStringln(std::to_string(e->_src->getId()) + " -> " + std::to_string(e->_dest->getId()) + " [color=red]");
 }
 
 void DotWriter::visitPDGEdge(PDGEdge* e) {
-	writeStringln(std::to_string(e->_src->getId()) + " -> " + std::to_string(e->_dest->getId()) + " [color=blue]\n");
+	writeStringln(std::to_string(e->_src->getId()) + " -> " + std::to_string(e->_dest->getId()) + " [color=blue]");
 }
 
 void DotWriter::visitModule(Module* mod) {
@@ -47,14 +47,9 @@ void DotWriter::visitFunction(Function* func) {
 	writeStringln(s);
 }
 
-void DotWriter::visitNamedNode(NamedNode* node) {
-	writeStringln(std::to_string(node->getId()) + " [label=<<TABLE><TR><TD>name</TD></TR><TR><TD>" +
-		node->getName() + "</TD></TR></TABLE>>];");
-}
-
 void DotWriter::visitTypeNode(TypeNode* node) {
-	std::string s = std::to_string(node->getId()) + " [label=<<TABLE><TR><TD>Type</TD></TR>";
-	s += "<TR><TD>";
+	std::string s = std::to_string(node->getId()) + " [label=<<TABLE><TR><TD>Type</TD>";
+	s += "<TD>";
 	switch (node->getType()) {
 	case wabt::Type::I32:
 		s += "i32";
@@ -72,8 +67,14 @@ void DotWriter::visitTypeNode(TypeNode* node) {
 		s += "unknown";
 		break;
 	}
-	s += "</TD></TR></TABLE>>];";
+	s += "</TD></TR>";
+
+	if (!node->getName().empty()) {
+		s += "<TR><TD>name</TD><TD>" + node->getName() + "</TD></TR>";
+	}
+	s += "</TABLE>>];";
 	writeStringln(s);
+		
 }
 
 void DotWriter::visitSimpleNode(SimpleNode* node) {

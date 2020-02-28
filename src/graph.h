@@ -67,24 +67,14 @@ public:
 	void accept(GraphVisitor* visitor) { visitor->visitFunction(this); }
 };
 
-class NamedNode : public Node {
-	std::string _name;
-public:
-	NamedNode(std::string name) : _name(name) {}
-
-	inline std::string getName() {
-		return _name;
-	}
-	
-	void accept(GraphVisitor* visitor) { visitor->visitNamedNode(this); }
-};
-
 class TypeNode : public Node {
 	Type _type;
+	std::string _name;
 public:
-	TypeNode(Type type) : _type(type) {}
+	TypeNode(Type type, std::string name = "") : _type(type), _name(name) {}
 
 	inline Type getType() { return _type; }
+	inline std::string getName() { return _name; }
 
 	void accept(GraphVisitor* visitor) { visitor->visitTypeNode(this); }
 

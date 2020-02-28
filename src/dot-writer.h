@@ -17,7 +17,6 @@ public:
 	// Nodes
 	void visitModule(Module*) override;
 	void visitFunction(Function*) override;
-	void visitNamedNode(NamedNode*) override;
 	void visitTypeNode(TypeNode*) override;
 	void visitSimpleNode(SimpleNode*) override;
 	void visitInstruction(Instruction*) override;

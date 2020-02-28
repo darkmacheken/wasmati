@@ -32,7 +32,6 @@ public:
 	// Nodes
 	virtual void visitModule(Module*) = 0;
 	virtual void visitFunction(Function*) = 0;
-	virtual void visitNamedNode(NamedNode*) = 0;
 	virtual void visitTypeNode(TypeNode*) = 0;
 	virtual void visitSimpleNode(SimpleNode*) = 0;
 	virtual void visitInstruction(Instruction*) = 0;

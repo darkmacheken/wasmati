@@ -62,12 +62,9 @@ void Graph::generateAST(GenerateASTOptions options) {
 				new ASTEdge(fsign, parameters);
 
 				for (Index i = 0; i < numParameters; i++) {
-					NamedNode* node = new NamedNode(localsNames[i]);
-					this->insertNode(node);
-					new ASTEdge(parameters, node);
-					TypeNode* tnode = new TypeNode(f->GetParamType(i));
+					TypeNode* tnode = new TypeNode(f->GetParamType(i), localsNames[i]);
 					this->insertNode(tnode);
-					new ASTEdge(node, tnode);
+					new ASTEdge(parameters, tnode);
 				}
 			}
 			//// Locals
@@ -78,12 +75,9 @@ void Graph::generateAST(GenerateASTOptions options) {
 				new ASTEdge(fsign, locals);
 
 				for (Index i = numParameters; i < f->GetNumParamsAndLocals(); i++) {
-					NamedNode* node = new NamedNode(localsNames[i]);
-					this->insertNode(node);
-					new ASTEdge(locals, node);
-					TypeNode* tnode = new TypeNode(f->GetLocalType(i));
+					TypeNode* tnode = new TypeNode(f->GetLocalType(i), localsNames[i]);
 					this->insertNode(tnode);
-					new ASTEdge(node, tnode);
+					new ASTEdge(locals, tnode);
 				}
 			}
 			//// Results
