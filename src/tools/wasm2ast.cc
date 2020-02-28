@@ -18,6 +18,7 @@
 #include "src/wast-lexer.h"
 #include "src/decompiler.h"
 #include "src/graph.h"
+#include "src/dot-writer.h"
 
 using namespace wabt;
 using namespace wasmati;
@@ -25,9 +26,9 @@ using namespace wasmati;
 static int s_verbose;
 static std::string s_infile;
 static std::string s_outfile;
+static GenerateASTOptions astOptions;
 static Features s_features;
 static WriteAstOptions s_write_ast_options;
-static bool s_generate_names;
 static bool s_read_debug_names = true;
 static bool s_fail_on_custom_section_error = true;
 static std::unique_ptr<FileStream> s_log_stream;
@@ -59,8 +60,11 @@ static void ParseOptions(int argc, char** argv) {
         s_outfile = argument;
         ConvertBackslashToSlash(&s_outfile);
       });
-  parser.AddOption('f', "fold-exprs", "Write folded expressions where possible",
-	               []() { s_write_ast_options.fold_exprs = true; });
+  parser.AddOption('f', "function", "FUNCTIONNAME", "Output file for the given function.",
+      [](const char* argument) {
+          astOptions.funcName = argument;
+          astOptions.funcName = "$" + astOptions.funcName;
+      });
   s_features.AddOptions(&parser);
   parser.AddOption("inline-exports", "Write all exports inline",
                    []() { s_write_ast_options.inline_export = true; });
@@ -71,10 +75,6 @@ static void ParseOptions(int argc, char** argv) {
   parser.AddOption("ignore-custom-section-errors",
                    "Ignore errors in custom sections",
                    []() { s_fail_on_custom_section_error = false; });
-  parser.AddOption(
-      "generate-names",
-      "Give auto-generated names to non-named functions, types, etc.",
-      []() { s_generate_names = true; });
   parser.AddOption("no-check", "Don't check for invalid modules",
                    []() { s_validate = false; });
   parser.AddArgument("filename", OptionParser::ArgumentCount::One,
@@ -116,13 +116,13 @@ int ProgramMain(int argc, char** argv) {
 			}
             
             Graph graph(&module);
-            graph.generateAST();
-            //DecompileOptions decompile_options;
-            //Decompile(module, decompile_options);
+            graph.generateAST(astOptions);
 
 			if (Succeeded(result)) {
 				FileStream stream(!s_outfile.empty() ? FileStream(s_outfile) : FileStream(stdout));
-                graph.writeGraph(&stream);
+                DotWriter writer(&stream, &graph);
+                writer.writeGraph();
+                //graph.writeGraph(&stream);
 				//result = WriteAst(&stream, &module, s_write_ast_options);
 			}
 		}

@@ -1,26 +1,18 @@
-#ifndef WABT_GRAPH_H
-#define WABT_GRAPH_H
+#ifndef WASMATI_GRAPH_H
+#define WASMATI_GRAPH_H
 #include "src/common.h"
 #include "src/ir.h"
 #include "src/ir-util.h"
-#include "src/stream.h"
-#include "src/expr-visitor.h"
 #include "src/decompiler-ast.h"
+#include "src/graph-visitor.h"
 
 using namespace wabt;
 namespace wasmati {
 
 class Edge;
 
-enum class NodeType {
-	Module,
-	Instructions,
-	Function,
-	IndexNode,
-	FunctionSignature,
-	Decl,
-	DeclInit,
-	Expr
+struct GenerateASTOptions {
+	std::string funcName;
 };
 
 class Node {
@@ -44,11 +36,9 @@ public:
 		_edges.push_back(e);
 	}
 
-	virtual std::string toString() {
-		return "";
-	}
+	virtual void accept(GraphVisitor* visitor) { assert(false); }
 
-	std::string edgesToString();
+	virtual void acceptEdges(GraphVisitor* visitor);
 };
 
 class Module : public Node {
@@ -61,7 +51,7 @@ public:
 		return _name;
 	}
 
-	std::string toString() override;
+	void accept(GraphVisitor* visitor) { visitor->visitModule(this); }
 };
 
 class Function : public Node {
@@ -74,27 +64,20 @@ public:
 		return _name;
 	}
 
-	std::string toString() override;
-};
-
-class NamedNode : public Node {
-	std::string _name;
-public:
-	NamedNode(std::string name) : _name(name) {}
-
-	inline std::string getName() {
-		return _name;
-	}
-
-	std::string toString() override;
+	void accept(GraphVisitor* visitor) { visitor->visitFunction(this); }
 };
 
 class TypeNode : public Node {
 	Type _type;
+	std::string _name;
 public:
-	TypeNode(Type type) : _type(type) {}
+	TypeNode(Type type, std::string name = "") : _type(type), _name(name) {}
 
-	std::string toString() override;
+	inline Type getType() { return _type; }
+	inline std::string getName() { return _name; }
+
+	void accept(GraphVisitor* visitor) { visitor->visitTypeNode(this); }
+
 };
 
 class SimpleNode : public Node {
@@ -102,7 +85,10 @@ class SimpleNode : public Node {
 public:
 	SimpleNode(std::string nodeName) : _nodeName(nodeName) {}
 
-	virtual std::string toString() override;
+	inline std::string getNodeName() { return _nodeName; }
+
+	virtual void accept(GraphVisitor* visitor) { visitor->visitSimpleNode(this); }
+
 };
 
 class FunctionSignature : public SimpleNode {
@@ -135,14 +121,15 @@ public:
 	Return() : SimpleNode("Return") {}
 };
 
-template <ExprType T>
 class Instruction : public Node {
 	ExprType _type;
-	std::string _representation;
-
+	const Expr* _expr;
 public:
-	Instruction(std::string representation) : _type(T), _representation(representation) {}
-	std::string toString() override;
+	Instruction(ExprType type, const Expr* expr) : _type(type), _expr(expr) {}
+
+	inline const Expr* getExpr() { return _expr; }
+
+	void accept(GraphVisitor* visitor) { visitor->visitInstruction(this); }
 };
 
 class IndexNode : public Node {
@@ -150,7 +137,9 @@ class IndexNode : public Node {
 public:
 	IndexNode(Index index) : _index(index) {}
 
-	std::string toString() override;
+	inline Index getIndex() { return _index; }
+
+	void accept(GraphVisitor* visitor) { visitor->visitIndexNode(this); }
 };
 
 struct Edge {
@@ -167,105 +156,30 @@ struct Edge {
 
 	virtual ~Edge() {}
 
-	virtual std::string toString();
-
+	virtual void accept(GraphVisitor* visitor) = 0;
 };
 
 struct ASTEdge : Edge {
 	ASTEdge(Node* src, Node* dest) : Edge(src, dest) {}
-	std::string toString();
+	void accept(GraphVisitor* visitor) { visitor->visitASTEdge(this); }
 };
 
 struct CFGEdge :  Edge {
 	CFGEdge(Node* src, Node* dest) : Edge(src, dest) {}
-	std::string toString();
+	void accept(GraphVisitor* visitor) { visitor->visitCFGEdge(this); }
 };
 
 struct PDGEdge :  Edge {
 	PDGEdge(Node* src, Node* dest) : Edge(src, dest) {}
-	std::string toString();
+	void accept(GraphVisitor* visitor) { visitor->visitPDGEdge(this); }
 };
 
 
 class Graph {
-public:
-	class ExprVisitor {
-	public:
-		explicit ExprVisitor(Graph* graph) : _graph(graph) {}
-
-		Node* visitExpr(Expr* expr);
-
-		Node* OnBinaryExpr(BinaryExpr*);
-		Node* OnBlockExpr(BlockExpr*);
-		Node* OnBrExpr(BrExpr*);
-		Node* OnBrIfExpr(BrIfExpr*);
-		Node* OnBrOnExnExpr(BrOnExnExpr*);
-		Node* OnBrTableExpr(BrTableExpr*);
-		Node* OnCallExpr(CallExpr*);
-		Node* OnCallIndirectExpr(CallIndirectExpr*);
-		Node* OnCompareExpr(CompareExpr*);
-		Node* OnConstExpr(ConstExpr*);
-		Node* OnConvertExpr(ConvertExpr*);
-		Node* OnDropExpr(DropExpr*);
-		Node* OnGlobalGetExpr(GlobalGetExpr*);
-		Node* OnGlobalSetExpr(GlobalSetExpr*);
-		Node* OnIfExpr(IfExpr*);
-		Node* OnLoadExpr(LoadExpr*);
-		Node* OnLocalGetExpr(LocalGetExpr*);
-		Node* OnLocalSetExpr(LocalSetExpr*);
-		Node* OnLocalTeeExpr(LocalTeeExpr*);
-		Node* OnLoopExpr(LoopExpr*);
-		Node* OnMemoryCopyExpr(MemoryCopyExpr*);
-		Node* OnDataDropExpr(DataDropExpr*);
-		Node* OnMemoryFillExpr(MemoryFillExpr*);
-		Node* OnMemoryGrowExpr(MemoryGrowExpr*);
-		Node* OnMemoryInitExpr(MemoryInitExpr*);
-		Node* OnMemorySizeExpr(MemorySizeExpr*);
-		Node* OnTableCopyExpr(TableCopyExpr*);
-		Node* OnElemDropExpr(ElemDropExpr*);
-		Node* OnTableInitExpr(TableInitExpr*);
-		Node* OnTableGetExpr(TableGetExpr*);
-		Node* OnTableSetExpr(TableSetExpr*);
-		Node* OnTableGrowExpr(TableGrowExpr*);
-		Node* OnTableSizeExpr(TableSizeExpr*);
-		Node* OnTableFillExpr(TableFillExpr*);
-		Node* OnRefFuncExpr(RefFuncExpr*);
-		Node* OnRefNullExpr(RefNullExpr*);
-		Node* OnRefIsNullExpr(RefIsNullExpr*);
-		Node* OnNopExpr(NopExpr*);
-		Node* OnReturnExpr(ReturnExpr*);
-		Node* OnReturnCallExpr(ReturnCallExpr*);
-		Node* OnReturnCallIndirectExpr(ReturnCallIndirectExpr*);
-		Node* OnSelectExpr(SelectExpr*);
-		Node* OnStoreExpr(StoreExpr*);
-		Node* OnUnaryExpr(UnaryExpr*);
-		Node* OnUnreachableExpr(UnreachableExpr*);
-		Node* OnTryExpr(TryExpr*);
-		Node* OnThrowExpr(ThrowExpr*);
-		Node* OnRethrowExpr(RethrowExpr*);
-		Node* OnAtomicWaitExpr(AtomicWaitExpr*);
-		Node* OnAtomicNotifyExpr(AtomicNotifyExpr*);
-		Node* OnAtomicLoadExpr(AtomicLoadExpr*);
-		Node* OnAtomicStoreExpr(AtomicStoreExpr*);
-		Node* OnAtomicRmwExpr(AtomicRmwExpr*);
-		Node* OnAtomicRmwCmpxchgExpr(AtomicRmwCmpxchgExpr*);
-		Node* OnTernaryExpr(TernaryExpr*);
-		Node* OnSimdLaneOpExpr(SimdLaneOpExpr*);
-		Node* OnSimdShuffleOpExpr(SimdShuffleOpExpr*);
-		Node* OnLoadSplatExpr(LoadSplatExpr*);
-
-	private:
-		Graph* _graph;
-	};
-
-private:
-	wabt::Stream* _stream;
 	wabt::ModuleContext* _mc;
 	std::vector<Node*> _nodes;
-	ExprVisitor _visitor;
 
-	void writePuts(wabt::Stream* stream, const char* s);
-	void writeString(wabt::Stream* stream, const std::string& str);
+	void getLocalsNames(Func* f, std::vector<std::string>* names);
 
 public:
 	Graph(wabt::Module* mc);
@@ -277,9 +191,10 @@ public:
 	}
 
 	inline void insertNode(Node* node) {_nodes.push_back(node);}
-	void generateAST();
+	inline std::vector<Node*>* getNodes() { return &_nodes; }
+
+	void generateAST(GenerateASTOptions options);
 	void visitWabtNode(wasmati::Node* parentNode, wabt::Node* node);
-	wabt::Result writeGraph(wabt::Stream* stream);
 	std::string cellRepr(std::string content) {
 		return "<TR><TD>" + content + "</TD></TR>";
 	}
@@ -290,4 +205,4 @@ public:
 
 }  // namespace wasmati
 
-#endif /* WABT_GRAPH_H*/
+#endif /* WASMATI_GRAPH_H*/
