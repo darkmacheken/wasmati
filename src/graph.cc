@@ -11,6 +11,24 @@ Node::~Node() {
 	}
 }
 
+void Node::addEdge(Edge* e) {
+	switch (e->getType()) {
+	case EdgeType::AST:
+		_hasASTEdges = e->getDest()->_hasASTEdges = true;
+		break;
+	case EdgeType::CFG:
+		_hasCFGEdges = e->getDest()->_hasCFGEdges = true;
+		break;
+	case EdgeType::PDG:
+		_hasPDGEdges = e->getDest()->_hasPDGEdges = true;
+		break;
+	default:
+		assert(false);
+		break;
+	}
+	_edges.push_back(e);
+}
+
 void Node::acceptEdges(GraphVisitor* visitor) {
 	for (Edge* e : _edges) {
 		e->accept(visitor);

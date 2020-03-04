@@ -6,22 +6,40 @@ void DotWriter::writeGraph() {
 	writePuts("digraph G {");
 	writePuts("graph [rankdir=TD];");
 	writePuts("node [shape=none];");
+	bool justOneGraph = _options.printJustAST || _options.printJustCFG || _options.printJustPDG;
 
 	for (auto const& node : *_graph->getNodes()) {
 		node->acceptEdges(this);
-		node->accept(this);
+
+		if (!justOneGraph) {
+			node->accept(this);
+		} else if (_options.printJustAST && node->hasASTEdges()){ // AST
+			node->accept(this);
+		} else if (_options.printJustCFG && node->hasCFGEdges()) { // CFG
+			node->accept(this);
+		} else if (_options.printJustPDG && node->hasPDGEdges()) { // PDG
+			node->accept(this);
+		}
 	}
 
-	setSameRank();
+	if (!justOneGraph) {
+		setSameRank();
+	}
 
 	writePuts("}");
 }
 
 void DotWriter::visitASTEdge(ASTEdge* e) {
+	if (_options.printJustCFG || _options.printJustPDG) {
+		return;
+	}
 	writeStringln(std::to_string(e->_src->getId()) + " -> " + std::to_string(e->_dest->getId()) + " [color=forestgreen]");
 }
 
 void DotWriter::visitCFGEdge(CFGEdge* e) {
+	if (_options.printJustAST || _options.printJustPDG) {
+		return;
+	}
 	if (e->_label.empty()) {
 		writeStringln(std::to_string(e->_src->getId()) + " -> " + std::to_string(e->_dest->getId()) + " [color=red]");
 	} else {
@@ -31,6 +49,9 @@ void DotWriter::visitCFGEdge(CFGEdge* e) {
 }
 
 void DotWriter::visitPDGEdge(PDGEdge* e) {
+	if (_options.printJustAST || _options.printJustCFG) {
+		return;
+	}
 	writeStringln(std::to_string(e->_src->getId()) + " -> " + std::to_string(e->_dest->getId()) + " [color=blue]");
 }
 

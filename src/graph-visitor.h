@@ -24,6 +24,13 @@ class Return;
 class IndexNode;
 class Graph;
 
+struct GenerateCPGOptions {
+	std::string funcName;
+	bool printJustAST = false;
+	bool printJustCFG = false;
+	bool printJustPDG = false;
+};
+
 class GraphVisitor {
 public:
 	// Edges
@@ -108,13 +115,15 @@ class GraphWriter : public GraphVisitor {
 protected:
 	wabt::Stream* _stream;
 	Graph* _graph;
+	GenerateCPGOptions _options;
 
 	void writePuts(const char*);
 	void writeString(const std::string&);
 	void writePutsln(const char*);
 	void writeStringln(const std::string&);
 public:
-	GraphWriter(wabt::Stream* stream, Graph* graph) : _stream(stream), _graph(graph) {}
+	GraphWriter(wabt::Stream* stream, Graph* graph, GenerateCPGOptions options) : 
+		_stream(stream), _graph(graph), _options(options) {}
 
 	virtual void writeGraph() = 0;
 };

@@ -87,6 +87,15 @@ static void ParseOptions(int argc, char** argv) {
 		s_infile = argument;
 		ConvertBackslashToSlash(&s_infile);
 	});
+	parser.AddOption("ast", "Output just the Abstract Syntax Tree", []() {
+		cpgOptions.printJustAST = true;
+	});
+	parser.AddOption("cfg", "Output just the Control Flow Graph", []() {
+		cpgOptions.printJustCFG = true;	
+	});
+	parser.AddOption("pdg", "Output just the Program Dependence Graph", []() {
+		cpgOptions.printJustPDG = true;	
+	});
 	parser.Parse(argc, argv);
 }
 
@@ -129,7 +138,7 @@ int ProgramMain(int argc, char** argv) {
 
 		if (Succeeded(result)) {
 			FileStream stream(!s_outfile.empty() ? FileStream(s_outfile) : FileStream(stdout));
-			DotWriter writer(&stream, &graph);
+			DotWriter writer(&stream, &graph, cpgOptions);
 			writer.writeGraph();
 		}
 	}

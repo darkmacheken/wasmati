@@ -17,17 +17,16 @@ enum class EdgeType {
 	PDG
 };
 
-struct GenerateCPGOptions {
-	std::string funcName;
-};
-
 class Node {
 	static int idCount;
 	std::vector<Edge*> _edges;
+	bool _hasASTEdges;
+	bool _hasCFGEdges;
+	bool _hasPDGEdges;
 public:
 	int _id;
 
-	explicit Node() : _id(idCount++) {}
+	explicit Node() : _id(idCount++) { _hasCFGEdges = false; }
 	virtual ~Node();
 
 	inline int getId() {
@@ -42,9 +41,11 @@ public:
 		return _edges.size();
 	}
 
-	inline void addEdge(Edge* e) {
-		_edges.push_back(e);
-	}
+	void addEdge(Edge* e);
+
+	inline bool hasASTEdges() { return _hasASTEdges; }
+	inline bool hasCFGEdges() { return _hasCFGEdges; }
+	inline bool hasPDGEdges() { return _hasPDGEdges; }
 
 	virtual void accept(GraphVisitor* visitor) { assert(false); }
 

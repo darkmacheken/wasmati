@@ -7,7 +7,8 @@ namespace wasmati {
 class DotWriter : public GraphWriter {
 	std::vector<std::vector<int>*> _depth;
 public:
-	DotWriter(wabt::Stream* stream, Graph* graph) : GraphWriter(stream, graph) {}
+	DotWriter(wabt::Stream* stream, Graph* graph, GenerateCPGOptions options) : 
+		GraphWriter(stream, graph, options) {}
 	void writeGraph() override;
 
 	// Edges
