@@ -5,7 +5,6 @@
 
 
 #include "src/apply-names.h"
-#include "src/ast-writer.h"
 #include "src/binary-reader-ir.h"
 #include "src/binary-reader.h"
 #include "src/error-formatter.h"
@@ -26,9 +25,8 @@ using namespace wasmati;
 static int s_verbose;
 static std::string s_infile;
 static std::string s_outfile;
-static GenerateASTOptions astOptions;
+static GenerateCPGOptions cpgOptions;
 static Features s_features;
-static WriteAstOptions s_write_ast_options;
 static bool s_read_debug_names = true;
 static bool s_fail_on_custom_section_error = true;
 static std::unique_ptr<FileStream> s_log_stream;
@@ -40,10 +38,10 @@ static const char s_description[] =
 
 examples:
   # parse binary file test.wasm and write text file test.wast
-  $ wasm2wat test.wasm -o test.wat
+  $ wasm2cpg test.wasm -o test.wat
 
   # parse test.wasm, write test.wat, but ignore the debug names, if any
-  $ wasm2wat test.wasm --no-debug-names -o test.wat
+  $ wasm2cpg test.wasm --no-debug-names -o test.wat
 )";
 
 static void ParseOptions(int argc, char** argv) {
@@ -62,14 +60,10 @@ static void ParseOptions(int argc, char** argv) {
       });
   parser.AddOption('f', "function", "FUNCTIONNAME", "Output file for the given function.",
       [](const char* argument) {
-          astOptions.funcName = argument;
-          astOptions.funcName = "$" + astOptions.funcName;
+          cpgOptions.funcName = argument;
+          cpgOptions.funcName = "$" + cpgOptions.funcName;
       });
   s_features.AddOptions(&parser);
-  parser.AddOption("inline-exports", "Write all exports inline",
-                   []() { s_write_ast_options.inline_export = true; });
-  parser.AddOption("inline-imports", "Write all imports inline",
-                   []() { s_write_ast_options.inline_import = true; });
   parser.AddOption("no-debug-names", "Ignore debug names in the binary file",
                    []() { s_read_debug_names = false; });
   parser.AddOption("ignore-custom-section-errors",
@@ -116,14 +110,12 @@ int ProgramMain(int argc, char** argv) {
 			}
             
             Graph graph(&module);
-            graph.generateAST(astOptions);
+            graph.generateCPG(cpgOptions);
 
 			if (Succeeded(result)) {
 				FileStream stream(!s_outfile.empty() ? FileStream(s_outfile) : FileStream(stdout));
                 DotWriter writer(&stream, &graph);
                 writer.writeGraph();
-                //graph.writeGraph(&stream);
-				//result = WriteAst(&stream, &module, s_write_ast_options);
 			}
 		}
 		FormatErrorsToFile(errors, Location::Type::Binary);

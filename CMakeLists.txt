@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0.0)
-project(WASM_AST VERSION 0.1.1)
+project(WASMATI VERSION 0.1.1)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_PROJECT_VERSION "${CMAKE_PROJECT_VERSION} (${GIT_VERSION})")
@@ -72,11 +72,11 @@ ELSE()
 ENDIF()
 
 configure_file(
-  ${WASM_AST_SOURCE_DIR}/src/config/config.h.in
-  ${WASM_AST_BINARY_DIR}/config.h
+  ${WASMATI_SOURCE_DIR}/src/config/config.h.in
+  ${WASMATI_BINARY_DIR}/config.h
 )
 
-include_directories(${WASM_AST_SOURCE_DIR} ${WASM_AST_BINARY_DIR})
+include_directories(${WASMATI_SOURCE_DIR} ${WASMATI_BINARY_DIR})
 
 if (COMPILER_IS_MSVC)
   # disable warning C4018: signed/unsigned mismatch
@@ -133,16 +133,16 @@ else ()
   if (NOT EMSCRIPTEN)
     # try to get the target architecture by compiling a dummy.c file and
     # checking the architecture using the file command.
-    file(WRITE ${WASM_AST_BINARY_DIR}/dummy.c "main(){}")
+    file(WRITE ${WASMATI_BINARY_DIR}/dummy.c "main(){}")
     try_compile(
       COMPILE_OK
-      ${WASM_AST_BINARY_DIR}
-      ${WASM_AST_BINARY_DIR}/dummy.c
-      COPY_FILE ${WASM_AST_BINARY_DIR}/dummy
+      ${WASMATI_BINARY_DIR}
+      ${WASMATI_BINARY_DIR}/dummy.c
+      COPY_FILE ${WASMATI_BINARY_DIR}/dummy
     )
     if (COMPILE_OK)
       execute_process(
-        COMMAND file ${WASM_AST_BINARY_DIR}/dummy
+        COMMAND file ${WASMATI_BINARY_DIR}/dummy
         RESULT_VARIABLE FILE_RESULT
         OUTPUT_VARIABLE FILE_OUTPUT
         ERROR_QUIET
@@ -191,7 +191,7 @@ SANITIZER(USE_LSAN "-fsanitize=leak")
 if (USE_UBSAN)
   # -fno-sanitize-recover was deprecated, see if we are compiling with a newer
   # clang that requires -fno-sanitize-recover=all.
-  set(UBSAN_BLACKLIST ${WASM_AST_SOURCE_DIR}/ubsan.blacklist)
+  set(UBSAN_BLACKLIST ${WASMATI_SOURCE_DIR}/ubsan.blacklist)
   include(CheckCXXCompilerFlag)
   CHECK_CXX_COMPILER_FLAG("-fsanitize=undefined -fno-sanitize-recover -Wall -Werror" HAS_UBSAN_RECOVER_BARE)
   if (HAS_UBSAN_RECOVER_BARE)
@@ -206,7 +206,7 @@ if (USE_UBSAN)
   endif ()
 endif ()
 
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${WASM_AST_SOURCE_DIR}/cmake)
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${WASMATI_SOURCE_DIR}/cmake)
 
 add_custom_target(everything_wasm)
 
@@ -228,7 +228,7 @@ endif()
 add_subdirectory(third_party/wabt)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/wabt)
 
-add_library(wasm_ast STATIC
+add_library(wasmati STATIC
   src/config/config.h
   src/config/config.cc
   src/graph.h
@@ -237,6 +237,8 @@ add_library(wasm_ast STATIC
   src/graph-visitor.cc
   src/dot-writer.h
   src/dot-writer.cc
+  src/cfg-visitor.h
+  src/cfg-visitor.cc
 )
 
 if (NOT EMSCRIPTEN)
@@ -249,11 +251,11 @@ if (NOT EMSCRIPTEN)
     endif ()
   endif ()
 
-  function(wasm_ast_executable)
+  function(wasmati_executable)
     cmake_parse_arguments(EXE "WITH_LIBM;INSTALL" "NAME" "SOURCES;LIBS" ${ARGN})
 
     # Always link libwabt.
-    set(EXE_LIBS "${EXE_LIBS};wasm_ast")
+    set(EXE_LIBS "${EXE_LIBS};wasmati")
 
     # Optionally link libm.
     if (EXE_WITH_LIBM AND (COMPILER_IS_CLANG OR COMPILER_IS_GNU))
@@ -267,29 +269,29 @@ if (NOT EMSCRIPTEN)
     set_property(TARGET ${EXE_NAME} PROPERTY CXX_STANDARD_REQUIRED ON)
 
     if (EXE_INSTALL)
-      list(APPEND WASM_AST_EXECUTABLES ${EXE_NAME})
-      set(WASM_AST_EXECUTABLES ${WASM_AST_EXECUTABLES} PARENT_SCOPE)
+      list(APPEND WASMATI_EXECUTABLES ${EXE_NAME})
+      set(WASMATI_EXECUTABLES ${WASMATI_EXECUTABLES} PARENT_SCOPE)
 
       add_custom_target(${EXE_NAME}-copy-to-bin ALL
-        COMMAND ${CMAKE_COMMAND} -E make_directory ${WASM_AST_SOURCE_DIR}/bin
-        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${EXE_NAME}> ${WASM_AST_SOURCE_DIR}/bin
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${WASMATI_SOURCE_DIR}/bin
+        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${EXE_NAME}> ${WASMATI_SOURCE_DIR}/bin
         DEPENDS ${EXE_NAME}
       )
     endif ()
   endfunction()
 
   if (BUILD_TOOLS)
-    # wasm2ast
-    wasm_ast_executable(
-      NAME wasm2ast
-      SOURCES src/tools/wasm2ast.cc
+    # wasm2cpg
+    wasmati_executable(
+      NAME wasm2cpg
+      SOURCES src/tools/wasm2cpg.cc
       INSTALL
     )
 
-    # wat2ast
-    wasm_ast_executable(
-      NAME wat2ast
-      SOURCES src/tools/wat2ast.cc
+    # wat2cpg
+    wasmati_executable(
+      NAME wat2cpg
+      SOURCES src/tools/wat2cpg.cc
       INSTALL
     )
   endif ()

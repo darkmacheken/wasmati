@@ -23,7 +23,6 @@
 
 #include "config.h"
 
-#include "src/ast-writer.h"
 #include "src/common.h"
 #include "src/error-formatter.h"
 #include "src/feature.h"
@@ -45,16 +44,15 @@ using namespace wasmati;
 static int s_verbose;
 static std::string s_infile;
 static std::string s_outfile;
-static GenerateASTOptions astOptions;
+static GenerateCPGOptions cpgOptions;
 static Features s_features;
-static WriteAstOptions s_write_ast_options;
 static bool s_fail_on_custom_section_error = true;
 static std::unique_ptr<FileStream> s_log_stream;
 static bool s_validate = true;
 
 static const char s_description[] =
-    R"(  Read a file in the WebAssembly binary format, and convert it to
-  the WebAssembly text format.
+    R"(  Read a file in the WebAssembly text format, and convert it to
+  the Code Property Graph.
 
 examples:
   # parse binary file test.wasm and write text file test.wast
@@ -78,12 +76,10 @@ static void ParseOptions(int argc, char** argv) {
 	                 });
 	parser.AddOption('f', "function", "FUNCTIONNAME", "Output file for the given function.",
 		[](const char* argument) {
-			astOptions.funcName = argument;
-			astOptions.funcName = "$" + astOptions.funcName;
+			cpgOptions.funcName = argument;
+			cpgOptions.funcName = "$" + cpgOptions.funcName;
 		});
 	s_features.AddOptions(&parser);
-	parser.AddOption("inline-exports", "Write all exports inline", []() { s_write_ast_options.inline_export = true; });
-	parser.AddOption("inline-imports", "Write all imports inline", []() { s_write_ast_options.inline_import = true; });
 	parser.AddOption("ignore-custom-section-errors", "Ignore errors in custom sections",
 	                 []() { s_fail_on_custom_section_error = false; });
 	parser.AddOption("no-check", "Don't check for invalid modules", []() { s_validate = false; });
@@ -129,14 +125,12 @@ int ProgramMain(int argc, char** argv) {
 		}	
 
 		Graph graph(module.get());
-		graph.generateAST(astOptions);
+		graph.generateCPG(cpgOptions);
 
 		if (Succeeded(result)) {
 			FileStream stream(!s_outfile.empty() ? FileStream(s_outfile) : FileStream(stdout));
 			DotWriter writer(&stream, &graph);
 			writer.writeGraph();
-			//graph.writeGraph(&stream);
-			//result = WriteAst(&stream, module.get(), s_write_ast_options);
 		}
 	}
 

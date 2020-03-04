@@ -11,7 +11,13 @@ namespace wasmati {
 
 class Edge;
 
-struct GenerateASTOptions {
+enum class EdgeType {
+	AST,
+	CFG,
+	PDG
+};
+
+struct GenerateCPGOptions {
 	std::string funcName;
 };
 
@@ -30,6 +36,10 @@ public:
 
 	inline std::vector<Edge*> getEdges() {
 		return _edges;
+	}
+
+	inline int getNumEdges() {
+		return _edges.size();
 	}
 
 	inline void addEdge(Edge* e) {
@@ -99,6 +109,8 @@ public:
 class Instructions : public SimpleNode {
 public:
 	Instructions() : SimpleNode("Instructions") {}
+
+	virtual void accept(GraphVisitor* visitor) { visitor->visitInstructions(this); }
 };
 
 class Parameters : public SimpleNode {
@@ -119,15 +131,17 @@ public:
 class Return : public SimpleNode {
 public:
 	Return() : SimpleNode("Return") {}
+
+	virtual void accept(GraphVisitor* visitor) { visitor->visitReturn(this); }
 };
 
 class Instruction : public Node {
 	ExprType _type;
-	const Expr* _expr;
+	Expr* _expr;
 public:
-	Instruction(ExprType type, const Expr* expr) : _type(type), _expr(expr) {}
+	Instruction(ExprType type, Expr* expr) : _type(type), _expr(expr) {}
 
-	inline const Expr* getExpr() { return _expr; }
+	inline Expr* getExpr() { return _expr; }
 
 	void accept(GraphVisitor* visitor) { visitor->visitInstruction(this); }
 };
@@ -145,13 +159,18 @@ public:
 struct Edge {
 	Node* _src;
 	Node* _dest;
+	EdgeType _type;
 
-	Edge(Node* src, Node* dest) : _src(src), _dest(dest) {
+	Edge(Node* src, Node* dest, EdgeType type) : _src(src), _dest(dest), _type(type) {
 		src->addEdge(this);
 	}
 
 	inline Node* getDest() {
 		return _dest;
+	}
+
+	inline EdgeType getType() {
+		return _type;
 	}
 
 	virtual ~Edge() {}
@@ -160,17 +179,20 @@ struct Edge {
 };
 
 struct ASTEdge : Edge {
-	ASTEdge(Node* src, Node* dest) : Edge(src, dest) {}
+	ASTEdge(Node* src, Node* dest) : Edge(src, dest, EdgeType::AST) {}
 	void accept(GraphVisitor* visitor) { visitor->visitASTEdge(this); }
 };
 
 struct CFGEdge :  Edge {
-	CFGEdge(Node* src, Node* dest) : Edge(src, dest) {}
+	std::string _label;
+
+	CFGEdge(Node* src, Node* dest) : Edge(src, dest, EdgeType::CFG) {}
+	CFGEdge(Node* src, Node* dest, std::string label) : Edge(src, dest, EdgeType::CFG), _label(label) {}
 	void accept(GraphVisitor* visitor) { visitor->visitCFGEdge(this); }
 };
 
 struct PDGEdge :  Edge {
-	PDGEdge(Node* src, Node* dest) : Edge(src, dest) {}
+	PDGEdge(Node* src, Node* dest) : Edge(src, dest, EdgeType::PDG) {}
 	void accept(GraphVisitor* visitor) { visitor->visitPDGEdge(this); }
 };
 
@@ -180,6 +202,8 @@ class Graph {
 	std::vector<Node*> _nodes;
 
 	void getLocalsNames(Func* f, std::vector<std::string>* names);
+	void generateAST(GenerateCPGOptions options);
+	void generateCFG(GenerateCPGOptions options);
 
 public:
 	Graph(wabt::Module* mc);
@@ -193,13 +217,11 @@ public:
 	inline void insertNode(Node* node) {_nodes.push_back(node);}
 	inline std::vector<Node*>* getNodes() { return &_nodes; }
 
-	void generateAST(GenerateASTOptions options);
 	void visitWabtNode(wasmati::Node* parentNode, wabt::Node* node);
+	void generateCPG(GenerateCPGOptions options);
 	std::string cellRepr(std::string content) {
 		return "<TR><TD>" + content + "</TD></TR>";
 	}
-	std::string writeConst(const Const& const_);
-
 };
 
 

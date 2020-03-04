@@ -18,7 +18,9 @@ class Function;
 class NamedNode;
 class TypeNode;
 class SimpleNode;
+class Instructions;
 class Instruction;
+class Return;
 class IndexNode;
 class Graph;
 
@@ -34,6 +36,8 @@ public:
 	virtual void visitFunction(Function*) = 0;
 	virtual void visitTypeNode(TypeNode*) = 0;
 	virtual void visitSimpleNode(SimpleNode*) = 0;
+	virtual void visitInstructions(Instructions*) = 0;
+	virtual void visitReturn(Return*) = 0;
 	virtual void visitInstruction(Instruction*) = 0;
 	virtual void visitIndexNode(IndexNode*) = 0;
 

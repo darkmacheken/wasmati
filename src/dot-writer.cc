@@ -12,6 +12,8 @@ void DotWriter::writeGraph() {
 		node->accept(this);
 	}
 
+	setSameRank();
+
 	writePuts("}");
 }
 
@@ -20,7 +22,12 @@ void DotWriter::visitASTEdge(ASTEdge* e) {
 }
 
 void DotWriter::visitCFGEdge(CFGEdge* e) {
-	writeStringln(std::to_string(e->_src->getId()) + " -> " + std::to_string(e->_dest->getId()) + " [color=red]");
+	if (e->_label.empty()) {
+		writeStringln(std::to_string(e->_src->getId()) + " -> " + std::to_string(e->_dest->getId()) + " [color=red]");
+	} else {
+		writeStringln(std::to_string(e->_src->getId()) + " -> " + std::to_string(e->_dest->getId()) + 
+			" [label=\"" + e->_label + "\"color=red]");
+	}
 }
 
 void DotWriter::visitPDGEdge(PDGEdge* e) {
@@ -82,6 +89,10 @@ void DotWriter::visitSimpleNode(SimpleNode* node) {
 		"</TD></TR></TABLE>>];");
 }
 
+void DotWriter::visitInstructions(Instructions* node) {
+	visitSimpleNode(node);
+}
+
 void DotWriter::visitIndexNode(IndexNode* node) {
 	writeStringln(std::to_string(node->getId()) + " [label=<<TABLE><TR><TD>Index</TD></TR>" +
 		"<TR><TD>" + std::to_string(node->getIndex()) + "</TD></TR></TABLE>>];");
@@ -91,6 +102,10 @@ void DotWriter::visitInstruction(Instruction* inst) {
 	writeString(std::to_string(inst->getId()) + " [label=<<TABLE><TR><TD>");
 	visitExpr(const_cast<Expr*>(inst->getExpr()));
 	writeStringln("</TD></TR></TABLE>>];");
+}
+
+void DotWriter::visitReturn(Return* expr) {
+	visitSimpleNode(expr);
 }
 
 void DotWriter::OnBinaryExpr(BinaryExpr* expr) {
@@ -385,6 +400,31 @@ std::string DotWriter::writeConst(const Const& const_) {
 		break;
 	}
 	return s;
+}
+
+void DotWriter::setSameRank() {
+	setDepth(_graph->getNodes()->front(), 0);
+
+	for (auto v : _depth) {
+		writePuts("{rank = same; ");
+		for (auto id : *v) {
+			writeString(std::to_string(id) + "; ");
+		}
+		writePutsln("}");
+		delete v;
+	}
+}
+
+void DotWriter::setDepth(Node* node, Index depth) {
+	if (_depth.size() <= depth) {
+		_depth.push_back(new std::vector<int>());
+	}
+	_depth[depth]->push_back(node->getId());
+	for (auto e : node->getEdges()) {
+		if (e->getType() == EdgeType::AST) {
+			setDepth(e->getDest(), depth + 1);
+		}
+	}
 }
 
 

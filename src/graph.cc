@@ -1,4 +1,5 @@
 #include "src/graph.h"
+#include "src/cfg-visitor.h"
 
 namespace wasmati {
 
@@ -18,8 +19,12 @@ void Node::acceptEdges(GraphVisitor* visitor) {
 
 Graph::Graph(wabt::Module* mc) : _mc(new ModuleContext(*mc)){}
 
+void Graph::generateCPG(GenerateCPGOptions options) {
+	generateAST(options);
+	generateCFG(options);
+}
 
-void Graph::generateAST(GenerateASTOptions options) {
+void Graph::generateAST(GenerateCPGOptions options) {
 	Module* m;
 	if (_mc->module.name.empty()) {
 		m = new Module();
@@ -109,6 +114,11 @@ void Graph::generateAST(GenerateASTOptions options) {
 
 }
 
+void Graph::generateCFG(GenerateCPGOptions options) {
+	CFGvisitor visitor;
+	_nodes[0]->accept(&visitor);
+}
+
 void Graph::getLocalsNames(Func* f, std::vector<std::string>* names) {
 	Index size = f->GetNumParamsAndLocals();
 	names->reserve(size);
@@ -138,7 +148,7 @@ void Graph::visitWabtNode(wasmati::Node* parentNode, wabt::Node* node) {
 	}
 	case wabt::NodeType::Expr: {
 		size_t nextId = _nodes.size();
-		Instruction* inst = new Instruction(node->etype, node->e);
+		Instruction* inst = new Instruction(node->etype, const_cast<Expr*>(node->e));
 		this->insertNode(inst);
 		new ASTEdge(parentNode, _nodes[nextId]);
 		for (wabt::Node& n : node->children) {

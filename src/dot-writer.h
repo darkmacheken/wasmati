@@ -5,6 +5,7 @@
 namespace wasmati {
 
 class DotWriter : public GraphWriter {
+	std::vector<std::vector<int>*> _depth;
 public:
 	DotWriter(wabt::Stream* stream, Graph* graph) : GraphWriter(stream, graph) {}
 	void writeGraph() override;
@@ -19,7 +20,9 @@ public:
 	void visitFunction(Function*) override;
 	void visitTypeNode(TypeNode*) override;
 	void visitSimpleNode(SimpleNode*) override;
+	void visitInstructions(Instructions*) override;
 	void visitInstruction(Instruction*) override;
+	void visitReturn(Return*) override;
 	void visitIndexNode(IndexNode*) override;
 
 private:
@@ -84,6 +87,8 @@ private:
 	void OnLoadSplatExpr(LoadSplatExpr*) override;
 
 	std::string writeConst(const Const& const_);
+	void setSameRank();
+	void setDepth(Node* node, Index depth);
 };
 
 } // namespace wasmati
