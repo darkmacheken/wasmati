@@ -73,6 +73,10 @@ void CFGvisitor::OnBlockExpr(BlockExpr* block) {
 	}
 	edges[i]->accept(this);
 
+	if (!_lastInstruction->hasOutCFGEdges()) {
+		new CFGEdge(_lastInstruction, _currentInstruction.top());
+	}
+
 	_lastInstruction = _currentInstruction.top();
 	_blocks.pop_front();
 }
@@ -94,6 +98,19 @@ void CFGvisitor::OnBrOnExnExpr(BrOnExnExpr*) {
 }
 void CFGvisitor::OnBrTableExpr(BrTableExpr* expr) {
 	visitArity1();
+	for (Index i = 0; i < expr->targets.size(); i++) {
+		for (auto block : _blocks) {
+			if (block.first.compare(expr->targets[i].name()) == 0) {
+				new CFGEdge(_currentInstruction.top(), block.second, std::to_string(i));
+			}
+		}
+	}
+
+	for (auto block : _blocks) {
+		if (block.first.compare(expr->default_target.name()) == 0) {
+			new CFGEdge(_currentInstruction.top(), block.second, "default");
+		}
+	}
 }
 void CFGvisitor::OnCallExpr(CallExpr*)
 {

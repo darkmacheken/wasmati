@@ -29,6 +29,15 @@ void Node::addEdge(Edge* e) {
 	_edges.push_back(e);
 }
 
+bool Node::hasOutCFGEdges() {
+	for (auto e : _edges) {
+		if (e->getType() == EdgeType::CFG) {
+			return true;
+		}
+	}
+	return false;
+}
+
 void Node::acceptEdges(GraphVisitor* visitor) {
 	for (Edge* e : _edges) {
 		e->accept(visitor);

@@ -46,6 +46,7 @@ public:
 	inline bool hasASTEdges() { return _hasASTEdges; }
 	inline bool hasCFGEdges() { return _hasCFGEdges; }
 	inline bool hasPDGEdges() { return _hasPDGEdges; }
+	bool hasOutCFGEdges();
 
 	virtual void accept(GraphVisitor* visitor) { assert(false); }
 
