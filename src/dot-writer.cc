@@ -89,7 +89,7 @@ void DotWriter::visitTypeNode(TypeNode* node) {
 		s += "f32";
 		break;
 	case wabt::Type::F64:
-		s += "i64";
+		s += "f64";
 		break;
 	default:
 		s += "unknown";
@@ -144,7 +144,7 @@ void DotWriter::OnBrExpr(BrExpr* expr) {
 }
 
 void DotWriter::OnBrIfExpr(BrIfExpr* expr) {
-	writeString(Opcode::Br_Opcode.GetName());
+	writeString(Opcode::BrIf_Opcode.GetName());
 	writeString(" " + expr->var.name());
 }
 

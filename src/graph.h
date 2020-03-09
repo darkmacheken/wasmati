@@ -37,6 +37,10 @@ public:
 		return _edges;
 	}
 
+	inline Edge* getEdge(Index i) {
+		return _edges[i];
+	}
+
 	inline int getNumEdges() {
 		return _edges.size();
 	}
