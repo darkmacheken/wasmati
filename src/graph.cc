@@ -135,6 +135,13 @@ void Graph::generateAST(GenerateCPGOptions options) {
 				visitWabtNode(inst, &n);
 			}
 
+			// Add return node if none
+			if (f->GetNumResults() == 0) {
+				Return* ret = new Return();
+				this->insertNode(ret);
+				new ASTEdge(inst, ret);
+			}
+
 		}
 		func_index++;
 	}

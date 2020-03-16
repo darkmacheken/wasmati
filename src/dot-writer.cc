@@ -314,6 +314,7 @@ void DotWriter::OnReturnCallIndirectExpr(ReturnCallIndirectExpr*) {
 }
 
 void DotWriter::OnSelectExpr(SelectExpr*) {
+	//TODO: Implement
 	assert(false);
 }
 
@@ -330,6 +331,7 @@ void DotWriter::OnUnreachableExpr(UnreachableExpr*) {
 }
 
 void DotWriter::OnTryExpr(TryExpr*) {
+	// TODO: Implement
 	assert(false);
 }
 

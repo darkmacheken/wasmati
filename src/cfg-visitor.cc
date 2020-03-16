@@ -38,9 +38,19 @@ void CFGvisitor::visitInstructions(Instructions* insts) {
 	int i;
 	for (i = 0; i < numInst - 1; i++) {
 		edges[i]->accept(this);
-		if (_lastBrIf != nullptr) {
+		if (_lastInstruction->getType() == ExprType::BrIf) {
 			new CFGEdge(_lastInstruction, getLeftMostLeaf(edges[i + 1]->getDest()), "false");
-			_lastBrIf = nullptr;
+		} else if (_lastInstruction->getType() == ExprType::If) {
+			Node* nextLeftMost = getLeftMostLeaf(edges[i + 1]->getDest());
+			if (_lastInstruction->getNumEdges() == 2) {
+				new CFGEdge(_lastInstruction->getEdge(0)->getDest(), nextLeftMost, "false");
+				new CFGEdge(_lastInstruction->getEdge(1)->getDest(), nextLeftMost);
+			} else if (_lastInstruction->getNumEdges() == 3) {
+				new CFGEdge(_lastInstruction->getEdge(1)->getDest(), nextLeftMost);
+				new CFGEdge(_lastInstruction->getEdge(2)->getDest(), nextLeftMost);
+			} else {
+				assert(false);
+			}
 		} else {
 			new CFGEdge(_lastInstruction, getLeftMostLeaf(edges[i + 1]->getDest()));
 		}
@@ -80,19 +90,43 @@ void CFGvisitor::OnBlockExpr(BlockExpr* block) {
 	int i;
 	for (i = 0; i < numExprs - 1; i++) {
 		edges[i]->accept(this);
-		if (_lastBrIf != nullptr) {
+		if (_lastInstruction->getType() == ExprType::BrIf) {
 			new CFGEdge(_lastInstruction, getLeftMostLeaf(edges[i + 1]->getDest()), "false");
-			_lastBrIf = nullptr;
+		} else if (_lastInstruction->getType() == ExprType::If) {
+			Node* nextLeftMost = getLeftMostLeaf(edges[i + 1]->getDest());
+			if (_lastInstruction->getNumEdges() == 2) {
+				new CFGEdge(_lastInstruction->getEdge(0)->getDest(), nextLeftMost, "false");
+				new CFGEdge(_lastInstruction->getEdge(1)->getDest(), nextLeftMost);
+			} else if (_lastInstruction->getNumEdges() == 3) {
+				new CFGEdge(_lastInstruction->getEdge(1)->getDest(), nextLeftMost);
+				new CFGEdge(_lastInstruction->getEdge(2)->getDest(), nextLeftMost);
+			} else {
+				assert(false);
+			}
 		} else {
 			new CFGEdge(_lastInstruction, getLeftMostLeaf(edges[i + 1]->getDest()));
 		}
 	}
 	edges[i]->accept(this);
 
-	if (_lastBrIf != nullptr) {
-		new CFGEdge(_lastBrIf, _currentInstruction.top(), "false");
-		_lastBrIf = nullptr;
-	} else if (!_lastInstruction->hasOutCFGEdges()) {
+	// Last instruction of the block
+	if (_lastInstruction->getType() == ExprType::BrIf) {
+		new CFGEdge(_lastInstruction, _currentInstruction.top(), "false");
+	} else if (_lastInstruction->getType() == ExprType::Br) {
+		// Do nothing
+	} else if (_lastInstruction->getType() == ExprType::BrTable) {
+		// Do nothing
+	} else if (_lastInstruction->getType() == ExprType::If) {
+		if (_lastInstruction->getNumEdges() == 2) {
+			new CFGEdge(_lastInstruction->getEdge(0)->getDest(), _currentInstruction.top(), "false");
+			new CFGEdge(_lastInstruction->getEdge(1)->getDest(), _currentInstruction.top());
+		} else if (_lastInstruction->getNumEdges() == 3) {
+			new CFGEdge(_lastInstruction->getEdge(1)->getDest(), _currentInstruction.top());
+			new CFGEdge(_lastInstruction->getEdge(2)->getDest(), _currentInstruction.top());
+		} else {
+			assert(false);
+		}
+	} else {
 		new CFGEdge(_lastInstruction, _currentInstruction.top());
 	}
 
@@ -104,6 +138,7 @@ void CFGvisitor::OnBrExpr(BrExpr* expr) {
 	for (auto p : _blocks) {
 		if (target.compare(p.first) == 0) {
 			new CFGEdge(_currentInstruction.top(), p.second);
+			_lastInstruction = _currentInstruction.top();
 			return;
 		}
 	}
@@ -117,7 +152,7 @@ void CFGvisitor::OnBrIfExpr(BrIfExpr* expr) {
 			break;
 		}
 	}
-	_lastBrIf = _currentInstruction.top();
+	_lastInstruction = _currentInstruction.top();
 }
 
 void CFGvisitor::OnBrOnExnExpr(BrOnExnExpr*) {
@@ -167,6 +202,29 @@ void CFGvisitor::OnGlobalSetExpr(GlobalSetExpr*) {
 }
 
 void CFGvisitor::OnIfExpr(IfExpr*) {
+	Index numChildren = _currentInstruction.top()->getNumEdges();
+	if (numChildren < 2 || numChildren > 3) {
+		assert(false);
+	}
+	Node* condition = _currentInstruction.top()->getEdge(0)->getDest();
+	Node* trueBlock = _currentInstruction.top()->getEdge(1)->getDest();
+
+	// Visit condition
+	condition->accept(this);
+	new CFGEdge(condition, getLeftMostLeaf(trueBlock), "true");
+
+	// Visit True Block
+	trueBlock->accept(this);
+
+	if (numChildren == 3) {
+		Node* falseBlock = _currentInstruction.top()->getEdge(2)->getDest();
+		new CFGEdge(condition, getLeftMostLeaf(falseBlock), "false");
+		
+		// Visit False Block
+		falseBlock->accept(this);
+	}
+
+	_lastInstruction = _currentInstruction.top();
 }
 
 void CFGvisitor::OnLoadExpr(LoadExpr*) {
@@ -314,9 +372,8 @@ void CFGvisitor::visitArity1() {
 
 	Node* child = _currentInstruction.top()->getEdges()[0]->getDest();
 	child->accept(this);
-	if (_lastBrIf != nullptr) {
-		new CFGEdge(_lastBrIf, _currentInstruction.top(), "false");
-		_lastBrIf = nullptr;
+	if (_lastInstruction->getType() == ExprType::BrIf) {
+		new CFGEdge(_lastInstruction, _currentInstruction.top(), "false");
 	} else {
 		new CFGEdge(_lastInstruction, _currentInstruction.top());
 	}
@@ -333,9 +390,8 @@ void CFGvisitor::visitArity2() {
 	// visit left
 	left->accept(this);
 	// add CFG edge from result of left visit to the left most leaf of right children
-	if (_lastBrIf != nullptr) {
-		new CFGEdge(_lastBrIf, getLeftMostLeaf(right), "false");
-		_lastBrIf = nullptr;
+	if (_lastInstruction->getType() == ExprType::BrIf) {
+		new CFGEdge(_lastInstruction, getLeftMostLeaf(right), "false");
 	} else {
 		new CFGEdge(_lastInstruction, getLeftMostLeaf(right));
 	}
@@ -343,9 +399,8 @@ void CFGvisitor::visitArity2() {
 	// visit right
 	right->accept(this);
 	// add CFG edge between right visit and current
-	if (_lastBrIf != nullptr) {
-		new CFGEdge(_lastBrIf, _currentInstruction.top(), "false");
-		_lastBrIf = nullptr;
+	if (_lastInstruction->getType() == ExprType::BrIf) {
+		new CFGEdge(_lastInstruction, _currentInstruction.top(), "false");
 	} else {
 		new CFGEdge(_lastInstruction, _currentInstruction.top());
 	}

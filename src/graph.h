@@ -38,6 +38,9 @@ public:
 	}
 
 	inline Edge* getEdge(Index i) {
+		if (i >= _edges.size()) {
+			assert(false);
+		}
 		return _edges[i];
 	}
 
@@ -148,6 +151,8 @@ public:
 	Instruction(ExprType type, Expr* expr) : _type(type), _expr(expr) {}
 
 	inline Expr* getExpr() { return _expr; }
+
+	inline ExprType getType() { return _type; }
 
 	void accept(GraphVisitor* visitor) { visitor->visitInstruction(this); }
 };

@@ -11,7 +11,6 @@ class CFGvisitor : public GraphVisitor {
 	Instruction* _lastInstruction;
 	std::stack<Instruction*> _currentInstruction;
 	std::list<std::pair<std::string, Instruction*>> _blocks;
-	Instruction* _lastBrIf;
 
 	Node* getLeftMostLeaf(Node* node);
 
@@ -95,10 +94,6 @@ private:
 	void visitArity1();
 	void visitArity2();
 
-public:
-	CFGvisitor() {
-		_lastBrIf = nullptr;
-	}
 };
 
 }
