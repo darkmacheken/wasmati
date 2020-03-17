@@ -48,6 +48,11 @@ Graph::Graph(wabt::Module* mc) : _mc(new ModuleContext(*mc)){}
 
 void Graph::generateCPG(GenerateCPGOptions options) {
 	generateAST(options);
+
+	if (options.printJustAST) {
+		return;
+	}
+
 	generateCFG(options);
 }
 
@@ -185,8 +190,39 @@ void Graph::visitWabtNode(wasmati::Node* parentNode, wabt::Node* node) {
 		Instruction* inst = new Instruction(node->etype, const_cast<Expr*>(node->e));
 		this->insertNode(inst);
 		new ASTEdge(parentNode, _nodes[nextId]);
-		for (wabt::Node& n : node->children) {
-			visitWabtNode(_nodes[nextId], &n);
+		// CASE OF IF EXPR
+		if (node->etype == ExprType::If) {
+			const IfExpr* ifExpr = cast<IfExpr>(node->e);
+			if (node->children.size() < 2 && node->children.size() > 3) {
+				assert(false);
+			}
+			// visit condition
+			visitWabtNode(inst, &node->children[0]);
+
+			// Add true block
+			const Block* trueBlock = &ifExpr->true_;
+			BlockExpr* blockExpr = new BlockExpr();
+			//// copy block
+			blockExpr->block.decl = trueBlock->decl;
+			blockExpr->block.label = trueBlock->label;
+
+			Instruction* block = new Instruction(ExprType::Block, static_cast<Expr*>(blockExpr));
+			this->insertNode(block);
+			new ASTEdge(inst, block);
+			visitWabtNode(block, &node->children[1]);
+
+			// in case there is an else (false)
+			// there is no block in this case, so i add an Else node
+			if (node->children.size() == 3) {
+				Else* elseNode = new Else();
+				this->insertNode(elseNode);
+				new ASTEdge(inst, elseNode);
+				visitWabtNode(elseNode, &node->children[2]);
+			}
+		} else {
+			for (wabt::Node& n : node->children) {
+				visitWabtNode(inst, &n);
+			}
 		}
 		break;
 	}

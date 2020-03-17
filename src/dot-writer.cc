@@ -129,6 +129,10 @@ void DotWriter::visitReturn(Return* expr) {
 	visitSimpleNode(expr);
 }
 
+void DotWriter::visitElse(Else* expr) {
+	visitSimpleNode(expr);
+}
+
 void DotWriter::OnBinaryExpr(BinaryExpr* expr) {
 	writeString(expr->opcode.GetName());
 }

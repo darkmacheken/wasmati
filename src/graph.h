@@ -1,6 +1,7 @@
 #ifndef WASMATI_GRAPH_H
 #define WASMATI_GRAPH_H
 #include "src/common.h"
+#include "src/cast.h"
 #include "src/ir.h"
 #include "src/ir-util.h"
 #include "src/decompiler-ast.h"
@@ -142,6 +143,13 @@ public:
 	Return() : SimpleNode("Return") {}
 
 	virtual void accept(GraphVisitor* visitor) { visitor->visitReturn(this); }
+};
+
+class Else : public SimpleNode {
+public:
+	Else() : SimpleNode("Else") {}
+
+	virtual void accept(GraphVisitor* visitor) { visitor->visitElse(this); }
 };
 
 class Instruction : public Node {

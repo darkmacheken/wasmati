@@ -21,6 +21,7 @@ class SimpleNode;
 class Instructions;
 class Instruction;
 class Return;
+class Else;
 class IndexNode;
 class Graph;
 
@@ -45,6 +46,7 @@ public:
 	virtual void visitSimpleNode(SimpleNode*) = 0;
 	virtual void visitInstructions(Instructions*) = 0;
 	virtual void visitReturn(Return*) = 0;
+	virtual void visitElse(Else*) = 0;
 	virtual void visitInstruction(Instruction*) = 0;
 	virtual void visitIndexNode(IndexNode*) = 0;
 

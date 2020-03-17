@@ -24,6 +24,7 @@ public:
 	void visitInstructions(Instructions*) override;
 	void visitInstruction(Instruction*) override;
 	void visitReturn(Return*) override;
+	void visitElse(Else*) override;
 	void visitIndexNode(IndexNode*) override;
 
 private:

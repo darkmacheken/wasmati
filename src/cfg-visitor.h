@@ -3,6 +3,7 @@
 #include <list>
 #include <stack>
 #include "src/graph-visitor.h"
+#include "src/cast.h"
 #include "src/graph.h"
 
 namespace wasmati {
@@ -27,6 +28,7 @@ class CFGvisitor : public GraphVisitor {
 	void visitInstructions(Instructions*) override;
 	void visitInstruction(Instruction*) override;
 	void visitReturn(Return*) override;
+	void visitElse(Else*) override;
 	void visitIndexNode(IndexNode*) override { assert(false); };;
 
 protected:
@@ -91,6 +93,7 @@ protected:
 	void OnLoadSplatExpr(LoadSplatExpr*) override;
 
 private:
+	void visitSequential(Node* node);
 	void visitArity1();
 	void visitArity2();
 
