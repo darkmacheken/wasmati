@@ -133,6 +133,14 @@ void DotWriter::visitElse(Else* expr) {
 	visitSimpleNode(expr);
 }
 
+void DotWriter::visitStart(Start* start) {
+	visitSimpleNode(start);
+}
+
+void DotWriter::visitTrap(Trap* trap) {
+	visitSimpleNode(trap);
+}
+
 void DotWriter::OnBinaryExpr(BinaryExpr* expr) {
 	writeString(expr->opcode.GetName());
 }
@@ -318,8 +326,7 @@ void DotWriter::OnReturnCallIndirectExpr(ReturnCallIndirectExpr*) {
 }
 
 void DotWriter::OnSelectExpr(SelectExpr*) {
-	//TODO: Implement
-	assert(false);
+	writeString(Opcode::Select_Opcode.GetName());
 }
 
 void DotWriter::OnStoreExpr(StoreExpr* expr) {
@@ -335,17 +342,15 @@ void DotWriter::OnUnreachableExpr(UnreachableExpr*) {
 }
 
 void DotWriter::OnTryExpr(TryExpr*) {
-	// TODO: Implement
 	assert(false);
 }
 
 void DotWriter::OnThrowExpr(ThrowExpr* expr) {
-	writeString(Opcode::Throw_Opcode.GetName());
-	writeString(" " + expr->var.name());
+	assert(false);
 }
 
 void DotWriter::OnRethrowExpr(RethrowExpr*) {
-	writeString(Opcode::Rethrow_Opcode.GetName());
+	assert(false);
 }
 
 void DotWriter::OnAtomicWaitExpr(AtomicWaitExpr*) {

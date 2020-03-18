@@ -29,22 +29,22 @@ void Node::addEdge(Edge* e) {
 	_edges.push_back(e);
 }
 
-bool Node::hasOutCFGEdges() {
-	for (auto e : _edges) {
-		if (e->getType() == EdgeType::CFG) {
-			return true;
-		}
-	}
-	return false;
-}
-
 void Node::acceptEdges(GraphVisitor* visitor) {
 	for (Edge* e : _edges) {
 		e->accept(visitor);
 	}
 }
 
-Graph::Graph(wabt::Module* mc) : _mc(new ModuleContext(*mc)){}
+Graph::Graph(wabt::Module* mc) : _mc(new ModuleContext(*mc)){
+	_trap = nullptr;
+}
+
+Graph::~Graph() {
+	for (auto node : _nodes) {
+		delete node;
+	}
+	delete _mc;
+}
 
 void Graph::generateCPG(GenerateCPGOptions options) {
 	generateAST(options);
@@ -154,7 +154,7 @@ void Graph::generateAST(GenerateCPGOptions options) {
 }
 
 void Graph::generateCFG(GenerateCPGOptions options) {
-	CFGvisitor visitor;
+	CFGvisitor visitor(this);
 	_nodes[0]->accept(&visitor);
 }
 
@@ -171,6 +171,7 @@ void Graph::getLocalsNames(Func* f, std::vector<std::string>* names) {
 
 void Graph::visitWabtNode(wasmati::Node* parentNode, wabt::Node* node) {
 	switch (node->ntype) {
+	case wabt::NodeType::FlushToVars:
 	case wabt::NodeType::Statements:
 		for (wabt::Node& n : node->children) {
 			visitWabtNode(parentNode, &n);
@@ -238,7 +239,6 @@ void Graph::visitWabtNode(wasmati::Node* parentNode, wabt::Node* node) {
 	}
 	case wabt::NodeType::Decl:
 	case wabt::NodeType::FlushedVar:
-	case wabt::NodeType::FlushToVars:
 	case wabt::NodeType::Uninitialized:
 	default:
 		break;

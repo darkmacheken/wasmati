@@ -22,6 +22,8 @@ class Instructions;
 class Instruction;
 class Return;
 class Else;
+class Trap;
+class Start;
 class IndexNode;
 class Graph;
 
@@ -47,6 +49,8 @@ public:
 	virtual void visitInstructions(Instructions*) = 0;
 	virtual void visitReturn(Return*) = 0;
 	virtual void visitElse(Else*) = 0;
+	virtual void visitStart(Start*) = 0;
+	virtual void visitTrap(Trap*) = 0;
 	virtual void visitInstruction(Instruction*) = 0;
 	virtual void visitIndexNode(IndexNode*) = 0;
 

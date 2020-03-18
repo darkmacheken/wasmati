@@ -54,7 +54,6 @@ public:
 	inline bool hasASTEdges() { return _hasASTEdges; }
 	inline bool hasCFGEdges() { return _hasCFGEdges; }
 	inline bool hasPDGEdges() { return _hasPDGEdges; }
-	bool hasOutCFGEdges();
 
 	virtual void accept(GraphVisitor* visitor) { assert(false); }
 
@@ -152,6 +151,20 @@ public:
 	virtual void accept(GraphVisitor* visitor) { visitor->visitElse(this); }
 };
 
+class Trap : public SimpleNode {
+public:
+	Trap() : SimpleNode("Trap") {}
+
+	virtual void accept(GraphVisitor* visitor) { visitor->visitTrap(this); }
+};
+
+class Start : public SimpleNode {
+public:
+	Start() : SimpleNode("Start") {}
+
+	virtual void accept(GraphVisitor* visitor) { visitor->visitStart(this); }
+};
+
 class Instruction : public Node {
 	ExprType _type;
 	Expr* _expr;
@@ -219,28 +232,37 @@ struct PDGEdge :  Edge {
 class Graph {
 	wabt::ModuleContext* _mc;
 	std::vector<Node*> _nodes;
+	Trap* _trap;
+	Start* _start;
 
 	void getLocalsNames(Func* f, std::vector<std::string>* names);
 	void generateAST(GenerateCPGOptions options);
 	void generateCFG(GenerateCPGOptions options);
+	void visitWabtNode(wasmati::Node* parentNode, wabt::Node* node);
 
 public:
 	Graph(wabt::Module* mc);
-	~Graph() {
-		for (auto node : _nodes) {
-			delete node;
-		}
-		delete _mc;
-	}
+	~Graph();
 
 	inline void insertNode(Node* node) {_nodes.push_back(node);}
 	inline std::vector<Node*>* getNodes() { return &_nodes; }
-
-	void visitWabtNode(wasmati::Node* parentNode, wabt::Node* node);
-	void generateCPG(GenerateCPGOptions options);
-	std::string cellRepr(std::string content) {
-		return "<TR><TD>" + content + "</TD></TR>";
+	inline Trap* getTrap() {
+		if (_trap == nullptr) {
+			_trap = new Trap();
+			this->insertNode(_trap);
+		}
+		return _trap;
 	}
+	inline Start* getStart() {
+		if (_start == nullptr) {
+			_start = new Start();
+			this->insertNode(_start);
+		}
+		return _start;
+	}
+
+	void generateCPG(GenerateCPGOptions options);
+
 };
 
 

@@ -25,6 +25,8 @@ public:
 	void visitInstruction(Instruction*) override;
 	void visitReturn(Return*) override;
 	void visitElse(Else*) override;
+	void visitStart(Start*) override;
+	void visitTrap(Trap*) override;
 	void visitIndexNode(IndexNode*) override;
 
 private:

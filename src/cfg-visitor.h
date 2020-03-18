@@ -2,6 +2,7 @@
 #define WASMATI_CFG_H
 #include <list>
 #include <stack>
+#include <set>
 #include "src/graph-visitor.h"
 #include "src/cast.h"
 #include "src/graph.h"
@@ -9,9 +10,11 @@
 namespace wasmati {
 
 class CFGvisitor : public GraphVisitor {
+	Graph* _graph;
 	Instruction* _lastInstruction;
 	std::stack<Instruction*> _currentInstruction;
 	std::list<std::pair<std::string, Instruction*>> _blocks;
+	std::set<Node*> _unreachableInsts;
 
 	Node* getLeftMostLeaf(Node* node);
 
@@ -29,7 +32,9 @@ class CFGvisitor : public GraphVisitor {
 	void visitInstruction(Instruction*) override;
 	void visitReturn(Return*) override;
 	void visitElse(Else*) override;
-	void visitIndexNode(IndexNode*) override { assert(false); };;
+	void visitStart(Start*) override { assert(false); };
+	void visitTrap(Trap*) override { assert(false); };
+	void visitIndexNode(IndexNode*) override { assert(false); };
 
 protected:
 	// Expressions
@@ -94,9 +99,13 @@ protected:
 
 private:
 	void visitSequential(Node* node);
-	void visitArity1();
-	void visitArity2();
+	bool visitArity1();
+	bool visitArity2();
 
+public:
+	CFGvisitor(Graph* graph) : _graph(graph) {
+		_lastInstruction = nullptr;
+	}
 };
 
 }

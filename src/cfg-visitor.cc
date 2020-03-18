@@ -59,6 +59,11 @@ void CFGvisitor::visitReturn(Return* inst) {
 void CFGvisitor::visitElse(Else* node) {
 	visitSequential(node);
 
+	if (_lastInstruction == nullptr) {
+		// unreachable
+		return;
+	}
+
 	// Last instruction of the Else
 	if (_lastInstruction->getType() == ExprType::BrIf) {
 		new CFGEdge(_lastInstruction, _blocks.front().second, "false");
@@ -67,6 +72,12 @@ void CFGvisitor::visitElse(Else* node) {
 	} else if (_lastInstruction->getType() == ExprType::BrTable) {
 		// Do nothing
 	} else if (_lastInstruction->getType() == ExprType::If) {
+		auto unreach = _unreachableInsts.find(_lastInstruction->getEdge(1)->getDest());
+		if (unreach != _unreachableInsts.end()) {
+			// unreachable
+			_unreachableInsts.clear();
+			return;
+		}
 		new CFGEdge(_lastInstruction->getEdge(1)->getDest(), _blocks.front().second);
 		if (_lastInstruction->getNumEdges() == 2) {
 			new CFGEdge(_lastInstruction->getEdge(0)->getDest(), _blocks.front().second, "false");
@@ -87,6 +98,12 @@ void CFGvisitor::OnBlockExpr(BlockExpr* block) {
 
 	visitSequential(_currentInstruction.top());
 
+	if (_lastInstruction == nullptr) {
+		// unreachable
+		_blocks.pop_front();
+		return;
+	}
+
 	// Last instruction of the block
 	if (_lastInstruction->getType() == ExprType::BrIf) {
 		new CFGEdge(_lastInstruction, _currentInstruction.top(), "false");
@@ -95,11 +112,17 @@ void CFGvisitor::OnBlockExpr(BlockExpr* block) {
 	} else if (_lastInstruction->getType() == ExprType::BrTable) {
 		// Do nothing
 	} else if (_lastInstruction->getType() == ExprType::If) {
+		auto unreach = _unreachableInsts.find(_lastInstruction->getEdge(1)->getDest());
+		if (unreach != _unreachableInsts.end()) {
+			// unreachable
+			_unreachableInsts.clear();
+			_blocks.pop_front();
+			_lastInstruction = nullptr;
+			return;
+		}
+		new CFGEdge(_lastInstruction->getEdge(1)->getDest(), _currentInstruction.top());
 		if (_lastInstruction->getNumEdges() == 2) {
 			new CFGEdge(_lastInstruction->getEdge(0)->getDest(), _currentInstruction.top(), "false");
-			new CFGEdge(_lastInstruction->getEdge(1)->getDest(), _currentInstruction.top());
-		} else if (_lastInstruction->getNumEdges() == 3) {
-			new CFGEdge(_lastInstruction->getEdge(1)->getDest(), _currentInstruction.top());
 		} else {
 			assert(false);
 		}
@@ -123,7 +146,9 @@ void CFGvisitor::OnBrExpr(BrExpr* expr) {
 	assert(false);
 }
 void CFGvisitor::OnBrIfExpr(BrIfExpr* expr) {
-	visitArity1();
+	if (!visitArity1()) {
+		return;
+	}
 	for (auto p : _blocks) {
 		if (expr->var.name().compare(p.first) == 0) {
 			new CFGEdge(_currentInstruction.top(), p.second, "true");
@@ -138,7 +163,9 @@ void CFGvisitor::OnBrOnExnExpr(BrOnExnExpr*) {
 }
 
 void CFGvisitor::OnBrTableExpr(BrTableExpr* expr) {
-	visitArity1();
+	if (!visitArity1()) {
+		return;
+	}
 	for (Index i = 0; i < expr->targets.size(); i++) {
 		for (auto block : _blocks) {
 			if (block.first.compare(expr->targets[i].name()) == 0) {
@@ -186,6 +213,8 @@ void CFGvisitor::OnIfExpr(IfExpr*) {
 	}
 	Node* condition = _currentInstruction.top()->getEdge(0)->getDest();
 	Node* trueBlockNode = _currentInstruction.top()->getEdge(1)->getDest();
+	bool trueBlockUnreach = false;
+	bool falseBlockUnreach = false;
 
 	// Visit condition
 	condition->accept(this);
@@ -193,24 +222,40 @@ void CFGvisitor::OnIfExpr(IfExpr*) {
 
 	// Visit True Block
 	trueBlockNode->accept(this);
+	if (_lastInstruction == nullptr) {
+		// case unreachable
+		_unreachableInsts.emplace(trueBlockNode);
+		trueBlockUnreach = true;
+	}
 
 	if (numChildren == 3) {
 		// In the Else "block" is the same block of the true
 		// so we need to put the true block in the stack in case there is a br
 		BlockExpr* trueBlock = cast<BlockExpr>(static_cast<Instruction*>(trueBlockNode)->getExpr());
 		_blocks.emplace_front(trueBlock->block.label, static_cast<Instruction*>(trueBlockNode));
-		
+
 		Node* falseBlock = _currentInstruction.top()->getEdge(2)->getDest();
 		new CFGEdge(condition, getLeftMostLeaf(falseBlock), "false");
-		
+
 		// Visit False Block
 		falseBlock->accept(this);
+		if (_lastInstruction == nullptr) {
+			// case unreachable
+			_unreachableInsts.emplace(falseBlock);
+			falseBlockUnreach = true;
+		}
 
 		// Pop block
 		_blocks.pop_front();
 	}
 
-	_lastInstruction = static_cast<Instruction*>(trueBlockNode);
+	if (trueBlockUnreach && falseBlockUnreach) {
+		_lastInstruction = nullptr;
+	} else if (trueBlockUnreach && numChildren == 2) {
+		_lastInstruction = _currentInstruction.top();
+	} else {
+		_lastInstruction = static_cast<Instruction*>(trueBlockNode);
+	}
 }
 
 void CFGvisitor::OnLoadExpr(LoadExpr*) {
@@ -285,9 +330,10 @@ void CFGvisitor::OnRefIsNullExpr(RefIsNullExpr*) {
 	visitArity1();
 }
 
-void CFGvisitor::OnNopExpr(NopExpr*)
-{
+void CFGvisitor::OnNopExpr(NopExpr*) {
+	_lastInstruction = _currentInstruction.top();
 }
+
 void CFGvisitor::OnReturnExpr(ReturnExpr*)
 {
 }
@@ -307,48 +353,59 @@ void CFGvisitor::OnUnaryExpr(UnaryExpr*) {
 	visitArity1();
 }
 
-void CFGvisitor::OnUnreachableExpr(UnreachableExpr*)
-{
-}
-void CFGvisitor::OnTryExpr(TryExpr*)
-{
-}
-void CFGvisitor::OnThrowExpr(ThrowExpr*)
-{
-}
-void CFGvisitor::OnRethrowExpr(RethrowExpr*)
-{
-}
-void CFGvisitor::OnAtomicWaitExpr(AtomicWaitExpr*)
-{
-}
-void CFGvisitor::OnAtomicNotifyExpr(AtomicNotifyExpr*)
-{
-}
-void CFGvisitor::OnAtomicLoadExpr(AtomicLoadExpr*) {
-	visitArity1();
+void CFGvisitor::OnUnreachableExpr(UnreachableExpr*) {
+	new CFGEdge(_currentInstruction.top(), _graph->getTrap());
+	_lastInstruction = nullptr;
 }
 
-void CFGvisitor::OnAtomicStoreExpr(AtomicStoreExpr*)
-{
+void CFGvisitor::OnTryExpr(TryExpr*) {
+	assert(false);
 }
-void CFGvisitor::OnAtomicRmwExpr(AtomicRmwExpr*)
-{
+void CFGvisitor::OnThrowExpr(ThrowExpr*) {
+	assert(false);
 }
-void CFGvisitor::OnAtomicRmwCmpxchgExpr(AtomicRmwCmpxchgExpr*)
-{
+
+void CFGvisitor::OnRethrowExpr(RethrowExpr*) {
+	assert(false);
 }
+
+void CFGvisitor::OnAtomicWaitExpr(AtomicWaitExpr*) {
+	assert(false);
+}
+
+void CFGvisitor::OnAtomicNotifyExpr(AtomicNotifyExpr*) {
+	assert(false);
+}
+
+void CFGvisitor::OnAtomicLoadExpr(AtomicLoadExpr*) {
+	assert(false);
+}
+
+void CFGvisitor::OnAtomicStoreExpr(AtomicStoreExpr*) {
+	assert(false);
+}
+
+void CFGvisitor::OnAtomicRmwExpr(AtomicRmwExpr*) {
+	assert(false);
+}
+
+void CFGvisitor::OnAtomicRmwCmpxchgExpr(AtomicRmwCmpxchgExpr*) {
+	assert(false);
+}
+
 void CFGvisitor::OnTernaryExpr(TernaryExpr*)
 {
 }
-void CFGvisitor::OnSimdLaneOpExpr(SimdLaneOpExpr*)
-{
+void CFGvisitor::OnSimdLaneOpExpr(SimdLaneOpExpr*) {
+	assert(false);
 }
-void CFGvisitor::OnSimdShuffleOpExpr(SimdShuffleOpExpr*)
-{
+
+void CFGvisitor::OnSimdShuffleOpExpr(SimdShuffleOpExpr*) {
+	assert(false);
 }
-void CFGvisitor::OnLoadSplatExpr(LoadSplatExpr*)
-{
+
+void CFGvisitor::OnLoadSplatExpr(LoadSplatExpr*) {
+	assert(false);
 }
 
 void CFGvisitor::visitSequential(Node* node) {
@@ -357,18 +414,24 @@ void CFGvisitor::visitSequential(Node* node) {
 	int i;
 	for (i = 0; i < numInst - 1; i++) {
 		edges[i]->accept(this);
+		if (_lastInstruction == nullptr) {
+			// unreachable
+			return;
+		}
 		if (_lastInstruction->getType() == ExprType::BrIf) {
 			new CFGEdge(_lastInstruction, getLeftMostLeaf(edges[i + 1]->getDest()), "false");
 		}
 		else if (_lastInstruction->getType() == ExprType::If) {
 			Node* nextLeftMost = getLeftMostLeaf(edges[i + 1]->getDest());
-			if (_lastInstruction->getNumEdges() == 2) {
-				new CFGEdge(_lastInstruction->getEdge(0)->getDest(), nextLeftMost, "false");
+
+			auto unreach = _unreachableInsts.find(_lastInstruction->getEdge(1)->getDest());
+			if (unreach == _unreachableInsts.end()) {
+				// not unreachable
 				new CFGEdge(_lastInstruction->getEdge(1)->getDest(), nextLeftMost);
 			}
-			else if (_lastInstruction->getNumEdges() == 3) {
-				new CFGEdge(_lastInstruction->getEdge(1)->getDest(), nextLeftMost);
-				new CFGEdge(_lastInstruction->getEdge(2)->getDest(), nextLeftMost);
+
+			if (_lastInstruction->getNumEdges() == 2) {
+				new CFGEdge(_lastInstruction->getEdge(0)->getDest(), nextLeftMost, "false");
 			}
 			else {
 				assert(false);
@@ -378,25 +441,32 @@ void CFGvisitor::visitSequential(Node* node) {
 			new CFGEdge(_lastInstruction, getLeftMostLeaf(edges[i + 1]->getDest()));
 		}
 	}
+	if (_lastInstruction == nullptr && i > 1) {
+		return;
+	}
 	edges[i]->accept(this);
 }
 
-void CFGvisitor::visitArity1() {
+bool CFGvisitor::visitArity1() {
 	if (_currentInstruction.top()->getNumEdges() != 1) {
 		assert(false);
 	}
 
 	Node* child = _currentInstruction.top()->getEdges()[0]->getDest();
 	child->accept(this);
+	if (_lastInstruction == nullptr) {
+		return false;
+	}
 	if (_lastInstruction->getType() == ExprType::BrIf) {
 		new CFGEdge(_lastInstruction, _currentInstruction.top(), "false");
 	} else {
 		new CFGEdge(_lastInstruction, _currentInstruction.top());
 	}
 	_lastInstruction = _currentInstruction.top();
+	return true;
 }
 
-void CFGvisitor::visitArity2() {
+bool CFGvisitor::visitArity2() {
 	if (_currentInstruction.top()->getNumEdges() != 2) {
 		assert(false);
 	}
@@ -405,6 +475,9 @@ void CFGvisitor::visitArity2() {
 
 	// visit left
 	left->accept(this);
+	if (_lastInstruction == nullptr) {
+		return false;
+	}
 	// add CFG edge from result of left visit to the left most leaf of right children
 	if (_lastInstruction->getType() == ExprType::BrIf) {
 		new CFGEdge(_lastInstruction, getLeftMostLeaf(right), "false");
@@ -413,6 +486,9 @@ void CFGvisitor::visitArity2() {
 	}
 
 	// visit right
+	if (_lastInstruction == nullptr) {
+		return false;
+	}
 	right->accept(this);
 	// add CFG edge between right visit and current
 	if (_lastInstruction->getType() == ExprType::BrIf) {
@@ -422,5 +498,6 @@ void CFGvisitor::visitArity2() {
 	}
 
 	_lastInstruction = _currentInstruction.top();
+	return true;
 }
 }
