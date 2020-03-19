@@ -227,21 +227,21 @@ void DotWriter::OnLocalTeeExpr(LocalTeeExpr* expr) {
 	writeString(" " + expr->var.name());
 }
 
-void DotWriter::OnLoopExpr(LoopExpr*) {
+void DotWriter::OnLoopExpr(LoopExpr* expr) {
 	writeString(Opcode::Loop_Opcode.GetName());
+	writeString(" " + expr->block.label);
 }
 
 void DotWriter::OnMemoryCopyExpr(MemoryCopyExpr*) {
-	writeString(Opcode::MemoryCopy_Opcode.GetName());
+	assert(false);
 }
 
 void DotWriter::OnDataDropExpr(DataDropExpr* expr) {
-	writeString(Opcode::DataDrop_Opcode.GetName());
-	writeString(" " + expr->var.name());
+	assert(false);
 }
 
 void DotWriter::OnMemoryFillExpr(MemoryFillExpr*) {
-	writeString(Opcode::MemoryFill_Opcode.GetName());
+	assert(false);
 }
 
 void DotWriter::OnMemoryGrowExpr(MemoryGrowExpr*) {
@@ -249,8 +249,7 @@ void DotWriter::OnMemoryGrowExpr(MemoryGrowExpr*) {
 }
 
 void DotWriter::OnMemoryInitExpr(MemoryInitExpr* expr) {
-	writeString(Opcode::MemoryInit_Opcode.GetName());
-	writeString(" " + expr->var.name());
+	assert(false);
 }
 
 void DotWriter::OnMemorySizeExpr(MemorySizeExpr*) {
@@ -262,8 +261,7 @@ void DotWriter::OnTableCopyExpr(TableCopyExpr*) {
 }
 
 void DotWriter::OnElemDropExpr(ElemDropExpr* expr) {
-	writeString(Opcode::ElemDrop_Opcode.GetName());
-	writeString(" " + expr->var.name());
+	assert(false);
 }
 
 void DotWriter::OnTableInitExpr(TableInitExpr*) {
@@ -271,41 +269,35 @@ void DotWriter::OnTableInitExpr(TableInitExpr*) {
 }
 
 void DotWriter::OnTableGetExpr(TableGetExpr* expr) {
-	writeString(Opcode::TableGet_Opcode.GetName());
-	writeString(" " + expr->var.name());
+	assert(false);
 }
 
-void DotWriter::OnTableSetExpr(TableSetExpr* expr) { 
-	writeString(Opcode::TableSet_Opcode.GetName());
-	writeString(" " + expr->var.name());
+void DotWriter::OnTableSetExpr(TableSetExpr* expr) {
+	assert(false);
 }
 
 void DotWriter::OnTableGrowExpr(TableGrowExpr* expr) {
-	writeString(Opcode::TableGrow_Opcode.GetName());
-	writeString(" " + expr->var.name());
+	assert(false);
 }
 
 void DotWriter::OnTableSizeExpr(TableSizeExpr* expr) {
-	writeString(Opcode::TableSize_Opcode.GetName());
-	writeString(" " + expr->var.name());
+	assert(false);
 }
 
 void DotWriter::OnTableFillExpr(TableFillExpr* expr) {
-	writeString(Opcode::TableFill_Opcode.GetName());
-	writeString(" " + expr->var.name());
+	assert(false);
 }
 
 void DotWriter::OnRefFuncExpr(RefFuncExpr* expr) {
-	writeString(Opcode::RefFunc_Opcode.GetName());
-	writeString(" " + expr->var.name());
+	assert(false);
 }
 
 void DotWriter::OnRefNullExpr(RefNullExpr*) {
-	writeString(Opcode::RefNull_Opcode.GetName());
+	assert(false);
 }
 
 void DotWriter::OnRefIsNullExpr(RefIsNullExpr*) {
-	writeString(Opcode::RefIsNull_Opcode.GetName());
+	assert(false);
 }
 
 void DotWriter::OnNopExpr(NopExpr*) {
@@ -313,12 +305,11 @@ void DotWriter::OnNopExpr(NopExpr*) {
 }
 
 void DotWriter::OnReturnExpr(ReturnExpr*) {
-	writeString(Opcode::Return_Opcode.GetName());
+	assert(false);
 }
 
 void DotWriter::OnReturnCallExpr(ReturnCallExpr* expr) {
-	writeString(Opcode::ReturnCall_Opcode.GetName());
-	writeString(" " + expr->var.name());
+	assert(false);
 }
 
 void DotWriter::OnReturnCallIndirectExpr(ReturnCallIndirectExpr*) {

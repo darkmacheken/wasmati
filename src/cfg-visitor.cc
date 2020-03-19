@@ -180,12 +180,31 @@ void CFGvisitor::OnBrTableExpr(BrTableExpr* expr) {
 		}
 	}
 }
-void CFGvisitor::OnCallExpr(CallExpr*)
-{
+void CFGvisitor::OnCallExpr(CallExpr*) {
+	visitSequential(_currentInstruction.top());
+
+	if (_lastInstruction == nullptr) {
+		// unreachable
+		return;
+	}
+
+	new CFGEdge(_lastInstruction, _currentInstruction.top());
+
+	_lastInstruction = _currentInstruction.top();
 }
-void CFGvisitor::OnCallIndirectExpr(CallIndirectExpr*)
-{
+void CFGvisitor::OnCallIndirectExpr(CallIndirectExpr*) {
+	visitSequential(_currentInstruction.top());
+
+	if (_lastInstruction == nullptr) {
+		// unreachable
+		return;
+	}
+
+	new CFGEdge(_lastInstruction, _currentInstruction.top());
+
+	_lastInstruction = _currentInstruction.top();
 }
+
 void CFGvisitor::OnCompareExpr(CompareExpr*) {
 	visitArity2();
 }
@@ -201,9 +220,11 @@ void CFGvisitor::OnDropExpr(DropExpr*) {
 }
 
 void CFGvisitor::OnGlobalGetExpr(GlobalGetExpr*) {
+	_lastInstruction = _currentInstruction.top();
 }
 
 void CFGvisitor::OnGlobalSetExpr(GlobalSetExpr*) {
+	visitArity1();
 }
 
 void CFGvisitor::OnIfExpr(IfExpr*) {
@@ -276,76 +297,102 @@ void CFGvisitor::OnLocalTeeExpr(LocalTeeExpr*) {
 void CFGvisitor::OnLoopExpr(LoopExpr*)
 {
 }
-void CFGvisitor::OnMemoryCopyExpr(MemoryCopyExpr*)
-{
+void CFGvisitor::OnMemoryCopyExpr(MemoryCopyExpr*) {
+	assert(false);
 }
-void CFGvisitor::OnDataDropExpr(DataDropExpr*)
-{
+
+void CFGvisitor::OnDataDropExpr(DataDropExpr*) {
+	assert(false);
 }
-void CFGvisitor::OnMemoryFillExpr(MemoryFillExpr*)
-{
+
+void CFGvisitor::OnMemoryFillExpr(MemoryFillExpr*) {
+	assert(false);
 }
+
 void CFGvisitor::OnMemoryGrowExpr(MemoryGrowExpr*) {
 	visitArity1();
 }
 
-void CFGvisitor::OnMemoryInitExpr(MemoryInitExpr*)
-{
+void CFGvisitor::OnMemoryInitExpr(MemoryInitExpr*) {
+	assert(false);
 }
+
 void CFGvisitor::OnMemorySizeExpr(MemorySizeExpr*)
 {
 }
-void CFGvisitor::OnTableCopyExpr(TableCopyExpr*)
-{
-}
-void CFGvisitor::OnElemDropExpr(ElemDropExpr*)
-{
-}
-void CFGvisitor::OnTableInitExpr(TableInitExpr*)
-{
-}
-void CFGvisitor::OnTableGetExpr(TableGetExpr*) {
-	visitArity1();
+void CFGvisitor::OnTableCopyExpr(TableCopyExpr*) {
+	assert(false);
 }
 
-void CFGvisitor::OnTableSetExpr(TableSetExpr*)
-{
+void CFGvisitor::OnElemDropExpr(ElemDropExpr*) {
+	assert(false);
 }
-void CFGvisitor::OnTableGrowExpr(TableGrowExpr*)
-{
+
+void CFGvisitor::OnTableInitExpr(TableInitExpr*) {
+	assert(false);
 }
-void CFGvisitor::OnTableSizeExpr(TableSizeExpr*)
-{
+
+void CFGvisitor::OnTableGetExpr(TableGetExpr*) {
+	assert(false);
 }
-void CFGvisitor::OnTableFillExpr(TableFillExpr*)
-{
+
+void CFGvisitor::OnTableSetExpr(TableSetExpr*) {
+	assert(false);
 }
-void CFGvisitor::OnRefFuncExpr(RefFuncExpr*)
-{
+
+void CFGvisitor::OnTableGrowExpr(TableGrowExpr*) {
+	assert(false);
 }
-void CFGvisitor::OnRefNullExpr(RefNullExpr*)
-{
+
+void CFGvisitor::OnTableSizeExpr(TableSizeExpr*) {
+	assert(false);
 }
+
+void CFGvisitor::OnTableFillExpr(TableFillExpr*) {
+	assert(false);
+}
+
+void CFGvisitor::OnRefFuncExpr(RefFuncExpr*) {
+	assert(false);
+}
+
+void CFGvisitor::OnRefNullExpr(RefNullExpr*) {
+	assert(false);
+}
+
 void CFGvisitor::OnRefIsNullExpr(RefIsNullExpr*) {
-	visitArity1();
+	assert(false);
 }
 
 void CFGvisitor::OnNopExpr(NopExpr*) {
 	_lastInstruction = _currentInstruction.top();
 }
 
-void CFGvisitor::OnReturnExpr(ReturnExpr*)
-{
+void CFGvisitor::OnReturnExpr(ReturnExpr*) {
+	assert(false);
 }
-void CFGvisitor::OnReturnCallExpr(ReturnCallExpr*)
-{
+
+void CFGvisitor::OnReturnCallExpr(ReturnCallExpr*) {
+	assert(false);
 }
-void CFGvisitor::OnReturnCallIndirectExpr(ReturnCallIndirectExpr*)
-{
+
+void CFGvisitor::OnReturnCallIndirectExpr(ReturnCallIndirectExpr*) {
+	assert(false);
 }
-void CFGvisitor::OnSelectExpr(SelectExpr*)
-{
+
+void CFGvisitor::OnSelectExpr(SelectExpr*) {
+	visitSequential(_currentInstruction.top());
+
+	if (_lastInstruction == nullptr) {
+		// unreachable
+		return;
+	}
+
+	new CFGEdge(_lastInstruction, _currentInstruction.top());
+
+	_lastInstruction = _currentInstruction.top();
 }
+
 void CFGvisitor::OnStoreExpr(StoreExpr*) {
 	visitArity2();
 }
@@ -393,8 +440,17 @@ void CFGvisitor::OnAtomicRmwCmpxchgExpr(AtomicRmwCmpxchgExpr*) {
 	assert(false);
 }
 
-void CFGvisitor::OnTernaryExpr(TernaryExpr*)
-{
+void CFGvisitor::OnTernaryExpr(TernaryExpr*) {
+	visitSequential(_currentInstruction.top());
+
+	if (_lastInstruction == nullptr) {
+		// unreachable
+		return;
+	}
+
+	new CFGEdge(_lastInstruction, _currentInstruction.top());
+
+	_lastInstruction = _currentInstruction.top();
 }
 void CFGvisitor::OnSimdLaneOpExpr(SimdLaneOpExpr*) {
 	assert(false);
