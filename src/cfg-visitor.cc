@@ -5,7 +5,9 @@ namespace wasmati {
 Node* CFGvisitor::getLeftMostLeaf(Node* node) {
 	if (node->getNumEdges() == 0) {
 		return node;
-	} else {
+	} else if (node->getEdge(0)->getType() != EdgeType::AST) {
+		return node;
+	} else { 
 		return getLeftMostLeaf(node->getEdge(0)->getDest());
 	}
 }
@@ -53,6 +55,10 @@ void CFGvisitor::visitReturn(Return* inst) {
 
 	Node* child = inst->getEdges()[0]->getDest();
 	child->accept(this);
+	if (_lastInstruction == nullptr) {
+		// unreachable
+		return;
+	}
 	new CFGEdge(_lastInstruction, inst);
 }
 
@@ -125,6 +131,10 @@ void CFGvisitor::OnBlockExpr(BlockExpr* block) {
 			new CFGEdge(_lastInstruction->getEdge(0)->getDest(), _currentInstruction.top(), "false");
 		} else {
 			assert(false);
+		}
+	} else if (_lastInstruction->getType() == ExprType::Block) {
+		if (_lastInstruction->hasCFGEdges()) {
+			new CFGEdge(_lastInstruction, _currentInstruction.top());
 		}
 	} else {
 		new CFGEdge(_lastInstruction, _currentInstruction.top());
@@ -268,6 +278,8 @@ void CFGvisitor::OnIfExpr(IfExpr*) {
 
 		// Pop block
 		_blocks.pop_front();
+	} else {
+		new CFGEdge(condition, trueBlockNode, "false");
 	}
 
 	if (trueBlockUnreach && falseBlockUnreach) {
@@ -294,9 +306,26 @@ void CFGvisitor::OnLocalTeeExpr(LocalTeeExpr*) {
 	visitArity1();
 }
 
-void CFGvisitor::OnLoopExpr(LoopExpr*)
-{
+void CFGvisitor::OnLoopExpr(LoopExpr* loop) {
+	_blocks.emplace_front(loop->block.label, _currentInstruction.top());
+	visitSequential(_currentInstruction.top());
+
+	if (_currentInstruction.top()->hasCFGEdges()) {
+		new CFGEdge(_currentInstruction.top(), getLeftMostLeaf(_currentInstruction.top()));
+	}
+
+	// Last instruction of the loop
+	if (_lastInstruction->getType() == ExprType::Br) {
+		BrExpr* brExpr = cast<BrExpr>(_lastInstruction->getExpr());
+		if (brExpr->var.name().compare(loop->block.label) == 0) {
+			_lastInstruction = nullptr;
+			//becomes unreachable
+		}
+	}
+
+	_blocks.pop_front();
 }
+
 void CFGvisitor::OnMemoryCopyExpr(MemoryCopyExpr*) {
 	assert(false);
 }
@@ -369,7 +398,18 @@ void CFGvisitor::OnNopExpr(NopExpr*) {
 }
 
 void CFGvisitor::OnReturnExpr(ReturnExpr*) {
-	assert(false);
+	if (_currentInstruction.top()->getNumEdges() == 0) {
+		_lastInstruction = nullptr;
+		return;
+	} else if (_currentInstruction.top()->getNumEdges() > 1) {
+		assert(false);
+	}
+
+	Node* child = _currentInstruction.top()->getEdge(0)->getDest();
+	child->accept(this);
+	new CFGEdge(_lastInstruction, _currentInstruction.top());
+	// further seq instructions get unreachable
+	_lastInstruction = nullptr;
 }
 
 void CFGvisitor::OnReturnCallExpr(ReturnCallExpr*) {
@@ -466,6 +506,9 @@ void CFGvisitor::OnLoadSplatExpr(LoadSplatExpr*) {
 
 void CFGvisitor::visitSequential(Node* node) {
 	int numInst = node->getNumEdges();
+	if (numInst == 0) {
+		return;
+	}
 	std::vector<Edge*> edges = node->getEdges();
 	int i;
 	for (i = 0; i < numInst - 1; i++) {
@@ -476,8 +519,11 @@ void CFGvisitor::visitSequential(Node* node) {
 		}
 		if (_lastInstruction->getType() == ExprType::BrIf) {
 			new CFGEdge(_lastInstruction, getLeftMostLeaf(edges[i + 1]->getDest()), "false");
-		}
-		else if (_lastInstruction->getType() == ExprType::If) {
+		} else if (_lastInstruction->getType() == ExprType::Br) {
+			// rest of instructions become unreachable
+			_lastInstruction = nullptr;
+			return;
+		} else if (_lastInstruction->getType() == ExprType::If) {
 			Node* nextLeftMost = getLeftMostLeaf(edges[i + 1]->getDest());
 
 			auto unreach = _unreachableInsts.find(_lastInstruction->getEdge(1)->getDest());

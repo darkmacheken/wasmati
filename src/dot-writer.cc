@@ -305,7 +305,7 @@ void DotWriter::OnNopExpr(NopExpr*) {
 }
 
 void DotWriter::OnReturnExpr(ReturnExpr*) {
-	assert(false);
+	writeString(Opcode::Return_Opcode.GetName());
 }
 
 void DotWriter::OnReturnCallExpr(ReturnCallExpr* expr) {
