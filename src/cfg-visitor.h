@@ -1,36 +1,43 @@
-#ifndef WASMATI_DOT_H
-#define WASMATI_DOT_H
+#ifndef WASMATI_CFG_H
+#define WASMATI_CFG_H
+#include <list>
+#include <set>
+#include <stack>
+
+#include "src/cast.h"
+#include "src/graph-visitor.h"
 #include "src/graph.h"
 
 namespace wasmati {
 
-class DotWriter : public GraphWriter {
-    std::vector<std::vector<int>*> _depth;
+class CFGvisitor : public GraphVisitor {
+    Graph* _graph;
+    Instruction* _lastInstruction;
+    std::stack<Instruction*> _currentInstruction;
+    std::list<std::pair<std::string, Instruction*>> _blocks;
+    std::set<Node*> _unreachableInsts;
 
-public:
-    DotWriter(wabt::Stream* stream, Graph* graph, GenerateCPGOptions options)
-        : GraphWriter(stream, graph, options) {}
-    void writeGraph() override;
+    Node* getLeftMostLeaf(Node* node);
 
     // Edges
     void visitASTEdge(ASTEdge*) override;
-    void visitCFGEdge(CFGEdge*) override;
-    void visitPDGEdge(PDGEdge*) override;
+    void visitCFGEdge(CFGEdge*) override{/*Do nothing*/};
+    void visitPDGEdge(PDGEdge*) override { assert(false); };
 
     // Nodes
     void visitModule(Module*) override;
     void visitFunction(Function*) override;
-    void visitTypeNode(TypeNode*) override;
-    void visitSimpleNode(SimpleNode*) override;
+    void visitTypeNode(TypeNode*) override { assert(false); };
+    void visitSimpleNode(SimpleNode*) override { assert(false); };
     void visitInstructions(Instructions*) override;
     void visitInstruction(Instruction*) override;
     void visitReturn(Return*) override;
     void visitElse(Else*) override;
-    void visitStart(Start*) override;
-    void visitTrap(Trap*) override;
-    void visitIndexNode(IndexNode*) override;
+    void visitStart(Start*) override { assert(false); };
+    void visitTrap(Trap*) override { assert(false); };
+    void visitIndexNode(IndexNode*) override { assert(false); };
 
-private:
+protected:
     // Expressions
     void OnBinaryExpr(BinaryExpr*) override;
     void OnBlockExpr(BlockExpr*) override;
@@ -91,11 +98,15 @@ private:
     void OnSimdShuffleOpExpr(SimdShuffleOpExpr*) override;
     void OnLoadSplatExpr(LoadSplatExpr*) override;
 
-    std::string writeConst(const Const& const_);
-    void setSameRank();
-    void setDepth(Node* node, Index depth);
+private:
+    void visitSequential(Node* node);
+    bool visitArity1();
+    bool visitArity2();
+
+public:
+    CFGvisitor(Graph* graph) : _graph(graph) { _lastInstruction = nullptr; }
 };
 
 }  // namespace wasmati
 
-#endif /* end of WASMATI_DOT_H */
+#endif /*end WASMATI_CFG_H*/

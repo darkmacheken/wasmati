@@ -1,5 +1,5 @@
 [![pipeline status](https://turbina.gsd.inesc-id.pt:8080/pedrodaniel10/wasm-ast/badges/master/pipeline.svg)](https://turbina.gsd.inesc-id.pt:8080/pedrodaniel10/wasm-ast/commits/master)
-# wasm-ast
+# Wasmati
 
 This project aims to parse WAT and WASM files and get an AST, CFG and PDG.
 
