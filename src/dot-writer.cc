@@ -14,11 +14,14 @@ void DotWriter::writeGraph() {
 
         if (!justOneGraph) {
             node->accept(this);
-        } else if (_options.printJustAST && node->hasASTEdges()) {  // AST
+        } else if (_options.printJustAST &&
+                   node->hasEdgesOf(EdgeType::AST)) {  // AST
             node->accept(this);
-        } else if (_options.printJustCFG && node->hasCFGEdges()) {  // CFG
+        } else if (_options.printJustCFG &&
+                   node->hasEdgesOf(EdgeType::CFG)) {  // CFG
             node->accept(this);
-        } else if (_options.printJustPDG && node->hasPDGEdges()) {  // PDG
+        } else if (_options.printJustPDG &&
+                   node->hasEdgesOf(EdgeType::PDG)) {  // PDG
             node->accept(this);
         }
     }
@@ -34,8 +37,8 @@ void DotWriter::visitASTEdge(ASTEdge* e) {
     if (_options.printJustCFG || _options.printJustPDG) {
         return;
     }
-    writeStringln(std::to_string(e->_src->getId()) + " -> " +
-                  std::to_string(e->_dest->getId()) + " [color=forestgreen]");
+    writeStringln(std::to_string(e->src()->getId()) + " -> " +
+                  std::to_string(e->dest()->getId()) + " [color=forestgreen]");
 }
 
 void DotWriter::visitCFGEdge(CFGEdge* e) {
@@ -43,11 +46,11 @@ void DotWriter::visitCFGEdge(CFGEdge* e) {
         return;
     }
     if (e->_label.empty()) {
-        writeStringln(std::to_string(e->_src->getId()) + " -> " +
-                      std::to_string(e->_dest->getId()) + " [color=red]");
+        writeStringln(std::to_string(e->src()->getId()) + " -> " +
+                      std::to_string(e->dest()->getId()) + " [color=red]");
     } else {
-        writeStringln(std::to_string(e->_src->getId()) + " -> " +
-                      std::to_string(e->_dest->getId()) + " [label=\"" +
+        writeStringln(std::to_string(e->src()->getId()) + " -> " +
+                      std::to_string(e->dest()->getId()) + " [label=\"" +
                       e->_label + "\"color=red]");
     }
 }
@@ -56,8 +59,8 @@ void DotWriter::visitPDGEdge(PDGEdge* e) {
     if (_options.printJustAST || _options.printJustCFG) {
         return;
     }
-    writeStringln(std::to_string(e->_src->getId()) + " -> " +
-                  std::to_string(e->_dest->getId()) + " [color=blue]");
+    writeStringln(std::to_string(e->src()->getId()) + " -> " +
+                  std::to_string(e->dest()->getId()) + " [color=blue]");
 }
 
 void DotWriter::visitModule(Module* mod) {
@@ -451,9 +454,9 @@ void DotWriter::setDepth(Node* node, Index depth) {
         _depth.push_back(new std::vector<int>());
     }
     _depth[depth]->push_back(node->getId());
-    for (auto e : node->getEdges()) {
-        if (e->getType() == EdgeType::AST) {
-            setDepth(e->getDest(), depth + 1);
+    for (auto e : *node->outEdges()) {
+        if (e->type() == EdgeType::AST) {
+            setDepth(e->dest(), depth + 1);
         }
     }
 }

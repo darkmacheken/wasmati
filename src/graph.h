@@ -14,40 +14,59 @@ class Edge;
 
 enum class EdgeType { AST, CFG, PDG };
 
+enum class NodeType {
+    Module,
+    Function,
+    TypeNode,
+    FunctionSignature,
+    Instructions,
+    Instruction,
+    Parameters,
+    Locals,
+    Results,
+    Return,
+    Else,
+    Trap,
+    Start,
+    IndexNode
+};
+
 class Node {
     static int idCount;
-    std::vector<Edge*> _edges;
-    bool _hasASTEdges;
-    bool _hasCFGEdges;
-    bool _hasPDGEdges;
+    int _id;
+    std::vector<Edge*> _inEdges;
+    std::vector<Edge*> _outEdges;
 
 public:
-    int _id;
+    const NodeType _type;
 
-    explicit Node() : _id(idCount++) { _hasCFGEdges = false; }
+    explicit Node(NodeType type) : _id(idCount++), _type(type) {}
     virtual ~Node();
 
     inline int getId() { return _id; }
+    inline std::vector<Edge*>* inEdges() { return &_inEdges; }
+    inline std::vector<Edge*>* outEdges() { return &_outEdges; }
 
-    inline std::vector<Edge*> getEdges() { return _edges; }
-
-    inline Edge* getEdge(Index i) {
-        if (i >= _edges.size()) {
-            assert(false);
-        }
-        return _edges[i];
+    inline Edge* getOutEdge(Index i) {
+        assert(i < _outEdges.size());
+        return _outEdges[i];
     }
 
-    inline int getNumEdges() { return _edges.size(); }
+    inline int getNumOutEdges() { return _outEdges.size(); }
+    inline Edge* getInEdge(Index i) {
+        assert(i < _inEdges.size());
+        return _inEdges[i];
+    }
 
-    void addEdge(Edge* e);
+    inline int getNumInEdges() { return _inEdges.size(); }
+    inline void addInEdge(Edge* e) { _inEdges.push_back(e); }
+    inline void addOutEdge(Edge* e) { _outEdges.push_back(e); }
 
-    inline bool hasASTEdges() { return _hasASTEdges; }
-    inline bool hasCFGEdges() { return _hasCFGEdges; }
-    inline bool hasPDGEdges() { return _hasPDGEdges; }
+    bool hasEdgesOf(EdgeType);
+    bool hasInEdgesOf(EdgeType);
+    bool hasOutEdgesOf(EdgeType);
 
     virtual void accept(GraphVisitor* visitor) { assert(false); }
-
     virtual void acceptEdges(GraphVisitor* visitor);
 };
 
@@ -55,8 +74,12 @@ class Module : public Node {
     std::string _name;
 
 public:
-    Module() {}
-    Module(std::string name) : _name(name) {}
+    Module() : Node(NodeType::Module) {}
+    Module(std::string name) : Node(NodeType::Module), _name(name) {}
+
+    static bool classof(const Node* node) {
+        return node->_type == NodeType::Module;
+    }
 
     inline std::string getName() { return _name; }
 
@@ -67,8 +90,12 @@ class Function : public Node {
     std::string _name;
 
 public:
-    Function() {}
-    Function(std::string name) : _name(name) {}
+    Function() : Node(NodeType::Function) {}
+    Function(std::string name) : Node(NodeType::Function), _name(name) {}
+
+    static bool classof(const Node* node) {
+        return node->_type == NodeType::Function;
+    }
 
     inline std::string getName() { return _name; }
 
@@ -76,13 +103,18 @@ public:
 };
 
 class TypeNode : public Node {
-    Type _type;
+    Type __type;
     std::string _name;
 
 public:
-    TypeNode(Type type, std::string name = "") : _type(type), _name(name) {}
+    TypeNode(Type type, std::string name = "")
+        : Node(NodeType::TypeNode), __type(type), _name(name) {}
 
-    inline Type getType() { return _type; }
+    static bool classof(const Node* node) {
+        return node->_type == NodeType::TypeNode;
+    }
+
+    inline Type getType() { return __type; }
     inline std::string getName() { return _name; }
 
     void accept(GraphVisitor* visitor) { visitor->visitTypeNode(this); }
@@ -92,7 +124,10 @@ class SimpleNode : public Node {
     std::string _nodeName;
 
 public:
-    SimpleNode(std::string nodeName) : _nodeName(nodeName) {}
+    SimpleNode(NodeType type, std::string nodeName)
+        : Node(type), _nodeName(nodeName) {}
+
+    static bool classof(const Node* node) { return false; }
 
     inline std::string getNodeName() { return _nodeName; }
 
@@ -103,71 +138,113 @@ public:
 
 class FunctionSignature : public SimpleNode {
 public:
-    FunctionSignature() : SimpleNode("FunctionSignature") {}
+    FunctionSignature()
+        : SimpleNode(NodeType::FunctionSignature, "FunctionSignature") {}
+
+    static bool classof(const Node* node) {
+        return node->_type == NodeType::FunctionSignature;
+    }
 };
 
 class Instructions : public SimpleNode {
 public:
-    Instructions() : SimpleNode("Instructions") {}
+    Instructions() : SimpleNode(NodeType::Instructions, "Instructions") {}
 
     virtual void accept(GraphVisitor* visitor) {
         visitor->visitInstructions(this);
+    }
+
+    static bool classof(const Node* node) {
+        return node->_type == NodeType::Instructions;
     }
 };
 
 class Parameters : public SimpleNode {
 public:
-    Parameters() : SimpleNode("Parameters") {}
+    Parameters() : SimpleNode(NodeType::Parameters, "Parameters") {}
+
+    static bool classof(const Node* node) {
+        return node->_type == NodeType::Parameters;
+    }
 };
 
 class Locals : public SimpleNode {
 public:
-    Locals() : SimpleNode("Locals") {}
+    Locals() : SimpleNode(NodeType::Locals, "Locals") {}
+
+    static bool classof(const Node* node) {
+        return node->_type == NodeType::Locals;
+    }
 };
 
 class Results : public SimpleNode {
 public:
-    Results() : SimpleNode("Results") {}
+    Results() : SimpleNode(NodeType::Results, "Results") {}
+
+    static bool classof(const Node* node) {
+        return node->_type == NodeType::Results;
+    }
 };
 
 class Return : public SimpleNode {
 public:
-    Return() : SimpleNode("Return") {}
+    Return() : SimpleNode(NodeType::Return, "Return") {}
 
     virtual void accept(GraphVisitor* visitor) { visitor->visitReturn(this); }
+
+    static bool classof(const Node* node) {
+        return node->_type == NodeType::Return;
+    }
 };
 
 class Else : public SimpleNode {
 public:
-    Else() : SimpleNode("Else") {}
+    Else() : SimpleNode(NodeType::Else, "Else") {}
 
     virtual void accept(GraphVisitor* visitor) { visitor->visitElse(this); }
+
+    static bool classof(const Node* node) {
+        return node->_type == NodeType::Else;
+    }
 };
 
 class Trap : public SimpleNode {
 public:
-    Trap() : SimpleNode("Trap") {}
+    Trap() : SimpleNode(NodeType::Trap, "Trap") {}
 
     virtual void accept(GraphVisitor* visitor) { visitor->visitTrap(this); }
+
+    static bool classof(const Node* node) {
+        return node->_type == NodeType::Trap;
+    }
 };
 
 class Start : public SimpleNode {
 public:
-    Start() : SimpleNode("Start") {}
+    Start() : SimpleNode(NodeType::Start, "Start") {}
 
     virtual void accept(GraphVisitor* visitor) { visitor->visitStart(this); }
+
+    static bool classof(const Node* node) {
+        return node->_type == NodeType::Start;
+    }
 };
 
 class Instruction : public Node {
-    ExprType _type;
+    ExprType __type;
     Expr* _expr;
 
 public:
-    Instruction(ExprType type, Expr* expr) : _type(type), _expr(expr) {}
+    Instruction(ExprType type, Expr* expr)
+        : Node(NodeType::Instruction), __type(type), _expr(expr) {}
+
+    static bool classof(const Node* node) {
+        return node->_type == NodeType::Instruction;
+    }
 
     inline Expr* getExpr() { return _expr; }
 
-    inline ExprType getType() { return _type; }
+    inline ExprType getType() { return __type; }
 
     void accept(GraphVisitor* visitor) { visitor->visitInstruction(this); }
 };
@@ -176,7 +253,11 @@ class IndexNode : public Node {
     Index _index;
 
 public:
-    IndexNode(Index index) : _index(index) {}
+    IndexNode(Index index) : Node(NodeType::IndexNode), _index(index) {}
+
+    static bool classof(const Node* node) {
+        return node->_type == NodeType::IndexNode;
+    }
 
     inline Index getIndex() { return _index; }
 
@@ -184,24 +265,24 @@ public:
 };
 
 struct Edge {
+private:
     Node* _src;
     Node* _dest;
     EdgeType _type;
 
+public:
     Edge(Node* src, Node* dest, EdgeType type)
         : _src(src), _dest(dest), _type(type) {
-        if (src == nullptr || dest == nullptr) {
-            assert(false);
-        }
-        src->addEdge(this);
+        assert(src != nullptr && dest != nullptr);
+        src->addOutEdge(this);
+        dest->addInEdge(this);
     }
-
-    inline Node* getDest() { return _dest; }
-
-    inline EdgeType getType() { return _type; }
 
     virtual ~Edge() {}
 
+    inline Node* src() { return _src; }
+    inline Node* dest() { return _dest; }
+    inline EdgeType type() { return _type; }
     virtual void accept(GraphVisitor* visitor) = 0;
 };
 

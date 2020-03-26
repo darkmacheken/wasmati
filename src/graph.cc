@@ -6,31 +6,35 @@ namespace wasmati {
 int Node::idCount = 0;
 
 Node::~Node() {
-    for (auto e : _edges) {
+    for (auto e : _outEdges) {
         delete e;
     }
 }
 
-void Node::addEdge(Edge* e) {
-    switch (e->getType()) {
-    case EdgeType::AST:
-        _hasASTEdges = e->getDest()->_hasASTEdges = true;
-        break;
-    case EdgeType::CFG:
-        _hasCFGEdges = e->getDest()->_hasCFGEdges = true;
-        break;
-    case EdgeType::PDG:
-        _hasPDGEdges = e->getDest()->_hasPDGEdges = true;
-        break;
-    default:
-        assert(false);
-        break;
+bool Node::hasEdgesOf(EdgeType type) {
+    return hasInEdgesOf(type) || hasOutEdgesOf(type);
+}
+
+bool Node::hasInEdgesOf(EdgeType type) {
+    for (auto e : _inEdges) {
+        if (e->type() == type) {
+            return true;
+        }
     }
-    _edges.push_back(e);
+    return false;
+}
+
+bool Node::hasOutEdgesOf(EdgeType type) {
+    for (auto e : _outEdges) {
+        if (e->type() == type) {
+            return true;
+        }
+    }
+    return false;
 }
 
 void Node::acceptEdges(GraphVisitor* visitor) {
-    for (Edge* e : _edges) {
+    for (Edge* e : _outEdges) {
         e->accept(visitor);
     }
 }
