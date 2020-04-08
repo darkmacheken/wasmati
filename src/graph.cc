@@ -73,17 +73,7 @@ Graph::~Graph() {
 
 void Graph::generateCPG(GenerateCPGOptions options) {
     generateAST(options);
-
-    if (options.printJustAST) {
-        return;
-    }
-
     generateCFG(options);
-
-    if (options.printJustCFG) {
-        return;
-    }
-
     generatePDG(options);
 }
 

@@ -7,20 +7,20 @@ void DotWriter::writeGraph() {
     writePuts("graph [rankdir=TD];");
     writePuts("node [shape=none];");
     bool justOneGraph =
-        _options.printJustAST || _options.printJustCFG || _options.printJustPDG;
+        _options.printNoAST || _options.printNoCFG || _options.printNoPDG;
 
     for (auto const& node : _graph->getNodes()) {
         node->acceptEdges(this);
 
         if (!justOneGraph) {
             node->accept(this);
-        } else if (_options.printJustAST &&
+        } else if (!_options.printNoAST &&
                    node->hasEdgesOf(EdgeType::AST)) {  // AST
             node->accept(this);
-        } else if (_options.printJustCFG &&
+        } else if (!_options.printNoCFG &&
                    node->hasEdgesOf(EdgeType::CFG)) {  // CFG
             node->accept(this);
-        } else if (_options.printJustPDG &&
+        } else if (!_options.printNoPDG &&
                    node->hasEdgesOf(EdgeType::PDG)) {  // PDG
             node->accept(this);
         }
@@ -34,7 +34,7 @@ void DotWriter::writeGraph() {
 }
 
 void DotWriter::visitASTEdge(ASTEdge* e) {
-    if (_options.printJustCFG || _options.printJustPDG) {
+    if (_options.printNoAST) {
         return;
     }
     writeStringln(std::to_string(e->src()->getId()) + " -> " +
@@ -42,7 +42,7 @@ void DotWriter::visitASTEdge(ASTEdge* e) {
 }
 
 void DotWriter::visitCFGEdge(CFGEdge* e) {
-    if (_options.printJustAST || _options.printJustPDG) {
+    if (_options.printNoCFG) {
         return;
     }
     if (e->_label.empty()) {
@@ -56,7 +56,7 @@ void DotWriter::visitCFGEdge(CFGEdge* e) {
 }
 
 void DotWriter::visitPDGEdge(PDGEdge* e) {
-    if (_options.printJustAST || _options.printJustCFG) {
+    if (_options.printNoPDG) {
         return;
     }
     if (e->_label.empty()) {
@@ -446,21 +446,21 @@ std::string DotWriter::writeConst(const Const& const_) {
 void DotWriter::setSameRank() {
     setDepth(_graph->getNodes().front(), 0);
 
-    for (auto v : _depth) {
-        writePuts("{rank = same; ");
-        for (auto id : *v) {
+    for (Index i = 0; i < _depth.size(); i++) {
+        std::string rank = "{rank =" + std::to_string(i) + "; ";
+        writePuts(rank.c_str());
+        for (auto id : _depth[i]) {
             writeString(std::to_string(id) + "; ");
         }
         writePutsln("}");
-        delete v;
     }
 }
 
 void DotWriter::setDepth(const Node* node, Index depth) {
     if (_depth.size() <= depth) {
-        _depth.push_back(new std::vector<int>());
+        _depth.emplace_back();
     }
-    _depth[depth]->push_back(node->getId());
+    _depth[depth].push_back(node->getId());
     for (auto e : node->outEdges()) {
         if (e->type() == EdgeType::AST) {
             setDepth(e->dest(), depth + 1);

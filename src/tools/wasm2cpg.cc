@@ -76,12 +76,24 @@ static void ParseOptions(int argc, char** argv) {
                            s_infile = argument;
                            ConvertBackslashToSlash(&s_infile);
                        });
-    parser.AddOption("ast", "Output just the Abstract Syntax Tree",
-                     []() { cpgOptions.printJustAST = true; });
-    parser.AddOption("cfg", "Output just the Control Flow Graph",
-                     []() { cpgOptions.printJustCFG = true; });
-    parser.AddOption("pdg", "Output just the Program Dependence Graph",
-                     []() { cpgOptions.printJustPDG = true; });
+    parser.AddOption("ast", "Output just the Abstract Syntax Tree", []() {
+        cpgOptions.printNoCFG = true;
+        cpgOptions.printNoPDG = true;
+    });
+    parser.AddOption("cfg", "Output just the Control Flow Graph", []() {
+        cpgOptions.printNoAST = true;
+        cpgOptions.printNoPDG = true;
+    });
+    parser.AddOption("pdg", "Output just the Program Dependence Graph", []() {
+        cpgOptions.printNoAST = true;
+        cpgOptions.printNoCFG = true;
+    });
+    parser.AddOption("no-ast", "Output just the Abstract Syntax Tree",
+                     []() { cpgOptions.printNoAST = true; });
+    parser.AddOption("no-cfg", "Output just the Control Flow Graph",
+                     []() { cpgOptions.printNoCFG = true; });
+    parser.AddOption("no-pdg", "Output just the Program Dependence Graph",
+                     []() { cpgOptions.printNoPDG = true; });
     parser.Parse(argc, argv);
 }
 

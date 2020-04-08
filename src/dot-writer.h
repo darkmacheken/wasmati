@@ -5,7 +5,7 @@
 namespace wasmati {
 
 class DotWriter : public GraphWriter {
-    std::vector<std::vector<int>*> _depth;
+    std::vector<std::vector<int>> _depth;
 
 public:
     DotWriter(wabt::Stream* stream, Graph* graph, GenerateCPGOptions options)

@@ -28,9 +28,9 @@ class Graph;
 
 struct GenerateCPGOptions {
     std::string funcName;
-    bool printJustAST = false;
-    bool printJustCFG = false;
-    bool printJustPDG = false;
+    bool printNoAST = false;
+    bool printNoCFG = false;
+    bool printNoPDG = false;
 };
 
 class GraphVisitor {
