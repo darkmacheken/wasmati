@@ -2,7 +2,7 @@
 
 namespace wasmati {
 
-Node* CFGvisitor::getLeftMostLeaf(Node* node) {
+Node* CFGvisitor::getLeftMostLeaf(Node* node) const {
     if (node->getNumOutEdges() == 0) {
         return node;
     } else if (node->getOutEdge(0)->type() != EdgeType::AST) {
@@ -17,7 +17,7 @@ void CFGvisitor::visitASTEdge(ASTEdge* e) {
 }
 
 void CFGvisitor::visitModule(Module* mod) {
-    for (auto node : *mod->outEdges()) {
+    for (auto node : mod->outEdges()) {
         node->accept(this);
     }
 }
@@ -214,6 +214,7 @@ void CFGvisitor::OnCallExpr(CallExpr*) {
 
     _lastInstruction = _currentInstruction.top();
 }
+
 void CFGvisitor::OnCallIndirectExpr(CallIndirectExpr*) {
     visitSequential(_currentInstruction.top());
 
@@ -369,7 +370,10 @@ void CFGvisitor::OnMemoryInitExpr(MemoryInitExpr*) {
     assert(false);
 }
 
-void CFGvisitor::OnMemorySizeExpr(MemorySizeExpr*) {}
+void CFGvisitor::OnMemorySizeExpr(MemorySizeExpr*) {
+    assert(false);
+}
+
 void CFGvisitor::OnTableCopyExpr(TableCopyExpr*) {
     assert(false);
 }
@@ -530,7 +534,7 @@ void CFGvisitor::visitSequential(Node* node) {
     if (numInst == 0) {
         return;
     }
-    std::vector<Edge*> edges = *node->outEdges();
+    const std::vector<Edge*> edges = node->outEdges();
     int i;
     for (i = 0; i < numInst - 1; i++) {
         edges[i]->accept(this);

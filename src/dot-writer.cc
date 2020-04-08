@@ -9,7 +9,7 @@ void DotWriter::writeGraph() {
     bool justOneGraph =
         _options.printJustAST || _options.printJustCFG || _options.printJustPDG;
 
-    for (auto const& node : *_graph->getNodes()) {
+    for (auto const& node : _graph->getNodes()) {
         node->acceptEdges(this);
 
         if (!justOneGraph) {
@@ -50,8 +50,8 @@ void DotWriter::visitCFGEdge(CFGEdge* e) {
                       std::to_string(e->dest()->getId()) + " [color=red]");
     } else {
         writeStringln(std::to_string(e->src()->getId()) + " -> " +
-                      std::to_string(e->dest()->getId()) + " [label=\"" +
-                      e->_label + "\"color=red]");
+                      std::to_string(e->dest()->getId()) + " [fontcolor=red label=\"" +
+                      e->_label + "\" color=red]");
     }
 }
 
@@ -59,8 +59,15 @@ void DotWriter::visitPDGEdge(PDGEdge* e) {
     if (_options.printJustAST || _options.printJustCFG) {
         return;
     }
-    writeStringln(std::to_string(e->src()->getId()) + " -> " +
-                  std::to_string(e->dest()->getId()) + " [color=blue]");
+    if (e->_label.empty()) {
+        writeStringln(std::to_string(e->src()->getId()) + " -> " +
+            std::to_string(e->dest()->getId()) + " [color=blue]");
+    }
+    else {
+        writeStringln(std::to_string(e->src()->getId()) + " -> " +
+            std::to_string(e->dest()->getId()) + " [fontcolor=blue label=\"" +
+            e->_label + "\" color=blue]");
+    }
 }
 
 void DotWriter::visitModule(Module* mod) {
@@ -437,7 +444,7 @@ std::string DotWriter::writeConst(const Const& const_) {
 }
 
 void DotWriter::setSameRank() {
-    setDepth(_graph->getNodes()->front(), 0);
+    setDepth(_graph->getNodes().front(), 0);
 
     for (auto v : _depth) {
         writePuts("{rank = same; ");
@@ -449,12 +456,12 @@ void DotWriter::setSameRank() {
     }
 }
 
-void DotWriter::setDepth(Node* node, Index depth) {
+void DotWriter::setDepth(const Node* node, Index depth) {
     if (_depth.size() <= depth) {
         _depth.push_back(new std::vector<int>());
     }
     _depth[depth]->push_back(node->getId());
-    for (auto e : *node->outEdges()) {
+    for (auto e : node->outEdges()) {
         if (e->type() == EdgeType::AST) {
             setDepth(e->dest(), depth + 1);
         }

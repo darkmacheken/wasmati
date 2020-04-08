@@ -1,5 +1,6 @@
 #include "src/graph.h"
 #include "src/cfg-visitor.h"
+#include "src/pdg-visitor.h"
 
 namespace wasmati {
 
@@ -11,11 +12,31 @@ Node::~Node() {
     }
 }
 
-bool Node::hasEdgesOf(EdgeType type) {
+std::vector<Edge*> Node::inEdges(EdgeType type) {
+    std::vector<Edge*> res;
+    for (auto e : _inEdges) {
+        if (e->type() == type) {
+            res.push_back(e);
+        }
+    }
+    return res;
+}
+
+std::vector<Edge*> Node::outEdges(EdgeType type) {
+    std::vector<Edge*> res;
+    for (auto e : _outEdges) {
+        if (e->type() == type) {
+            res.push_back(e);
+        }
+    }
+    return res;
+}
+
+bool Node::hasEdgesOf(EdgeType type)  const {
     return hasInEdgesOf(type) || hasOutEdgesOf(type);
 }
 
-bool Node::hasInEdgesOf(EdgeType type) {
+bool Node::hasInEdgesOf(EdgeType type) const {
     for (auto e : _inEdges) {
         if (e->type() == type) {
             return true;
@@ -24,7 +45,7 @@ bool Node::hasInEdgesOf(EdgeType type) {
     return false;
 }
 
-bool Node::hasOutEdgesOf(EdgeType type) {
+bool Node::hasOutEdgesOf(EdgeType type) const  {
     for (auto e : _outEdges) {
         if (e->type() == type) {
             return true;
@@ -58,6 +79,12 @@ void Graph::generateCPG(GenerateCPGOptions options) {
     }
 
     generateCFG(options);
+
+    if (options.printJustCFG) {
+        return;
+    }
+
+    generatePDG(options);
 }
 
 void Graph::generateAST(GenerateCPGOptions options) {
@@ -80,10 +107,10 @@ void Graph::generateAST(GenerateCPGOptions options) {
         auto isImport =
             _mc->module.IsImport(ExternalKind::Func, Var(func_index));
         if (!isImport) {
-            AST ast(*_mc, f);
+            AST ast(const_cast<ModuleContext&>(*_mc), f);
             ast.Construct(f->exprs, f->GetNumResults(), true);
             // Function
-            Function* func = new Function(f->name);
+            Function* func = new Function(f);
             this->insertNode(func);
             new ASTEdge(m, func);
             // Index
@@ -96,7 +123,7 @@ void Graph::generateAST(GenerateCPGOptions options) {
             new ASTEdge(func, fsign);
 
             std::vector<std::string> localsNames;
-            getLocalsNames(f, &localsNames);
+            getLocalsNames(f, localsNames);
             //// Parameters
             Index numParameters = f->GetNumParams();
             if (numParameters > 0) {
@@ -165,14 +192,19 @@ void Graph::generateCFG(GenerateCPGOptions options) {
     _nodes[0]->accept(&visitor);
 }
 
-void Graph::getLocalsNames(Func* f, std::vector<std::string>* names) {
+void Graph::generatePDG(GenerateCPGOptions options) {
+    PDGvisitor visitor(this);
+    _nodes[0]->accept(&visitor);
+}
+
+void Graph::getLocalsNames(Func* f, std::vector<std::string>& names) const {
     Index size = f->GetNumParamsAndLocals();
-    names->reserve(size);
+    names.reserve(size);
     for (Index i = 0; i < size; i++) {
-        names->push_back("");
+        names.push_back("");
     }
     for (auto local : f->bindings) {
-        (*names)[local.second.index] = local.first;
+        names[local.second.index] = local.first;
     }
 }
 

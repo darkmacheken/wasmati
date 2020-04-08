@@ -93,7 +93,7 @@ private:
 
     std::string writeConst(const Const& const_);
     void setSameRank();
-    void setDepth(Node* node, Index depth);
+    void setDepth(const Node* node, Index depth);
 };
 
 }  // namespace wasmati

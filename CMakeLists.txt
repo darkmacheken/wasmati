@@ -239,6 +239,8 @@ add_library(wasmati STATIC
   src/dot-writer.cc
   src/cfg-visitor.h
   src/cfg-visitor.cc
+  src/pdg-visitor.h
+  src/pdg-visitor.cc
 )
 
 if (NOT EMSCRIPTEN)

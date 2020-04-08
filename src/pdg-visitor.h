@@ -1,27 +1,24 @@
-#ifndef WASMATI_CFG_H
-#define WASMATI_CFG_H
+#ifndef WASMATI_PDG_H
+#define WASMATI_PDG_H
 #include <list>
 #include <set>
-#include <stack>
 
 #include "src/cast.h"
 #include "src/graph-visitor.h"
 #include "src/graph.h"
 
 namespace wasmati {
+class ReachDefinition;
 
-class CFGvisitor : public GraphVisitor {
+class PDGvisitor : public GraphVisitor {
     Graph* _graph;
-    Instruction* _lastInstruction;
-    std::stack<Instruction*> _currentInstruction;
-    std::list<std::pair<std::string, Instruction*>> _blocks;
-    std::set<Node*> _unreachableInsts;
-
-    Node* getLeftMostLeaf(Node* node) const;
+    Func* _currentFunction;
+    Instruction* _currentInstruction;
+    std::map<Node*, std::vector<std::shared_ptr<ReachDefinition>>> _reachDef;
 
     // Edges
-    void visitASTEdge(ASTEdge*) override;
-    void visitCFGEdge(CFGEdge*) override{/*Do nothing*/};
+    void visitASTEdge(ASTEdge*) override { assert(false); };
+    void visitCFGEdge(CFGEdge*) override;
     void visitPDGEdge(PDGEdge*) override { assert(false); };
 
     // Nodes
@@ -98,15 +95,128 @@ protected:
     void OnSimdShuffleOpExpr(SimdShuffleOpExpr*) override;
     void OnLoadSplatExpr(LoadSplatExpr*) override;
 
-private:
-    void visitSequential(Node* node);
-    bool visitArity1();
-    bool visitArity2();
+public:
+    PDGvisitor(Graph* graph) : _graph(graph) { _currentFunction = nullptr; }
+};
+
+// A set
+class Definition {
+    std::map<std::string, std::set<Node*>> _def;
 
 public:
-    CFGvisitor(Graph* graph) : _graph(graph) { _lastInstruction = nullptr; }
+    Definition() {}
+
+    Definition(const Definition& def) : _def(def._def) {}
+
+    inline void insert(const std::string& var, Node* node) {
+        _def[var].insert(node);
+    }
+
+    inline void unionDef(const Definition& otherDef) {
+        for (auto kv : otherDef._def) {
+            _def[kv.first].insert(kv.second.begin(), kv.second.end());
+        }
+    }
+
+    inline void clear(const std::string& var) { _def[var].clear(); }
+
+    inline void clear(Node* inst) {
+        for (auto kv : _def) {
+            _def[kv.first].clear();
+            _def[kv.first].insert(inst);
+        }
+    }
+
+    inline void clear() { _def.clear(); }
+
+    inline bool isEmpty() const { return _def.size() == 0; }
+
+    inline void insertPDGEdge(Node* target) {
+        for (auto kv : _def) {
+            for (Node* node : kv.second) {
+                new PDGEdge(node, target, kv.first);
+            }
+        }
+    }
+};
+
+// A set of sets indexed by name
+class Definitions {
+    std::map<std::string, Definition> _defs;
+
+public:
+    Definitions() {}
+
+    Definitions(const Definitions& defs) : _defs(defs._defs) {}
+
+    inline void insert(const std::string& var, Definition& def) {
+        _defs.emplace(std::make_pair(var, def));
+    }
+
+    inline void insert(const std::string& var) { _defs[var]; }
+
+    inline Definition& get(const std::string& var) { return _defs.at(var); }
+
+    inline void unionDef(const Definitions& otherDefs) {
+        for (auto kv : otherDefs._defs) {
+            _defs[kv.first].unionDef(kv.second);
+        }
+    }
+};
+
+class ReachDefinition {
+    typedef std::list<Definition> Stack;
+
+    Definitions _globals;
+    Definitions _locals;
+    Stack _stack;
+
+public:
+    ReachDefinition() {}
+
+    ReachDefinition(ReachDefinition& reachDef)
+        : _globals(reachDef._globals),
+          _locals(reachDef._locals),
+          _stack(reachDef._stack) {}
+
+    inline void insertGlobal(const std::string& var) { _globals.insert(var); }
+
+    inline const Definition& getGlobal(const std::string& var) {
+        return _globals.get(var);
+    }
+
+    inline void insertLocal(const std::string& var) { _locals.insert(var); }
+
+    inline const Definition& getLocal(const std::string& var) {
+        return _locals.get(var);
+    }
+
+    inline void push() { _stack.emplace_front(); }
+
+    inline void push(const Definition& def) { _stack.emplace_front(def); }
+
+    inline Definition pop() {
+        auto top = peek();
+        _stack.pop_front();
+        return top;
+    }
+    inline Definition& peek() { return _stack.back(); }
+
+    inline void unionDef(const ReachDefinition& otherDef) {
+        _globals.unionDef(otherDef._globals);
+        _locals.unionDef(otherDef._locals);
+
+        assert(_stack.size() == otherDef.stackSize());
+
+        for (auto it = std::make_pair(_stack.begin(), otherDef._stack.begin());
+             it.first != _stack.end(); it.first++, it.second++) {
+            it.first->unionDef(*it.second);
+        }
+    }
+
+    inline Index stackSize() const { return _stack.size(); }
 };
 
 }  // namespace wasmati
 
-#endif /*end WASMATI_CFG_H*/
+#endif /*end WASMATI_PDG_H*/
