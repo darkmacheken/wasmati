@@ -71,13 +71,23 @@ Graph::~Graph() {
     delete _mc;
 }
 
-void Graph::generateCPG(GenerateCPGOptions options) {
+void Graph::generateCPG(GenerateCPGOptions& options) {
     generateAST(options);
+
+    if (options.printNoCFG && options.printNoPDG) {
+        return;
+    }
+
     generateCFG(options);
+
+    if (options.printNoPDG) {
+        return;
+    }
+
     generatePDG(options);
 }
 
-void Graph::generateAST(GenerateCPGOptions options) {
+void Graph::generateAST(GenerateCPGOptions& options) {
     Module* m;
     if (_mc->module.name.empty()) {
         m = new Module();
@@ -177,12 +187,12 @@ void Graph::generateAST(GenerateCPGOptions options) {
     }
 }
 
-void Graph::generateCFG(GenerateCPGOptions options) {
+void Graph::generateCFG(GenerateCPGOptions& options) {
     CFGvisitor visitor(this);
     _nodes[0]->accept(&visitor);
 }
 
-void Graph::generatePDG(GenerateCPGOptions options) {
+void Graph::generatePDG(GenerateCPGOptions& options) {
     PDGvisitor visitor(this);
     _nodes[0]->accept(&visitor);
 }

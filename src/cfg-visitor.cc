@@ -371,7 +371,7 @@ void CFGvisitor::OnMemoryInitExpr(MemoryInitExpr*) {
 }
 
 void CFGvisitor::OnMemorySizeExpr(MemorySizeExpr*) {
-    assert(false);
+    _lastInstruction = _currentInstruction.top();
 }
 
 void CFGvisitor::OnTableCopyExpr(TableCopyExpr*) {

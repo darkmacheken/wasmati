@@ -112,8 +112,8 @@ public:
         _def[var].insert(node);
     }
 
-    inline void unionDef(const Definition& otherDef) {
-        for (auto kv : otherDef._def) {
+    inline void unionDef(std::shared_ptr<Definition> otherDef) {
+        for (auto kv : otherDef->_def) {
             _def[kv.first].insert(kv.second.begin(), kv.second.end());
         }
     }
@@ -142,30 +142,44 @@ public:
 
 // A set of sets indexed by name
 class Definitions {
-    std::map<std::string, Definition> _defs;
+    std::map<std::string, std::shared_ptr<Definition>> _defs;
 
 public:
     Definitions() {}
 
-    Definitions(const Definitions& defs) : _defs(defs._defs) {}
-
-    inline void insert(const std::string& var, Definition& def) {
-        _defs.emplace(std::make_pair(var, def));
+    Definitions(const Definitions& defs) {
+        for (auto kv : defs._defs) {
+            _defs.insert(std::make_pair(
+                kv.first, std::make_shared<Definition>(*kv.second)));
+        }
     }
 
-    inline void insert(const std::string& var) { _defs[var]; }
+    inline void insert(const std::string& var, Definition& def) {
+        _defs.emplace(std::make_pair(var, std::make_shared<Definition>(def)));
+    }
 
-    inline Definition& get(const std::string& var) { return _defs.at(var); }
+    inline void insert(const std::string& var) {
+        _defs[var] = std::make_shared<Definition>();
+    }
+
+    inline void insert(const std::string& var,
+                       std::shared_ptr<Definition> def) {
+        _defs[var] = def;
+    }
+
+    inline std::shared_ptr<Definition> get(const std::string& var) {
+        return _defs.at(var);
+    }
 
     inline void unionDef(const Definitions& otherDefs) {
         for (auto kv : otherDefs._defs) {
-            _defs[kv.first].unionDef(kv.second);
+            _defs[kv.first]->unionDef(kv.second);
         }
     }
 };
 
 class ReachDefinition {
-    typedef std::list<Definition> Stack;
+    typedef std::list<std::shared_ptr<Definition>> Stack;
 
     Definitions _globals;
     Definitions _locals;
@@ -174,34 +188,50 @@ class ReachDefinition {
 public:
     ReachDefinition() {}
 
-    ReachDefinition(ReachDefinition& reachDef)
+    ReachDefinition(const ReachDefinition& reachDef)
         : _globals(reachDef._globals),
           _locals(reachDef._locals),
           _stack(reachDef._stack) {}
 
     inline void insertGlobal(const std::string& var) { _globals.insert(var); }
 
-    inline const Definition& getGlobal(const std::string& var) {
+    inline void insertGlobal(const std::string& var,
+                             std::shared_ptr<Definition> def) {
+        _globals.insert(var, def);
+    }
+
+    inline std::shared_ptr<Definition> getGlobal(const std::string& var) {
         return _globals.get(var);
     }
 
     inline void insertLocal(const std::string& var) { _locals.insert(var); }
 
-    inline const Definition& getLocal(const std::string& var) {
+    inline void insertLocal(const std::string& var,
+                            std::shared_ptr<Definition> def) {
+        _locals.insert(var, def);
+    }
+
+    inline std::shared_ptr<Definition> getLocal(const std::string& var) {
         return _locals.get(var);
     }
 
-    inline void push() { _stack.emplace_front(); }
+    inline void push() { _stack.emplace_front(std::make_shared<Definition>()); }
 
-    inline void push(const Definition& def) { _stack.emplace_front(def); }
+    inline void push(const Definition& def) {
+        _stack.emplace_front(std::make_shared<Definition>(def));
+    }
 
-    inline Definition pop() {
+    inline void push(std::shared_ptr<Definition> def) {
+        _stack.emplace_front(std::make_shared<Definition>(*def));
+    }
+
+    inline std::shared_ptr<Definition> pop() {
         auto top = peek();
         _stack.pop_front();
         return top;
     }
-    inline Definition& peek() { return _stack.back(); }
 
+    inline std::shared_ptr<Definition> peek() { return _stack.front(); }
     inline void unionDef(const ReachDefinition& otherDef) {
         _globals.unionDef(otherDef._globals);
         _locals.unionDef(otherDef._locals);
@@ -210,7 +240,7 @@ public:
 
         for (auto it = std::make_pair(_stack.begin(), otherDef._stack.begin());
              it.first != _stack.end(); it.first++, it.second++) {
-            it.first->unionDef(*it.second);
+            (*it.first)->unionDef(*it.second);
         }
     }
 

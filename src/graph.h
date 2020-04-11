@@ -327,9 +327,9 @@ class Graph {
     Start* _start;
 
     void getLocalsNames(Func* f, std::vector<std::string>& names) const;
-    void generateAST(GenerateCPGOptions options);
-    void generateCFG(GenerateCPGOptions options);
-    void generatePDG(GenerateCPGOptions options);
+    void generateAST(GenerateCPGOptions& options);
+    void generateCFG(GenerateCPGOptions& options);
+    void generatePDG(GenerateCPGOptions& options);
     void visitWabtNode(wasmati::Node* parentNode, wabt::Node* node);
 
 public:
@@ -354,7 +354,7 @@ public:
         return _start;
     }
 
-    void generateCPG(GenerateCPGOptions options);
+    void generateCPG(GenerateCPGOptions& options);
 };
 
 }  // namespace wasmati

@@ -53,7 +53,8 @@ void PDGvisitor::visitInstruction(Instruction* inst) {
     if (outEdges.size() >= 1) {
         _reachDef[outEdges[0]->dest()].push_back(resultReachDef);
         const std::string& label = cast<CFGEdge>(outEdges[0])->_label;
-        if (label == "true" || label == "false" ) {
+        if (inst->getType() != ExprType::BrIf &&
+            (label == "true" || label == "false")) {
             resultReachDef->pop();
         }
     }
@@ -73,7 +74,17 @@ void PDGvisitor::visitInstruction(Instruction* inst) {
     }
 }
 
-void PDGvisitor::visitReturn(Return*) {}
+void PDGvisitor::visitReturn(Return* node) {
+    auto reachDefs = _reachDef[node];
+    assert(reachDefs.size() == 1);
+
+    auto reachDef = reachDefs[0];
+    assert(reachDef->stackSize() <= 1);
+
+    if (reachDef->stackSize() == 1) {
+        reachDef->peek()->insertPDGEdge(node);
+    }
+}
 
 void PDGvisitor::visitElse(Else*) {
     assert(false);
@@ -86,11 +97,11 @@ void PDGvisitor::OnBinaryExpr(BinaryExpr*) {
     auto reachDef = reachDefs[0];
     assert(reachDef->stackSize() >= 2);
 
-    Definition arg1 = reachDef->pop();
-    Definition arg2 = reachDef->pop();
-    arg1.unionDef(arg2);
-    arg1.insertPDGEdge(_currentInstruction);
-    arg1.clear(_currentInstruction);
+    auto arg1 = reachDef->pop();
+    auto arg2 = reachDef->pop();
+    arg1->unionDef(arg2);
+    arg1->insertPDGEdge(_currentInstruction);
+    arg1->clear(_currentInstruction);
     reachDef->push(arg1);
 }
 
@@ -106,16 +117,90 @@ void PDGvisitor::OnBlockExpr(BlockExpr*) {
         reachDefs[0]->unionDef(*reachDefs[i]);
     }
 }
-void PDGvisitor::OnBrExpr(BrExpr*) {}
-void PDGvisitor::OnBrIfExpr(BrIfExpr*) {}
+void PDGvisitor::OnBrExpr(BrExpr*) {
+    auto reachDefs = _reachDef[_currentInstruction];
+    assert(reachDefs.size() == 1);
+}
+
+void PDGvisitor::OnBrIfExpr(BrIfExpr*) {
+    auto reachDefs = _reachDef[_currentInstruction];
+    assert(reachDefs.size() == 1);
+    auto reachDef = reachDefs[0];
+
+    auto arg = reachDef->pop();
+    arg->insertPDGEdge(_currentInstruction);
+}
+
 void PDGvisitor::OnBrOnExnExpr(BrOnExnExpr*) {
     assert(false);
 }
 
-void PDGvisitor::OnBrTableExpr(BrTableExpr*) {}
-void PDGvisitor::OnCallExpr(CallExpr*) {}
-void PDGvisitor::OnCallIndirectExpr(CallIndirectExpr*) {}
-void PDGvisitor::OnCompareExpr(CompareExpr*) {}
+void PDGvisitor::OnBrTableExpr(BrTableExpr*) {
+    // TODO
+    assert(false);
+}
+
+void PDGvisitor::OnCallExpr(CallExpr* expr) {
+    auto reachDefs = _reachDef[_currentInstruction];
+    assert(reachDefs.size() == 1);
+
+    auto arity = _graph->getModuleContext()->GetExprArity(*expr);
+
+    auto reachDef = reachDefs[0];
+    assert(reachDef->stackSize() >= arity.nargs);
+
+    // Pop args
+    for (Index i = 0; i < arity.nargs; i++) {
+        auto arg = reachDef->pop();
+        arg->insertPDGEdge(_currentInstruction);
+    }
+
+    // push returns
+    for (Index i = 0; i < arity.nreturns; i++) {
+        reachDef->push();
+    }
+}
+
+void PDGvisitor::OnCallIndirectExpr(CallIndirectExpr* expr) {
+    auto reachDefs = _reachDef[_currentInstruction];
+    assert(reachDefs.size() == 1);
+
+    auto arity = _graph->getModuleContext()->GetExprArity(*expr);
+
+    auto reachDef = reachDefs[0];
+    assert(reachDef->stackSize() >= arity.nargs);
+
+    // pop func index
+    auto index = reachDef->pop();
+    index->insertPDGEdge(_currentInstruction);
+
+    // Pop args
+    for (Index i = 0; i < arity.nargs - 1; i++) {
+        auto arg = reachDef->pop();
+        arg->insertPDGEdge(_currentInstruction);
+    }
+
+    // push returns
+    for (Index i = 0; i < arity.nreturns; i++) {
+        reachDef->push();
+    }
+}
+
+void PDGvisitor::OnCompareExpr(CompareExpr*) {
+    auto reachDefs = _reachDef[_currentInstruction];
+    assert(reachDefs.size() == 1);
+
+    auto reachDef = reachDefs[0];
+    assert(reachDef->stackSize() >= 2);
+
+    auto arg1 = reachDef->pop();
+    auto arg2 = reachDef->pop();
+    arg1->unionDef(arg2);
+    arg1->insertPDGEdge(_currentInstruction);
+    arg1->clear(_currentInstruction);
+    reachDef->push(arg1);
+}
+
 void PDGvisitor::OnConstExpr(ConstExpr*) {
     auto reachDefs = _reachDef[_currentInstruction];
     assert(reachDefs.size() == 1);
@@ -123,12 +208,71 @@ void PDGvisitor::OnConstExpr(ConstExpr*) {
 
     reachDef->push();  // push empty def
 }
-void PDGvisitor::OnConvertExpr(ConvertExpr*) {}
-void PDGvisitor::OnDropExpr(DropExpr*) {}
-void PDGvisitor::OnGlobalGetExpr(GlobalGetExpr*) {}
-void PDGvisitor::OnGlobalSetExpr(GlobalSetExpr*) {}
-void PDGvisitor::OnIfExpr(IfExpr*) {}
-void PDGvisitor::OnLoadExpr(LoadExpr*) {}
+
+void PDGvisitor::OnConvertExpr(ConvertExpr*) {
+    auto reachDefs = _reachDef[_currentInstruction];
+    assert(reachDefs.size() == 1);
+
+    auto reachDef = reachDefs[0];
+    assert(reachDef->stackSize() >= 1);
+
+    // write dependencies of arg in top of the stack to this inst
+    reachDef->peek()->insertPDGEdge(_currentInstruction);
+
+    // following inst using this value depend of the result in this inst
+    reachDef->peek()->clear(_currentInstruction);
+}
+
+void PDGvisitor::OnDropExpr(DropExpr*) {
+    auto reachDefs = _reachDef[_currentInstruction];
+    assert(reachDefs.size() == 1);
+
+    auto reachDef = reachDefs[0];
+    assert(reachDef->stackSize() >= 1);
+
+    reachDef->pop();  // pop last element of stack
+}
+
+void PDGvisitor::OnGlobalGetExpr(GlobalGetExpr* expr) {
+    auto reachDefs = _reachDef[_currentInstruction];
+    assert(reachDefs.size() == 1);
+    auto reachDef = reachDefs[0];
+
+    reachDef->push(reachDef->getGlobal(expr->var.name()));
+    auto varDef = reachDef->peek();
+    if (varDef->isEmpty()) {
+        // set is empty, thus the var depends on itself
+        varDef->insert(expr->var.name(), _currentInstruction);
+    }
+}
+
+void PDGvisitor::OnGlobalSetExpr(GlobalSetExpr* expr) {
+    auto reachDefs = _reachDef[_currentInstruction];
+    assert(reachDefs.size() == 1);
+
+    auto reachDef = reachDefs[0];
+    assert(reachDef->stackSize() >= 1);
+
+    reachDef->insertGlobal(expr->var.name(), reachDef->pop());
+}
+
+void PDGvisitor::OnIfExpr(IfExpr*) {
+    assert(false);
+}
+
+void PDGvisitor::OnLoadExpr(LoadExpr*) {
+    auto reachDefs = _reachDef[_currentInstruction];
+    assert(reachDefs.size() == 1);
+
+    auto reachDef = reachDefs[0];
+    assert(reachDef->stackSize() >= 1);
+
+    // pop index and wirte dependencies
+    reachDef->pop()->insertPDGEdge(_currentInstruction);
+
+    // push a value to the stack
+    reachDef->push();
+}
 
 void PDGvisitor::OnLocalGetExpr(LocalGetExpr* expr) {
     auto reachDefs = _reachDef[_currentInstruction];
@@ -136,16 +280,45 @@ void PDGvisitor::OnLocalGetExpr(LocalGetExpr* expr) {
     auto reachDef = reachDefs[0];
 
     reachDef->push(reachDef->getLocal(expr->var.name()));
-    Definition& varDef = reachDef->peek();
-    if (varDef.isEmpty()) {
+    auto varDef = reachDef->peek();
+    if (varDef->isEmpty()) {
         // set is empty, thus the var depends on itself
-        varDef.insert(expr->var.name(), _currentInstruction);
+        varDef->insert(expr->var.name(), _currentInstruction);
     }
 }
 
-void PDGvisitor::OnLocalSetExpr(LocalSetExpr*) {}
-void PDGvisitor::OnLocalTeeExpr(LocalTeeExpr*) {}
-void PDGvisitor::OnLoopExpr(LoopExpr*) {}
+void PDGvisitor::OnLocalSetExpr(LocalSetExpr* expr) {
+    auto reachDefs = _reachDef[_currentInstruction];
+    assert(reachDefs.size() == 1);
+
+    auto reachDef = reachDefs[0];
+    assert(reachDef->stackSize() >= 1);
+
+    reachDef->insertLocal(expr->var.name(), reachDef->pop());
+}
+
+void PDGvisitor::OnLocalTeeExpr(LocalTeeExpr* expr) {
+    auto reachDefs = _reachDef[_currentInstruction];
+    assert(reachDefs.size() == 1);
+
+    auto reachDef = reachDefs[0];
+    assert(reachDef->stackSize() >= 1);
+
+    // pop value
+    auto arg = reachDef->pop();
+
+    // perform a local.set of value
+    reachDef->insertLocal(expr->var.name, arg);
+
+    // push back value to stack
+    reachDef->push(arg);
+}
+
+void PDGvisitor::OnLoopExpr(LoopExpr*) {
+    // TODO
+    assert(false);
+}
+
 void PDGvisitor::OnMemoryCopyExpr(MemoryCopyExpr*) {
     assert(false);
 }
@@ -158,13 +331,33 @@ void PDGvisitor::OnMemoryFillExpr(MemoryFillExpr*) {
     assert(false);
 }
 
-void PDGvisitor::OnMemoryGrowExpr(MemoryGrowExpr*) {}
+void PDGvisitor::OnMemoryGrowExpr(MemoryGrowExpr*) {
+    auto reachDefs = _reachDef[_currentInstruction];
+    assert(reachDefs.size() == 1);
+
+    auto reachDef = reachDefs[0];
+    assert(reachDef->stackSize() >= 1);
+
+    auto n = reachDef->pop();
+    // this inst depends on n
+    n->insertPDGEdge(_currentInstruction);
+
+    // memory.grow pushes new size of memory if OK or else an error number
+    reachDef->push();
+}
+
 void PDGvisitor::OnMemoryInitExpr(MemoryInitExpr*) {
     assert(false);
 }
 
 void PDGvisitor::OnMemorySizeExpr(MemorySizeExpr*) {
-    assert(false);
+    auto reachDefs = _reachDef[_currentInstruction];
+    assert(reachDefs.size() == 1);
+
+    auto reachDef = reachDefs[0];
+
+    // push size of memory to stack
+    reachDef->push();
 }
 
 void PDGvisitor::OnTableCopyExpr(TableCopyExpr*) {
@@ -211,8 +404,22 @@ void PDGvisitor::OnRefIsNullExpr(RefIsNullExpr*) {
     assert(false);
 }
 
-void PDGvisitor::OnNopExpr(NopExpr*) {}
-void PDGvisitor::OnReturnExpr(ReturnExpr*) {}
+void PDGvisitor::OnNopExpr(NopExpr*) {
+    // no operation => does nothing
+}
+
+void PDGvisitor::OnReturnExpr(ReturnExpr*) {
+    auto reachDefs = _reachDef[_currentInstruction];
+    assert(reachDefs.size() == 1);
+
+    auto reachDef = reachDefs[0];
+    assert(reachDef->stackSize() <= 1);
+
+    if (reachDef->stackSize() == 1) {
+        reachDef->peek()->insertPDGEdge(_currentInstruction);
+    }
+}
+
 void PDGvisitor::OnReturnCallExpr(ReturnCallExpr*) {
     assert(false);
 }
@@ -221,10 +428,60 @@ void PDGvisitor::OnReturnCallIndirectExpr(ReturnCallIndirectExpr*) {
     assert(false);
 }
 
-void PDGvisitor::OnSelectExpr(SelectExpr*) {}
-void PDGvisitor::OnStoreExpr(StoreExpr*) {}
-void PDGvisitor::OnUnaryExpr(UnaryExpr*) {}
-void PDGvisitor::OnUnreachableExpr(UnreachableExpr*) {}
+void PDGvisitor::OnSelectExpr(SelectExpr*) {
+    auto reachDefs = _reachDef[_currentInstruction];
+    assert(reachDefs.size() == 1);
+
+    auto reachDef = reachDefs[0];
+    assert(reachDef->stackSize() >= 3);
+
+    auto c = reachDef->pop();
+    auto val2 = reachDef->pop();
+    auto val1 = reachDef->pop();
+
+    // selects works: if c = 0 then val2 else val1
+    // select depends on c, the following instructions will depend val1 and val2
+    c->insertPDGEdge(_currentInstruction);
+
+    // union of vals and push
+    val1->unionDef(val2);
+    reachDef->push(val1);
+}
+
+void PDGvisitor::OnStoreExpr(StoreExpr*) {
+    auto reachDefs = _reachDef[_currentInstruction];
+    assert(reachDefs.size() == 1);
+
+    auto reachDef = reachDefs[0];
+    assert(reachDef->stackSize() >= 2);
+
+    auto c = reachDef->pop();
+    auto i = reachDef->pop();
+
+    // write dependencies to this inst
+    c->insertPDGEdge(_currentInstruction);
+    i->insertPDGEdge(_currentInstruction);
+}
+
+void PDGvisitor::OnUnaryExpr(UnaryExpr*) {
+    auto reachDefs = _reachDef[_currentInstruction];
+    assert(reachDefs.size() == 1);
+
+    auto reachDef = reachDefs[0];
+    assert(reachDef->stackSize() >= 1);
+
+    auto arg = reachDef->peek();
+    // write dependecies
+    arg->insertPDGEdge(_currentInstruction);
+
+    // Set dependencies to this inst
+    arg->clear(_currentInstruction);
+}
+
+void PDGvisitor::OnUnreachableExpr(UnreachableExpr*) {
+    // the program dies here with an exception
+}
+
 void PDGvisitor::OnTryExpr(TryExpr*) {
     assert(false);
 }
@@ -261,7 +518,11 @@ void PDGvisitor::OnAtomicRmwCmpxchgExpr(AtomicRmwCmpxchgExpr*) {
     assert(false);
 }
 
-void PDGvisitor::OnTernaryExpr(TernaryExpr*) {}
+void PDGvisitor::OnTernaryExpr(TernaryExpr*) {
+    // guess there are no ternary expresions in WebAssembly 1.0
+    assert(false);
+}
+
 void PDGvisitor::OnSimdLaneOpExpr(SimdLaneOpExpr*) {
     assert(false);
 }
