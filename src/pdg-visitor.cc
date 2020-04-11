@@ -308,7 +308,7 @@ void PDGvisitor::OnLocalTeeExpr(LocalTeeExpr* expr) {
     auto arg = reachDef->pop();
 
     // perform a local.set of value
-    reachDef->insertLocal(expr->var.name, arg);
+    reachDef->insertLocal(expr->var.name(), arg);
 
     // push back value to stack
     reachDef->push(arg);
