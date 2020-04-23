@@ -4,7 +4,7 @@ namespace wasmati {
 
 void PDGvisitor::visitCFGEdge(CFGEdge* e) {
     if (!e->_label.empty()) {
-        // it is true or false label
+        // it is true or false label or (br_table)
         new PDGEdge(e);
     }
     e->dest()->accept(this);
@@ -126,6 +126,7 @@ void PDGvisitor::OnBrIfExpr(BrIfExpr*) {
     auto reachDefs = _reachDef[_currentInstruction];
     assert(reachDefs.size() == 1);
     auto reachDef = reachDefs[0];
+    assert(reachDef->stackSize() >= 1);
 
     auto arg = reachDef->pop();
     arg->insertPDGEdge(_currentInstruction);
@@ -136,8 +137,13 @@ void PDGvisitor::OnBrOnExnExpr(BrOnExnExpr*) {
 }
 
 void PDGvisitor::OnBrTableExpr(BrTableExpr*) {
-    // TODO
-    assert(false);
+    auto reachDefs = _reachDef[_currentInstruction];
+    assert(reachDefs.size() == 1);
+    auto reachDef = reachDefs[0];
+    assert(reachDef->stackSize() >= 1);
+
+    auto arg = reachDef->pop();
+    arg->insertPDGEdge(_currentInstruction);
 }
 
 void PDGvisitor::OnCallExpr(CallExpr* expr) {

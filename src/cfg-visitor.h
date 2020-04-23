@@ -13,6 +13,7 @@ namespace wasmati {
 class CFGvisitor : public GraphVisitor {
     Graph* _graph;
     Instruction* _lastInstruction;
+    DummyInstruction _dummyInstruction;
     std::stack<Instruction*> _currentInstruction;
     std::list<std::pair<std::string, Instruction*>> _blocks;
     std::set<Node*> _unreachableInsts;
@@ -104,7 +105,9 @@ private:
     bool visitArity2();
 
 public:
-    CFGvisitor(Graph* graph) : _graph(graph) { _lastInstruction = nullptr; }
+    CFGvisitor(Graph* graph) : _graph(graph) {
+        _lastInstruction = &_dummyInstruction;
+    }
 };
 
 }  // namespace wasmati

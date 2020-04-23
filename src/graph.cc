@@ -107,7 +107,7 @@ void Graph::generateAST(GenerateCPGOptions& options) {
         auto isImport =
             _mc->module.IsImport(ExternalKind::Func, Var(func_index));
         if (!isImport) {
-            AST ast(const_cast<ModuleContext&>(*_mc), f);
+            wasmatiAST::AST ast(const_cast<ModuleContext&>(*_mc), f);
             ast.Construct(f->exprs, f->GetNumResults(), true);
             // Function
             Function* func = new Function(f);
@@ -172,7 +172,7 @@ void Graph::generateAST(GenerateCPGOptions& options) {
             this->insertNode(inst);
             new ASTEdge(func, inst);
 
-            for (wabt::Node& n : ast.exp_stack) {
+            for (wasmatiAST::Node& n : ast.exp_stack) {
                 visitWabtNode(inst, &n);
             }
 
@@ -208,24 +208,24 @@ void Graph::getLocalsNames(Func* f, std::vector<std::string>& names) const {
     }
 }
 
-void Graph::visitWabtNode(wasmati::Node* parentNode, wabt::Node* node) {
+void Graph::visitWabtNode(wasmati::Node* parentNode, wasmatiAST::Node* node) {
     switch (node->ntype) {
-    case wabt::NodeType::FlushToVars:
-    case wabt::NodeType::Statements:
-        for (wabt::Node& n : node->children) {
+    case wasmatiAST::NodeType::FlushToVars:
+    case wasmatiAST::NodeType::Statements:
+        for (wasmatiAST::Node& n : node->children) {
             visitWabtNode(parentNode, &n);
         }
         break;
-    case wabt::NodeType::EndReturn: {
+    case wasmatiAST::NodeType::EndReturn: {
         Return* ret = new Return();
         this->insertNode(ret);
         new ASTEdge(parentNode, ret);
-        for (wabt::Node& n : node->children) {
+        for (wasmatiAST::Node& n : node->children) {
             visitWabtNode(ret, &n);
         }
         break;
     }
-    case wabt::NodeType::Expr: {
+    case wasmatiAST::NodeType::Expr: {
         size_t nextId = _nodes.size();
         Instruction* inst =
             new Instruction(node->etype, const_cast<Expr*>(node->e));
@@ -262,25 +262,25 @@ void Graph::visitWabtNode(wasmati::Node* parentNode, wabt::Node* node) {
                 visitWabtNode(elseNode, &node->children[2]);
             }
         } else {
-            for (wabt::Node& n : node->children) {
+            for (wasmatiAST::Node& n : node->children) {
                 visitWabtNode(inst, &n);
             }
         }
         break;
     }
-    case wabt::NodeType::DeclInit: {
+    case wasmatiAST::NodeType::DeclInit: {
         LocalSetExpr* setExpr = new LocalSetExpr(*node->u.var);
         Instruction* inst = new Instruction(node->etype, setExpr);
         insertNode(inst);
         new ASTEdge(parentNode, inst);
-        for (wabt::Node& n : node->children) {
+        for (wasmatiAST::Node& n : node->children) {
             visitWabtNode(inst, &n);
         }
         break;
     }
-    case wabt::NodeType::Decl:
-    case wabt::NodeType::FlushedVar:
-    case wabt::NodeType::Uninitialized:
+    case wasmatiAST::NodeType::Decl:
+    case wasmatiAST::NodeType::FlushedVar:
+    case wasmatiAST::NodeType::Uninitialized:
     default:
         break;
     }

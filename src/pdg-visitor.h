@@ -31,7 +31,7 @@ class PDGvisitor : public GraphVisitor {
     void visitReturn(Return*) override;
     void visitElse(Else*) override;
     void visitStart(Start*) override { assert(false); };
-    void visitTrap(Trap*) override { assert(false); };
+    void visitTrap(Trap*) override { /*Do nothing*/};
     void visitIndexNode(IndexNode*) override { assert(false); };
 
 protected:

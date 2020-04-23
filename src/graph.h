@@ -1,8 +1,8 @@
 #ifndef WASMATI_GRAPH_H
 #define WASMATI_GRAPH_H
+#include "src/ast-builder.h"
 #include "src/cast.h"
 #include "src/common.h"
-#include "src/decompiler-ast.h"
 #include "src/graph-visitor.h"
 #include "src/ir-util.h"
 #include "src/ir.h"
@@ -244,11 +244,23 @@ public:
         return node->_type == NodeType::Instruction;
     }
 
-    inline Expr* getExpr() const { return _expr; }
+    virtual inline Expr* getExpr() const { return _expr; }
 
-    inline ExprType getType() const { return __type; }
+    virtual inline ExprType getType() const { return __type; }
 
-    void accept(GraphVisitor* visitor) { visitor->visitInstruction(this); }
+    virtual void accept(GraphVisitor* visitor) {
+        visitor->visitInstruction(this);
+    }
+};
+
+class DummyInstruction : public Instruction {
+    // This class is to handle errors
+public:
+    DummyInstruction() : Instruction(ExprType::Nop, nullptr) {}
+
+    inline Expr* getExpr() const override { assert(false); }
+    inline ExprType getType() const override { assert(false); }
+    void accept(GraphVisitor* visitor) override { assert(false); }
 };
 
 class IndexNode : public Node {
@@ -291,9 +303,7 @@ public:
 struct ASTEdge : Edge {
     ASTEdge(Node* src, Node* dest) : Edge(src, dest, EdgeType::AST) {}
     void accept(GraphVisitor* visitor) { visitor->visitASTEdge(this); }
-    static bool classof(const Edge* e) {
-        return e->type() == EdgeType::AST;
-    }
+    static bool classof(const Edge* e) { return e->type() == EdgeType::AST; }
 };
 
 struct CFGEdge : Edge {
@@ -303,9 +313,7 @@ struct CFGEdge : Edge {
     CFGEdge(Node* src, Node* dest, const std::string& label)
         : Edge(src, dest, EdgeType::CFG), _label(label) {}
     void accept(GraphVisitor* visitor) { visitor->visitCFGEdge(this); }
-    static bool classof(const Edge* e) {
-        return e->type() == EdgeType::CFG;
-    }
+    static bool classof(const Edge* e) { return e->type() == EdgeType::CFG; }
 };
 
 struct PDGEdge : Edge {
@@ -315,9 +323,7 @@ struct PDGEdge : Edge {
     PDGEdge(Node* src, Node* dest, const std::string& label)
         : Edge(src, dest, EdgeType::PDG), _label(label) {}
     void accept(GraphVisitor* visitor) { visitor->visitPDGEdge(this); }
-    static bool classof(const Edge* e) {
-        return e->type() == EdgeType::PDG;
-    }
+    static bool classof(const Edge* e) { return e->type() == EdgeType::PDG; }
 };
 
 class Graph {
@@ -330,7 +336,7 @@ class Graph {
     void generateAST(GenerateCPGOptions& options);
     void generateCFG(GenerateCPGOptions& options);
     void generatePDG(GenerateCPGOptions& options);
-    void visitWabtNode(wasmati::Node* parentNode, wabt::Node* node);
+    void visitWabtNode(wasmati::Node* parentNode, wasmatiAST::Node* node);
 
 public:
     Graph(wabt::Module* mc);

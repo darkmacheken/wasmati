@@ -123,6 +123,9 @@ int ProgramMain(int argc, char** argv) {
             result = ValidateModule(module.get(), &errors, options);
         }
 
+        auto line_finder = lexer->MakeLineFinder();
+        FormatErrorsToFile(errors, Location::Type::Text, line_finder.get());
+
         result = GenerateNames(module.get());
 
         if (Succeeded(result)) {
@@ -142,9 +145,6 @@ int ProgramMain(int argc, char** argv) {
             writer.writeGraph();
         }
     }
-
-    auto line_finder = lexer->MakeLineFinder();
-    FormatErrorsToFile(errors, Location::Type::Text, line_finder.get());
 
     return result != Result::Ok;
 }

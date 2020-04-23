@@ -210,7 +210,9 @@ void CFGvisitor::OnCallExpr(CallExpr*) {
         return;
     }
 
-    new CFGEdge(_lastInstruction, _currentInstruction.top());
+    if (_currentInstruction.top()->getNumOutEdges() > 0) {
+        new CFGEdge(_lastInstruction, _currentInstruction.top());
+    }
 
     _lastInstruction = _currentInstruction.top();
 }
@@ -301,7 +303,7 @@ void CFGvisitor::OnIfExpr(IfExpr*) {
 
         // Pop block
         _blocks.pop_front();
-    } else {
+    } else if (numChildren == 2 && !trueBlockUnreach) {
         new CFGEdge(condition, trueBlockNode, "false");
     }
 

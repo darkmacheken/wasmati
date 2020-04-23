@@ -230,6 +230,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/wabt)
 
 add_library(wasmati STATIC
   src/config/config.h
+  src/ast-builder.h
   src/config/config.cc
   src/graph.h
   src/graph.cc
