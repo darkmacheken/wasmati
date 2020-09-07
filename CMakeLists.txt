@@ -230,18 +230,16 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/wabt)
 
 add_library(wasmati STATIC
   src/config/config.h
-  src/ast-builder.h
   src/config/config.cc
+  src/options.h
   src/graph.h
   src/graph.cc
-  src/graph-visitor.h
-  src/graph-visitor.cc
+  
+  src/ast-builder.h
+  src/ast-builder.cc
+  
   src/dot-writer.h
   src/dot-writer.cc
-  src/cfg-visitor.h
-  src/cfg-visitor.cc
-  src/pdg-visitor.h
-  src/pdg-visitor.cc
 )
 
 if (NOT EMSCRIPTEN)

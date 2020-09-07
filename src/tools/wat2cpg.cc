@@ -14,6 +14,8 @@
 #include "src/filenames.h"
 #include "src/generate-names.h"
 #include "src/graph.h"
+#include "src/ast-builder.h"
+#include "src/options.h"
 #include "src/ir.h"
 #include "src/option-parser.h"
 #include "src/resolve-names.h"
@@ -136,7 +138,8 @@ int ProgramMain(int argc, char** argv) {
         }
 
         Graph graph(module.get());
-        graph.generateCPG(cpgOptions);
+        AST ast(*graph.getModuleContext(), graph);
+        ast.generateAST(cpgOptions);
 
         if (Succeeded(result)) {
             FileStream stream(!s_outfile.empty() ? FileStream(s_outfile)

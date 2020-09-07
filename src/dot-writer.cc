@@ -50,8 +50,8 @@ void DotWriter::visitCFGEdge(CFGEdge* e) {
                       std::to_string(e->dest()->getId()) + " [color=red]");
     } else {
         writeStringln(std::to_string(e->src()->getId()) + " -> " +
-                      std::to_string(e->dest()->getId()) + " [fontcolor=red label=\"" +
-                      e->_label + "\" color=red]");
+                      std::to_string(e->dest()->getId()) +
+                      " [fontcolor=red label=\"" + e->_label + "\" color=red]");
     }
 }
 
@@ -61,25 +61,25 @@ void DotWriter::visitPDGEdge(PDGEdge* e) {
     }
     if (e->_label.empty()) {
         writeStringln(std::to_string(e->src()->getId()) + " -> " +
-            std::to_string(e->dest()->getId()) + " [color=blue]");
-    }
-    else {
+                      std::to_string(e->dest()->getId()) + " [color=blue]");
+    } else {
         writeStringln(std::to_string(e->src()->getId()) + " -> " +
-            std::to_string(e->dest()->getId()) + " [fontcolor=blue label=\"" +
-            e->_label + "\" color=blue]");
+                      std::to_string(e->dest()->getId()) +
+                      " [fontcolor=blue label=\"" + e->_label +
+                      "\" color=blue]");
     }
 }
 
 void DotWriter::visitModule(Module* mod) {
     std::string s;
-    if (mod->getName().empty()) {
+    if (mod->name().empty()) {
         s += std::to_string(mod->getId()) +
              " [label=<<TABLE><TR><TD>Module</TD></TR></TABLE>>];";
     } else {
         s += std::to_string(mod->getId()) +
              " [label=<<TABLE><TR><TD>module</TD></TR>";
         s += "<TR><TD>";
-        s += "name = " + mod->getName() + "</TD></TR></TABLE>>];";
+        s += "name = " + mod->name() + "</TD></TR></TABLE>>];";
     }
     writeStringln(s);
 }
@@ -88,318 +88,226 @@ void DotWriter::visitFunction(Function* func) {
     std::string s = std::to_string(func->getId()) +
                     " [label=<<TABLE><TR><TD>Function</TD></TR>";
     s += "<TR><TD>";
-    s += "name = " + func->getName() + "</TD></TR></TABLE>> ];";
+    s += "name = " + func->name() + "</TD></TR></TABLE>> ];";
     writeStringln(s);
 }
 
-void DotWriter::visitTypeNode(TypeNode* node) {
-    std::string s =
-        std::to_string(node->getId()) + " [label=<<TABLE><TR><TD>Type</TD>";
-    s += "<TD>";
-    switch (node->getType()) {
-    case wabt::Type::I32:
-        s += "i32";
-        break;
-    case wabt::Type::I64:
-        s += "i64";
-        break;
-    case wabt::Type::F32:
-        s += "f32";
-        break;
-    case wabt::Type::F64:
-        s += "f64";
-        break;
-    default:
-        s += "unknown";
-        break;
-    }
-    s += "</TD></TR>";
-
-    if (!node->getName().empty()) {
-        s += "<TR><TD>name</TD><TD>" + node->getName() + "</TD></TR>";
-    }
-    s += "</TABLE>>];";
-    writeStringln(s);
+void DotWriter::visitSimpleNode(int nodeId, const std::string& nodeName) {
+    writeStringln(std::to_string(nodeId) + " [label=<<TABLE><TR><TD>" +
+                  nodeName + "</TD></TR></TABLE>>];");
 }
 
-void DotWriter::visitSimpleNode(SimpleNode* node) {
-    writeStringln(std::to_string(node->getId()) + " [label=<<TABLE><TR><TD>" +
-                  node->getNodeName() + "</TD></TR></TABLE>>];");
+void DotWriter::visitFunctionSignature(FunctionSignature* node) {
+    visitSimpleNode(node->getId(), node->getNodeName());
+}
+
+void DotWriter::visitParameters(Parameters* node) {
+    visitSimpleNode(node->getId(), node->getNodeName());
 }
 
 void DotWriter::visitInstructions(Instructions* node) {
-    visitSimpleNode(node);
+    visitSimpleNode(node->getId(), node->getNodeName());
 }
 
-void DotWriter::visitIndexNode(IndexNode* node) {
-    writeStringln(std::to_string(node->getId()) +
-                  " [label=<<TABLE><TR><TD>Index</TD></TR>" + "<TR><TD>" +
-                  std::to_string(node->getIndex()) + "</TD></TR></TABLE>>];");
+void DotWriter::visitLocals(Locals* node) {
+    visitSimpleNode(node->getId(), node->getNodeName());
 }
 
-void DotWriter::visitInstruction(Instruction* inst) {
-    writeString(std::to_string(inst->getId()) + " [label=<<TABLE><TR><TD>");
-    visitExpr(const_cast<Expr*>(inst->getExpr()));
+void DotWriter::visitResults(Results* node) {
+    visitSimpleNode(node->getId(), node->getNodeName());
+}
+
+void DotWriter::visitElse(Else* node) {
+    visitSimpleNode(node->getId(), node->getNodeName());
+}
+
+void DotWriter::visitStart(Start* node) {
+    visitSimpleNode(node->getId(), node->getNodeName());
+}
+void DotWriter::visitTrap(Trap* node) {
+    visitSimpleNode(node->getId(), node->getNodeName());
+}
+
+void DotWriter::visitVarNode(VarNode* node) {
+    writeString(std::to_string(node->getId()) + " [label=<<TABLE>");
+    writeString("<TR><TD>type</TD><TD>" + typeToString(node->varType()) +
+                "</TD></TR>");
+    if (!node->name().empty()) {
+        writeString("<TR><TD>name</TD><TD>" + node->name() + "</TD></TR>");
+    }
+    writeStringln("</TABLE>>];");
+}
+
+void DotWriter::visitNopInst(NopInst* node) {
+    writeString(std::to_string(node->getId()) + " [label=<<TABLE><TR><TD>");
+    writeString(Opcode::Nop_Opcode.GetName());
     writeStringln("</TD></TR></TABLE>>];");
 }
 
-void DotWriter::visitReturn(Return* expr) {
-    visitSimpleNode(expr);
-}
-
-void DotWriter::visitElse(Else* expr) {
-    visitSimpleNode(expr);
-}
-
-void DotWriter::visitStart(Start* start) {
-    visitSimpleNode(start);
-}
-
-void DotWriter::visitTrap(Trap* trap) {
-    visitSimpleNode(trap);
-}
-
-void DotWriter::OnBinaryExpr(BinaryExpr* expr) {
-    writeString(expr->opcode.GetName());
-}
-
-void DotWriter::OnBlockExpr(BlockExpr* expr) {
-    writeString(Opcode::Block_Opcode.GetName());
-    writeString(" " + expr->block.label);
-}
-
-void DotWriter::OnBrExpr(BrExpr* expr) {
-    writeString(Opcode::Br_Opcode.GetName());
-    writeString(" " + expr->var.name());
-}
-
-void DotWriter::OnBrIfExpr(BrIfExpr* expr) {
-    writeString(Opcode::BrIf_Opcode.GetName());
-    writeString(" " + expr->var.name());
-}
-
-void DotWriter::OnBrOnExnExpr(BrOnExnExpr*) {
-    assert(false);
-}
-
-void DotWriter::OnBrTableExpr(BrTableExpr*) {
-    writeString(Opcode::BrTable_Opcode.GetName());
-}
-
-void DotWriter::OnCallExpr(CallExpr* expr) {
-    writeString(Opcode::Call_Opcode.GetName());
-    writeString(" " + expr->var.name());
-}
-
-void DotWriter::OnCallIndirectExpr(CallIndirectExpr* expr) {
-    writeString(Opcode::CallIndirect_Opcode.GetName());
-    writeString(" " + expr->table.name());
-}
-
-void DotWriter::OnCompareExpr(CompareExpr* expr) {
-    writeString(expr->opcode.GetName());
-}
-
-void DotWriter::OnConstExpr(ConstExpr* expr) {
-    writeString(writeConst(expr->const_));
-}
-
-void DotWriter::OnConvertExpr(ConvertExpr* expr) {
-    writeString(expr->opcode.GetName());
-}
-
-void DotWriter::OnDropExpr(DropExpr*) {
-    writeString(Opcode::Drop_Opcode.GetName());
-}
-
-void DotWriter::OnGlobalGetExpr(GlobalGetExpr* expr) {
-    writeString(Opcode::GlobalGet_Opcode.GetName());
-    writeString(" " + expr->var.name());
-}
-
-void DotWriter::OnGlobalSetExpr(GlobalSetExpr* expr) {
-    writeString(Opcode::GlobalSet_Opcode.GetName());
-    writeString(" " + expr->var.name());
-}
-
-void DotWriter::OnIfExpr(IfExpr*) {
-    writeString(Opcode::If_Opcode.GetName());
-}
-
-void DotWriter::OnLoadExpr(LoadExpr* expr) {
-    writeString(expr->opcode.GetName());
-}
-
-void DotWriter::OnLocalGetExpr(LocalGetExpr* expr) {
-    writeString(Opcode::LocalGet_Opcode.GetName());
-    writeString(" " + expr->var.name());
-}
-
-void DotWriter::OnLocalSetExpr(LocalSetExpr* expr) {
-    writeString(Opcode::LocalSet_Opcode.GetName());
-    writeString(" " + expr->var.name());
-}
-
-void DotWriter::OnLocalTeeExpr(LocalTeeExpr* expr) {
-    writeString(Opcode::LocalTee_Opcode.GetName());
-    writeString(" " + expr->var.name());
-}
-
-void DotWriter::OnLoopExpr(LoopExpr* expr) {
-    writeString(Opcode::Loop_Opcode.GetName());
-    writeString(" " + expr->block.label);
-}
-
-void DotWriter::OnMemoryCopyExpr(MemoryCopyExpr*) {
-    assert(false);
-}
-
-void DotWriter::OnDataDropExpr(DataDropExpr* expr) {
-    assert(false);
-}
-
-void DotWriter::OnMemoryFillExpr(MemoryFillExpr*) {
-    assert(false);
-}
-
-void DotWriter::OnMemoryGrowExpr(MemoryGrowExpr*) {
-    writeString(Opcode::MemoryGrow_Opcode.GetName());
-}
-
-void DotWriter::OnMemoryInitExpr(MemoryInitExpr* expr) {
-    assert(false);
-}
-
-void DotWriter::OnMemorySizeExpr(MemorySizeExpr*) {
-    writeString(Opcode::MemorySize_Opcode.GetName());
-}
-
-void DotWriter::OnTableCopyExpr(TableCopyExpr*) {
-    assert(false);
-}
-
-void DotWriter::OnElemDropExpr(ElemDropExpr* expr) {
-    assert(false);
-}
-
-void DotWriter::OnTableInitExpr(TableInitExpr*) {
-    assert(false);
-}
-
-void DotWriter::OnTableGetExpr(TableGetExpr* expr) {
-    assert(false);
-}
-
-void DotWriter::OnTableSetExpr(TableSetExpr* expr) {
-    assert(false);
-}
-
-void DotWriter::OnTableGrowExpr(TableGrowExpr* expr) {
-    assert(false);
-}
-
-void DotWriter::OnTableSizeExpr(TableSizeExpr* expr) {
-    assert(false);
-}
-
-void DotWriter::OnTableFillExpr(TableFillExpr* expr) {
-    assert(false);
-}
-
-void DotWriter::OnRefFuncExpr(RefFuncExpr* expr) {
-    assert(false);
-}
-
-void DotWriter::OnRefNullExpr(RefNullExpr*) {
-    assert(false);
-}
-
-void DotWriter::OnRefIsNullExpr(RefIsNullExpr*) {
-    assert(false);
-}
-
-void DotWriter::OnNopExpr(NopExpr*) {
-    writeString(Opcode::Nop_Opcode.GetName());
-}
-
-void DotWriter::OnReturnExpr(ReturnExpr*) {
-    writeString(Opcode::Return_Opcode.GetName());
-}
-
-void DotWriter::OnReturnCallExpr(ReturnCallExpr* expr) {
-    assert(false);
-}
-
-void DotWriter::OnReturnCallIndirectExpr(ReturnCallIndirectExpr*) {
-    assert(false);
-}
-
-void DotWriter::OnSelectExpr(SelectExpr*) {
-    writeString(Opcode::Select_Opcode.GetName());
-}
-
-void DotWriter::OnStoreExpr(StoreExpr* expr) {
-    writeString(expr->opcode.GetName());
-}
-
-void DotWriter::OnUnaryExpr(UnaryExpr* expr) {
-    writeString(expr->opcode.GetName());
-}
-
-void DotWriter::OnUnreachableExpr(UnreachableExpr*) {
+void DotWriter::visitUnreachableInst(UnreachableInst* node) {
+    writeString(std::to_string(node->getId()) + " [label=<<TABLE><TR><TD>");
     writeString(Opcode::Unreachable_Opcode.GetName());
+    writeStringln("</TD></TR></TABLE>>];");
 }
 
-void DotWriter::OnTryExpr(TryExpr*) {
-    assert(false);
+void DotWriter::visitReturnInst(ReturnInst* node) {
+    writeString(std::to_string(node->getId()) + " [label=<<TABLE><TR><TD>");
+    writeString(Opcode::Return_Opcode.GetName());
+    writeStringln("</TD></TR></TABLE>>];");
 }
 
-void DotWriter::OnThrowExpr(ThrowExpr* expr) {
-    assert(false);
+void DotWriter::visitBrTableInst(BrTableInst* node) {
+    writeString(std::to_string(node->getId()) + " [label=<<TABLE><TR><TD>");
+    writeString(Opcode::BrTable_Opcode.GetName());
+    writeStringln("</TD></TR></TABLE>>];");
 }
 
-void DotWriter::OnRethrowExpr(RethrowExpr*) {
-    assert(false);
+void DotWriter::visitCallIndirectInst(CallIndirectInst* node) {
+    writeString(std::to_string(node->getId()) + " [label=<<TABLE><TR><TD>");
+    writeString(Opcode::CallIndirect_Opcode.GetName());
+    writeStringln("</TD></TR></TABLE>>];");
 }
 
-void DotWriter::OnAtomicWaitExpr(AtomicWaitExpr*) {
-    assert(false);
+void DotWriter::visitDropInst(DropInst* node) {
+    writeString(std::to_string(node->getId()) + " [label=<<TABLE><TR><TD>");
+    writeString(Opcode::Drop_Opcode.GetName());
+    writeStringln("</TD></TR></TABLE>>];");
 }
 
-void DotWriter::OnAtomicNotifyExpr(AtomicNotifyExpr*) {
-    assert(false);
+void DotWriter::visitSelectInst(SelectInst* node) {
+    writeString(std::to_string(node->getId()) + " [label=<<TABLE><TR><TD>");
+    writeString(Opcode::Select_Opcode.GetName());
+    writeStringln("</TD></TR></TABLE>>];");
 }
 
-void DotWriter::OnAtomicLoadExpr(AtomicLoadExpr*) {
-    assert(false);
+void DotWriter::visitMemorySizeInst(MemorySizeInst* node) {
+    writeString(std::to_string(node->getId()) + " [label=<<TABLE><TR><TD>");
+    writeString(Opcode::MemorySize_Opcode.GetName());
+    writeStringln("</TD></TR></TABLE>>];");
 }
 
-void DotWriter::OnAtomicStoreExpr(AtomicStoreExpr*) {
-    assert(false);
+void DotWriter::visitMemoryGrowInst(MemoryGrowInst* node) {
+    writeString(std::to_string(node->getId()) + " [label=<<TABLE><TR><TD>");
+    writeString(Opcode::MemoryGrow_Opcode.GetName());
+    writeStringln("</TD></TR></TABLE>>];");
 }
 
-void DotWriter::OnAtomicRmwExpr(AtomicRmwExpr*) {
-    assert(false);
+void DotWriter::visitConstInst(ConstInst* node) {
+    writeString(std::to_string(node->getId()) + " [label=<<TABLE><TR><TD>");
+    writeString(writeConst(node->value()));
+    writeStringln("</TD></TR></TABLE>>];");
 }
 
-void DotWriter::OnAtomicRmwCmpxchgExpr(AtomicRmwCmpxchgExpr*) {
-    assert(false);
+void DotWriter::visitBinaryInst(BinaryInst* node) {
+    writeString(std::to_string(node->getId()) + " [label=<<TABLE><TR><TD>");
+    writeString(node->opcode().GetName());
+    writeStringln("</TD></TR></TABLE>>];");
 }
 
-void DotWriter::OnTernaryExpr(TernaryExpr* expr) {
-    writeString(expr->opcode.GetName());
+void DotWriter::visitCompareInst(CompareInst* node) {
+    writeString(std::to_string(node->getId()) + " [label=<<TABLE><TR><TD>");
+    writeString(node->opcode().GetName());
+    writeStringln("</TD></TR></TABLE>>];");
 }
 
-void DotWriter::OnSimdLaneOpExpr(SimdLaneOpExpr*) {
-    assert(false);
+void DotWriter::visitConvertInst(ConvertInst* node) {
+    writeString(std::to_string(node->getId()) + " [label=<<TABLE><TR><TD>");
+    writeString(node->opcode().GetName());
+    writeStringln("</TD></TR></TABLE>>];");
 }
 
-void DotWriter::OnSimdShuffleOpExpr(SimdShuffleOpExpr*) {
-    assert(false);
+void DotWriter::visitUnaryInst(UnaryInst* node) {
+    writeString(std::to_string(node->getId()) + " [label=<<TABLE><TR><TD>");
+    writeString(node->opcode().GetName());
+    writeStringln("</TD></TR></TABLE>>];");
 }
 
-void DotWriter::OnLoadSplatExpr(LoadSplatExpr*) {
-    assert(false);
+void DotWriter::visitLoadInst(LoadInst* node) {
+    writeString(std::to_string(node->getId()) + " [label=<<TABLE><TR><TD>");
+    writeString(node->opcode().GetName());
+    writeStringln("</TD></TR></TABLE>>];");
+}
+
+void DotWriter::visitStoreInst(StoreInst* node) {
+    writeString(std::to_string(node->getId()) + " [label=<<TABLE><TR><TD>");
+    writeString(node->opcode().GetName());
+    writeStringln("</TD></TR></TABLE>>];");
+}
+
+void DotWriter::visitBrInst(BrInst* node) {
+    writeString(std::to_string(node->getId()) + " [label=<<TABLE><TR><TD>");
+    writeString(Opcode::Br_Opcode.GetName());
+    writeString(" " + node->label());
+    writeStringln("</TD></TR></TABLE>>];");
+}
+
+void DotWriter::visitBrIfInst(BrIfInst* node) {
+    writeString(std::to_string(node->getId()) + " [label=<<TABLE><TR><TD>");
+    writeString(Opcode::BrIf_Opcode.GetName());
+    writeString(" " + node->label());
+    writeStringln("</TD></TR></TABLE>>];");
+}
+
+void DotWriter::visitCallInst(CallInst* node) {
+    writeString(std::to_string(node->getId()) + " [label=<<TABLE><TR><TD>");
+    writeString(Opcode::Call_Opcode.GetName());
+    writeString(" " + node->label());
+    writeStringln("</TD></TR></TABLE>>];");
+}
+
+void DotWriter::visitGlobalGetInst(GlobalGetInst* node) {
+    writeString(std::to_string(node->getId()) + " [label=<<TABLE><TR><TD>");
+    writeString(Opcode::GlobalGet_Opcode.GetName());
+    writeString(" " + node->label());
+    writeStringln("</TD></TR></TABLE>>];");
+}
+
+void DotWriter::visitGlobalSetInst(GlobalSetInst* node) {
+    writeString(std::to_string(node->getId()) + " [label=<<TABLE><TR><TD>");
+    writeString(Opcode::GlobalSet_Opcode.GetName());
+    writeString(" " + node->label());
+    writeStringln("</TD></TR></TABLE>>];");
+}
+
+void DotWriter::visitLocalGetInst(LocalGetInst* node) {
+    writeString(std::to_string(node->getId()) + " [label=<<TABLE><TR><TD>");
+    writeString(Opcode::LocalGet_Opcode.GetName());
+    writeString(" " + node->label());
+    writeStringln("</TD></TR></TABLE>>];");
+}
+
+void DotWriter::visitLocalSetInst(LocalSetInst* node) {
+    writeString(std::to_string(node->getId()) + " [label=<<TABLE><TR><TD>");
+    writeString(Opcode::LocalSet_Opcode.GetName());
+    writeString(" " + node->label());
+    writeStringln("</TD></TR></TABLE>>];");
+}
+
+void DotWriter::visitLocalTeeInst(LocalTeeInst* node) {
+    writeString(std::to_string(node->getId()) + " [label=<<TABLE><TR><TD>");
+    writeString(Opcode::LocalTee_Opcode.GetName());
+    writeString(" " + node->label());
+    writeStringln("</TD></TR></TABLE>>];");
+}
+
+void DotWriter::visitBlockInst(BlockInst* node) {
+    writeString(std::to_string(node->getId()) + " [label=<<TABLE><TR><TD>");
+    writeString(Opcode::Block_Opcode.GetName());
+    writeString(" " + node->label());
+    writeStringln("</TD></TR></TABLE>>];");
+}
+
+void DotWriter::visitLoopInst(LoopInst* node) {
+    writeString(std::to_string(node->getId()) + " [label=<<TABLE><TR><TD>");
+    writeString(Opcode::Loop_Opcode.GetName());
+    writeString(" " + node->label());
+    writeStringln("</TD></TR></TABLE>>];");
+}
+
+void DotWriter::visitIfInst(IfInst* node) {
+    writeString(std::to_string(node->getId()) + " [label=<<TABLE><TR><TD>");
+    writeString(Opcode::If_Opcode.GetName());
+    writeStringln("</TD></TR></TABLE>>];");
 }
 
 std::string DotWriter::writeConst(const Const& const_) {
@@ -465,6 +373,21 @@ void DotWriter::setDepth(const Node* node, Index depth) {
         if (e->type() == EdgeType::AST) {
             setDepth(e->dest(), depth + 1);
         }
+    }
+}
+
+std::string DotWriter::typeToString(Type type) {
+    switch (type) {
+    case wabt::Type::I32:
+        return "i32";
+    case wabt::Type::I64:
+        return "i64";
+    case wabt::Type::F32:
+        return "f32";
+    case wabt::Type::F64:
+        return "f64";
+    default:
+        return "unknown";
     }
 }
 
