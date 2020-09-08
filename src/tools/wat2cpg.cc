@@ -7,6 +7,8 @@
 
 #include "config.h"
 #include "src/apply-names.h"
+#include "src/ast-builder.h"
+#include "src/cfg-builder.h"
 #include "src/common.h"
 #include "src/dot-writer.h"
 #include "src/error-formatter.h"
@@ -14,10 +16,9 @@
 #include "src/filenames.h"
 #include "src/generate-names.h"
 #include "src/graph.h"
-#include "src/ast-builder.h"
-#include "src/options.h"
 #include "src/ir.h"
 #include "src/option-parser.h"
+#include "src/options.h"
 #include "src/resolve-names.h"
 #include "src/stream.h"
 #include "src/validator.h"
@@ -25,6 +26,8 @@
 
 using namespace wabt;
 using namespace wasmati;
+
+void generateCPG(Graph&, GenerateCPGOptions);
 
 static int s_verbose;
 static std::string s_infile;
@@ -138,8 +141,7 @@ int ProgramMain(int argc, char** argv) {
         }
 
         Graph graph(module.get());
-        AST ast(*graph.getModuleContext(), graph);
-        ast.generateAST(cpgOptions);
+        generateCPG(graph, cpgOptions);
 
         if (Succeeded(result)) {
             FileStream stream(!s_outfile.empty() ? FileStream(s_outfile)
@@ -150,6 +152,13 @@ int ProgramMain(int argc, char** argv) {
     }
 
     return result != Result::Ok;
+}
+
+void generateCPG(Graph& graph, GenerateCPGOptions options) {
+    AST ast(*graph.getModuleContext(), graph);
+    ast.generateAST(cpgOptions);
+    CFG cfg(*graph.getModuleContext(), graph, ast);
+    cfg.generateCFG(cpgOptions);
 }
 
 int main(int argc, char** argv) {

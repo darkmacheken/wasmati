@@ -208,6 +208,7 @@ void AST::construct(const Expr& e,
 
         mc.BeginBlock(LabelType::Block, ife->true_);
         Node* trueBlock = new BlockInst(ife->true_);
+        ifBlocks[&ife->true_] = trueBlock;
         graph.insertNode(trueBlock);
         new ASTEdge(node, trueBlock);
         construct(ife->true_.exprs, ife->true_.decl.GetNumResults(), trueBlock);
@@ -263,17 +264,24 @@ void AST::construct(const ExprList& es,
         new ASTEdge(holder, node);
     }
 
-    assert(nresults == expStack.size());
+    assert(expStack.size() >= nresults);
     if (function != nullptr) {
         auto ret = new ReturnInst();
         graph.insertNode(ret);
         if (nresults == 1) {
             new ASTEdge(ret, expStack.back());
+            expStack.pop_back();
+        }
+        while (expStack.size() > 0) {
+            new ASTEdge(holder, expStack.back());
+            expStack.pop_back();
         }
         new ASTEdge(holder, ret);
         returnFunc[function] = ret;
-    } else if (nresults == 1) {
-        new ASTEdge(holder, expStack.back());
+    } else {
+        for (auto node : expStack) {
+            new ASTEdge(holder, node);
+        }
     }
 }
 }  // namespace wasmati

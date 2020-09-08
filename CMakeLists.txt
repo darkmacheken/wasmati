@@ -234,10 +234,12 @@ add_library(wasmati STATIC
   src/options.h
   src/graph.h
   src/graph.cc
-  
   src/ast-builder.h
   src/ast-builder.cc
-  
+  src/cfg-builder.h
+  src/cfg-builder.cc
+  src/query.h
+  src/query.cc
   src/dot-writer.h
   src/dot-writer.cc
 )

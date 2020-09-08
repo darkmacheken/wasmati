@@ -7,6 +7,8 @@
 #include "src/options.h"
 #include "src/stream.h"
 
+#include <set>
+
 using namespace wabt;
 namespace wasmati {
 class GraphVisitor;
@@ -444,6 +446,7 @@ public:
         return _start;
     }
 };
+
 class GraphVisitor {
 public:
     // Edges
