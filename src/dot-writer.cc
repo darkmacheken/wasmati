@@ -165,6 +165,7 @@ void DotWriter::visitBrTableInst(BrTableInst* node) {
 void DotWriter::visitCallIndirectInst(CallIndirectInst* node) {
     writeString(std::to_string(node->getId()) + " [label=<<TABLE><TR><TD>");
     writeString(Opcode::CallIndirect_Opcode.GetName());
+    writeString(" " + node->label());
     writeStringln("</TD></TR></TABLE>>];");
 }
 
@@ -290,6 +291,13 @@ void DotWriter::visitLocalTeeInst(LocalTeeInst* node) {
     writeStringln("</TD></TR></TABLE>>];");
 }
 
+void DotWriter::visitBeginBlockInst(BeginBlockInst* node) {
+    writeString(std::to_string(node->getId()) + " [label=<<TABLE><TR><TD>");
+    writeString("BeginBlock");
+    writeString(" " + node->label());
+    writeStringln("</TD></TR></TABLE>>];");
+}
+
 void DotWriter::visitBlockInst(BlockInst* node) {
     writeString(std::to_string(node->getId()) + " [label=<<TABLE><TR><TD>");
     writeString(Opcode::Block_Opcode.GetName());
@@ -309,6 +317,7 @@ void DotWriter::visitIfInst(IfInst* node) {
     writeString(Opcode::If_Opcode.GetName());
     writeStringln("</TD></TR></TABLE>>];");
 }
+
 
 std::string DotWriter::writeConst(const Const& const_) {
     std::string s;

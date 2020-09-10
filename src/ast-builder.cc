@@ -8,6 +8,7 @@ void AST::generateAST(GenerateCPGOptions& options) {
         m = new Module(mc.module.name);
     }
     graph.insertNode(m);
+    graph.setModule(m);
 
     // Code
     Index func_index = 0;
@@ -109,13 +110,11 @@ void AST::construct(const Expr& e,
         node = new UnreachableInst(e.loc);
         break;
     case ExprType::Return:
+        arity.unreachable = false;
         node = new ReturnInst(e.loc);
         break;
     case ExprType::BrTable:
         node = new BrTableInst(e.loc);
-        break;
-    case ExprType::CallIndirect:
-        node = new CallIndirectInst(e.loc);
         break;
     case ExprType::Drop:
         node = new DropInst(e.loc);
@@ -155,13 +154,14 @@ void AST::construct(const Expr& e,
         break;
         // LabeledInst
     case ExprType::Br:
+        arity.nargs = 0;
+        arity.nreturns = 0;
         node = new BrInst(cast<BrExpr>(&e));
         break;
     case ExprType::BrIf:
+        arity.nargs = 1;
+        arity.nreturns = 0;
         node = new BrIfInst(cast<BrIfExpr>(&e));
-        break;
-    case ExprType::Call:
-        node = new CallInst(cast<CallExpr>(&e));
         break;
     case ExprType::LocalGet:
         node = new LocalGetInst(cast<LocalGetExpr>(&e));
@@ -178,6 +178,15 @@ void AST::construct(const Expr& e,
     case ExprType::LocalTee:
         node = new LocalTeeInst(cast<LocalTeeExpr>(&e));
         break;
+        // Call Base
+    case ExprType::Call:
+        node = new CallInst(cast<CallExpr>(&e), e.loc, arity.nargs,
+                            arity.nreturns);
+        break;
+    case ExprType::CallIndirect:
+        node = new CallIndirectInst(cast<CallIndirectExpr>(&e), e.loc,
+                                    arity.nargs, arity.nreturns);
+        break;
         // Block Base
     case ExprType::Block: {
         auto block = cast<BlockExpr>(&e);
@@ -185,6 +194,10 @@ void AST::construct(const Expr& e,
         mc.BeginBlock(LabelType::Block, block->block);
         construct(block->block.exprs, block->block.decl.GetNumResults(), node);
         mc.EndBlock();
+        auto beginBlock = new BeginBlockInst(block->block.label,
+                                             static_cast<BlockInst*>(node));
+        graph.insertNode(beginBlock);
+        exprNodes[&e] = beginBlock;
         break;
     }
     case ExprType::Loop: {
@@ -207,10 +220,12 @@ void AST::construct(const Expr& e,
         new ASTEdge(node, condition);
 
         mc.BeginBlock(LabelType::Block, ife->true_);
-        Node* trueBlock = new BlockInst(ife->true_);
-        ifBlocks[&ife->true_] = trueBlock;
+        BlockInst* trueBlock = new BlockInst(ife->true_);
         graph.insertNode(trueBlock);
+        Node* beginTrueBlock = new BeginBlockInst(ife->true_.label, trueBlock);
+        graph.insertNode(beginTrueBlock);
         new ASTEdge(node, trueBlock);
+        ifBlocks[&ife->true_] = beginTrueBlock;
         construct(ife->true_.exprs, ife->true_.decl.GetNumResults(), trueBlock);
         if (!ife->false_.empty()) {
             Node* elseBlock = new Else();
@@ -233,7 +248,13 @@ void AST::construct(const Expr& e,
         return;
     }
     graph.insertNode(node);
-    exprNodes[&e] = node;
+    if (e.type() != ExprType::Block) {
+        if (e.type() == ExprType::Return) {
+            exprNodes[&e] = returnFunc[currentFunction];
+        } else {
+            exprNodes[&e] = node;
+        }
+    }
     // Args
     for (Index i = 0; i < arity.nargs; i++) {
         auto arg = expStack.back();
@@ -256,6 +277,14 @@ void AST::construct(const ExprList& es,
     std::vector<Node*> expStack;
     std::vector<Node*> expList;
 
+    if (function != nullptr) {
+        mc.BeginFunc(*function);
+        currentFunction = function;
+        auto ret = new ReturnInst();
+        returnFunc[function] = ret;
+        graph.insertNode(ret);
+    }
+
     for (auto& e : es) {
         construct(e, expStack, expList);
     }
@@ -266,8 +295,7 @@ void AST::construct(const ExprList& es,
 
     assert(expStack.size() >= nresults);
     if (function != nullptr) {
-        auto ret = new ReturnInst();
-        graph.insertNode(ret);
+        auto ret = returnFunc[function];
         if (nresults == 1) {
             new ASTEdge(ret, expStack.back());
             expStack.pop_back();
@@ -277,7 +305,8 @@ void AST::construct(const ExprList& es,
             expStack.pop_back();
         }
         new ASTEdge(holder, ret);
-        returnFunc[function] = ret;
+        mc.EndFunc();
+        currentFunction = nullptr;
     } else {
         for (auto node : expStack) {
             new ASTEdge(holder, node);

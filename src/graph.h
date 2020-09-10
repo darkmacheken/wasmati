@@ -13,7 +13,11 @@ using namespace wabt;
 namespace wasmati {
 class GraphVisitor;
 class Edge;
-extern const char empty_string[];
+
+inline const std::string& emptyString() {
+    static const std::string empty = "";
+    return empty;
+}
 
 enum class EdgeType { AST, CFG, PDG };
 
@@ -34,8 +38,8 @@ enum class NodeType {
 };
 
 class Node {
-    static int idCount;
-    const int _id;
+    static Index idCount;
+    const Index _id;
     std::vector<Edge*> _inEdges;
     std::vector<Edge*> _outEdges;
 
@@ -46,23 +50,23 @@ public:
     NodeType type() { return _type; }
     virtual const std::string& name() const {
         assert(false);
-        return empty_string;
+        return emptyString();
     }
-    virtual int index() const {
+    virtual Index index() const {
         assert(false);
-        return -1;
+        return 0;
     }
-    virtual int nargs() const {
+    virtual Index nargs() const {
         assert(false);
-        return -1;
+        return 0;
     }
-    virtual int nlocals() const {
+    virtual Index nlocals() const {
         assert(false);
-        return -1;
+        return 0;
     }
-    virtual int nresults() const {
+    virtual Index nresults() const {
         assert(false);
-        return -1;
+        return 0;
     }
     virtual bool isImport() const {
         assert(false);
@@ -86,42 +90,50 @@ public:
     }
     virtual const std::string& label() const {
         assert(false);
-        return empty_string;
+        return emptyString();
     }
     virtual bool hasElse() const {
         assert(false);
         return false;
     }
-    virtual int offset() const {
+    virtual Index offset() const {
         assert(false);
-        return -1;
+        return 0;
     }
     virtual Location location() const {
         assert(false);
         return {};
     }
+    virtual Node* block() {
+        assert(false);
+        return nullptr;
+    }
 
     explicit Node(NodeType type) : _id(idCount++), _type(type) {}
     virtual ~Node();
 
-    inline int getId() const { return _id; }
+    inline Index getId() const { return _id; }
     inline const std::vector<Edge*>& inEdges() const { return _inEdges; }
     inline const std::vector<Edge*>& outEdges() const { return _outEdges; }
     std::vector<Edge*> inEdges(EdgeType type);
     std::vector<Edge*> outEdges(EdgeType type);
 
-    inline Edge* getOutEdge(Index i) const {
-        assert(i < _outEdges.size());
-        return _outEdges[i];
+    inline Edge* getOutEdge(Index i, EdgeType type) {
+        auto edges = outEdges(type);
+        assert(i < edges.size());
+        return edges[i];
     }
 
-    inline int getNumOutEdges() const { return _outEdges.size(); }
-    inline Edge* getInEdge(Index i) const {
-        assert(i < _inEdges.size());
-        return _inEdges[i];
+    inline Index getNumOutEdges() const { return _outEdges.size(); }
+    inline Edge* getInEdge(Index i, EdgeType type) {
+        auto edges = inEdges(type);
+        assert(i < edges.size());
+        return edges[i];
     }
 
-    inline int getNumInEdges() const { return _inEdges.size(); }
+    Node* getChild(Index n, EdgeType type);
+    Node* getParent(Index n, EdgeType type);
+    inline Index getNumInEdges() const { return _inEdges.size(); }
     inline void addInEdge(Edge* e) { _inEdges.push_back(e); }
     inline void addOutEdge(Edge* e) { _outEdges.push_back(e); }
 
@@ -155,14 +167,14 @@ public:
 
 class Function : public BaseNode<NodeType::Function> {
     Func* const _f;
-    const int _index;
-    const int _nargs;
-    const int _nlocals;
-    const int _nresults;
+    const Index _index;
+    const Index _nargs;
+    const Index _nlocals;
+    const Index _nresults;
     const bool _isImport;
 
 public:
-    Function(Func* f, int index, bool isImport)
+    Function(Func* f, Index index, bool isImport)
         : _f(f),
           _index(index),
           _nargs(f->GetNumParams()),
@@ -171,11 +183,12 @@ public:
           _isImport(isImport) {}
 
     const std::string& name() const override { return _f->name; }
-    int index() const override { return _index; }
-    int nargs() const override { return _nargs; }
-    int nlocals() const override { return _nlocals; }
-    int nresults() const override { return _nresults; }
+    Index index() const override { return _index; }
+    Index nargs() const override { return _nargs; }
+    Index nlocals() const override { return _nlocals; }
+    Index nresults() const override { return _nresults; }
     bool isImport() const override { return _isImport; }
+    Func* getFunc() { return _f; }
 
     void accept(GraphVisitor* visitor);
 };
@@ -251,7 +264,6 @@ typedef BaseInstruction<ExprType::Nop> NopInst;
 typedef BaseInstruction<ExprType::Unreachable> UnreachableInst;
 typedef BaseInstruction<ExprType::Return> ReturnInst;
 typedef BaseInstruction<ExprType::BrTable> BrTableInst;
-typedef BaseInstruction<ExprType::CallIndirect> CallIndirectInst;
 typedef BaseInstruction<ExprType::Drop> DropInst;
 typedef BaseInstruction<ExprType::Select> SelectInst;
 typedef BaseInstruction<ExprType::MemorySize> MemorySizeInst;
@@ -291,13 +303,13 @@ typedef OpcodeInst<ExprType::Unary> UnaryInst;
 
 template <ExprType T>
 class LoadStoreBase : public OpcodeInst<T> {
-    const int _offset;
+    const Index _offset;
 
 public:
     LoadStoreBase(const LoadStoreExpr<T>* expr)
         : OpcodeInst<T>(expr->opcode, expr->loc), _offset(expr->offset) {}
 
-    int offset() const override { return _offset; }
+    Index offset() const override { return _offset; }
 
     void accept(GraphVisitor* visitor);
 };
@@ -312,7 +324,7 @@ class LabeledInst : public BaseInstruction<T> {
 public:
     LabeledInst(const VarExpr<T>* expr)
         : BaseInstruction<T>(expr->loc), _label(expr->var.name()) {}
-    LabeledInst(std::string label, const Location loc)
+    LabeledInst(std::string label, const Location loc = Location())
         : BaseInstruction<T>(loc), _label(label) {}
 
     const std::string& label() const { return _label; }
@@ -322,7 +334,6 @@ public:
 
 typedef LabeledInst<ExprType::Br> BrInst;
 typedef LabeledInst<ExprType::BrIf> BrIfInst;
-typedef LabeledInst<ExprType::Call> CallInst;
 typedef LabeledInst<ExprType::GlobalGet> GlobalGetInst;
 typedef LabeledInst<ExprType::GlobalSet> GlobalSetInst;
 typedef LabeledInst<ExprType::LocalGet> LocalGetInst;
@@ -330,8 +341,34 @@ typedef LabeledInst<ExprType::LocalSet> LocalSetInst;
 typedef LabeledInst<ExprType::LocalTee> LocalTeeInst;
 
 template <ExprType T>
+class CallBase : public LabeledInst<T> {
+    const Index _nargs;
+    const Index _nresults;
+
+public:
+    CallBase(const CallExpr* expr, Location loc, Index nargs, Index nresults)
+        : LabeledInst<T>(expr->var.name(), loc),
+          _nargs(nargs),
+          _nresults(nresults) {}
+    CallBase(const CallIndirectExpr* expr,
+             Location loc,
+             Index nargs,
+             Index nresults)
+        : LabeledInst<T>(expr->table.name(), loc),
+          _nargs(nargs),
+          _nresults(nresults) {}
+    Index nargs() const override { return _nargs; }
+    Index nresults() const override { return _nresults; }
+
+    virtual void accept(GraphVisitor* visitor);
+};
+
+typedef CallBase<ExprType::Call> CallInst;
+typedef CallBase<ExprType::CallIndirect> CallIndirectInst;
+
+template <ExprType T>
 class BlockBase : public LabeledInst<T> {
-    const int _nresults;
+    const Index _nresults;
 
 public:
     BlockBase(const BlockExprBase<T>* expr)
@@ -342,7 +379,7 @@ public:
         : LabeledInst<T>(block.label, block.end_loc),
           _nresults(block.decl.GetNumResults()) {}
 
-    int nresults() { return _nresults; }
+    Index nresults() const override { return _nresults; }
 
     virtual void accept(GraphVisitor* visitor);
 };
@@ -350,17 +387,35 @@ public:
 typedef BlockBase<ExprType::Block> BlockInst;
 typedef BlockBase<ExprType::Loop> LoopInst;
 
+class BeginBlockInst : public LabeledInst<ExprType::Block> {
+    BlockInst* _block;
+
+public:
+    BeginBlockInst(const VarExpr<ExprType::Block>* expr, BlockInst* block)
+        : LabeledInst<ExprType::Block>(expr), _block(block) {}
+    BeginBlockInst(std::string label,
+                   BlockInst* block,
+                   const Location loc = Location())
+        : LabeledInst<ExprType::Block>(label, loc), _block(block) {}
+
+    inline const BlockInst* getBlock() { return _block; }
+
+    Node* block() override { return _block; }
+
+    virtual void accept(GraphVisitor* visitor);
+};
+
 class IfInst : public BaseInstruction<ExprType::If> {
-    const int _nresults;
+    const Index _nresults;
     const bool _hasElse;
 
 public:
     IfInst(const IfExpr* expr)
         : BaseInstruction(expr->loc),
           _nresults(expr->true_.decl.GetNumResults()),
-          _hasElse(expr->false_.empty()) {}
+          _hasElse(!expr->false_.empty()) {}
 
-    int nresults() const override { return _nresults; }
+    Index nresults() const override { return _nresults; }
     bool hasElse() const override { return _hasElse; }
     virtual void accept(GraphVisitor* visitor);
 };
@@ -404,11 +459,18 @@ struct CFGEdge : Edge {
 };
 
 struct PDGEdge : Edge {
+    enum class Type { Local, Global, Function, Control };
+
     const std::string _label;
-    PDGEdge(Node* src, Node* dest) : Edge(src, dest, EdgeType::PDG) {}
-    PDGEdge(CFGEdge* e) : PDGEdge(e->src(), e->dest(), e->_label) {}
-    PDGEdge(Node* src, Node* dest, const std::string& label)
-        : Edge(src, dest, EdgeType::PDG), _label(label) {}
+    const Type _type;
+
+    PDGEdge(Node* src, Node* dest, Type type)
+        : Edge(src, dest, EdgeType::PDG), _type(type) {}
+    PDGEdge(CFGEdge* e)
+        : PDGEdge(e->src(), e->dest(), e->_label, Type::Control) {}
+    PDGEdge(Node* src, Node* dest, const std::string& label, Type type)
+        : Edge(src, dest, EdgeType::PDG), _label(label), _type(type) {}
+
     void accept(GraphVisitor* visitor);
     static bool classof(const Edge* e) { return e->type() == EdgeType::PDG; }
 };
@@ -418,6 +480,7 @@ class Graph {
     std::vector<Node*> _nodes;
     Trap* _trap;
     Start* _start;
+    Module* _module;
 
     //    void getLocalsNames(Func* f, std::vector<std::string>& names) const;
     //    void generateAST(GenerateCPGOptions& options);
@@ -428,6 +491,10 @@ public:
     Graph(wabt::Module* mc);
     ~Graph();
 
+    inline void setModule(Module* module) {
+        assert(module != nullptr);
+        _module = module;
+    }
     inline void insertNode(Node* node) { _nodes.push_back(node); }
     inline const std::vector<Node*>& getNodes() const { return _nodes; }
     inline wabt::ModuleContext* getModuleContext() { return _mc; }
@@ -444,6 +511,10 @@ public:
             this->insertNode(_start);
         }
         return _start;
+    }
+    inline Module* getModule() {
+        assert(_module != nullptr);
+        return _module;
     }
 };
 
@@ -470,7 +541,6 @@ public:
     virtual void visitUnreachableInst(UnreachableInst* node) = 0;
     virtual void visitReturnInst(ReturnInst* node) = 0;
     virtual void visitBrTableInst(BrTableInst* node) = 0;
-    virtual void visitCallIndirectInst(CallIndirectInst* node) = 0;
     virtual void visitDropInst(DropInst* node) = 0;
     virtual void visitSelectInst(SelectInst* node) = 0;
     virtual void visitMemorySizeInst(MemorySizeInst* node) = 0;
@@ -484,12 +554,14 @@ public:
     virtual void visitStoreInst(StoreInst* node) = 0;
     virtual void visitBrInst(BrInst* node) = 0;
     virtual void visitBrIfInst(BrIfInst* node) = 0;
-    virtual void visitCallInst(CallInst* node) = 0;
     virtual void visitGlobalGetInst(GlobalGetInst* node) = 0;
     virtual void visitGlobalSetInst(GlobalSetInst* node) = 0;
     virtual void visitLocalGetInst(LocalGetInst* node) = 0;
     virtual void visitLocalSetInst(LocalSetInst* node) = 0;
     virtual void visitLocalTeeInst(LocalTeeInst* node) = 0;
+    virtual void visitBeginBlockInst(BeginBlockInst* node) = 0;
+    virtual void visitCallInst(CallInst* node) = 0;
+    virtual void visitCallIndirectInst(CallIndirectInst* node) = 0;
     virtual void visitBlockInst(BlockInst* node) = 0;
     virtual void visitLoopInst(LoopInst* node) = 0;
     virtual void visitIfInst(IfInst* node) = 0;
@@ -591,12 +663,6 @@ inline void BaseInstruction<ExprType::BrTable>::accept(GraphVisitor* visitor) {
 }
 
 template <>
-inline void BaseInstruction<ExprType::CallIndirect>::accept(
-    GraphVisitor* visitor) {
-    visitor->visitCallIndirectInst(this);
-}
-
-template <>
 inline void BaseInstruction<ExprType::Drop>::accept(GraphVisitor* visitor) {
     visitor->visitDropInst(this);
 }
@@ -659,11 +725,6 @@ inline void LabeledInst<ExprType::BrIf>::accept(GraphVisitor* visitor) {
 }
 
 template <>
-inline void LabeledInst<ExprType::Call>::accept(GraphVisitor* visitor) {
-    visitor->visitCallInst(this);
-}
-
-template <>
 inline void LabeledInst<ExprType::GlobalGet>::accept(GraphVisitor* visitor) {
     visitor->visitGlobalGetInst(this);
 }
@@ -686,6 +747,16 @@ inline void LabeledInst<ExprType::LocalSet>::accept(GraphVisitor* visitor) {
 template <>
 inline void LabeledInst<ExprType::LocalTee>::accept(GraphVisitor* visitor) {
     visitor->visitLocalTeeInst(this);
+}
+
+template <>
+inline void CallBase<ExprType::CallIndirect>::accept(GraphVisitor* visitor) {
+    visitor->visitCallIndirectInst(this);
+}
+
+template <>
+inline void CallBase<ExprType::Call>::accept(GraphVisitor* visitor) {
+    visitor->visitCallInst(this);
 }
 
 template <>

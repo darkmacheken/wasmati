@@ -10,9 +10,8 @@ const char resultsName[] = "Results";
 const char elseName[] = "Else";
 const char trapName[] = "Trap";
 const char startName[] = "Start";
-const char empty_string[] = "";
 
-int Node::idCount = 0;
+Index Node::idCount = 0;
 
 Node::~Node() {
     for (auto e : _outEdges) {
@@ -38,6 +37,14 @@ std::vector<Edge*> Node::outEdges(EdgeType type) {
         }
     }
     return res;
+}
+
+Node* Node::getChild(Index n, EdgeType type) {
+    return getOutEdge(n, type)->dest();
+}
+
+Node* Node::getParent(Index n, EdgeType type) {
+    return getInEdge(n, type)->src();
 }
 
 bool Node::hasEdgesOf(EdgeType type) const {
@@ -110,6 +117,10 @@ void CFGEdge::accept(GraphVisitor* visitor) {
 
 void PDGEdge::accept(GraphVisitor* visitor) {
     visitor->visitPDGEdge(this);
+}
+
+void BeginBlockInst::accept(GraphVisitor* visitor) {
+    visitor->visitBeginBlockInst(this);
 }
 
 }  // namespace wasmati

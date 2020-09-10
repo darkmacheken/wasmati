@@ -61,6 +61,7 @@ private:
     virtual void visitLocalGetInst(LocalGetInst* node) override;
     virtual void visitLocalSetInst(LocalSetInst* node) override;
     virtual void visitLocalTeeInst(LocalTeeInst* node) override;
+    virtual void visitBeginBlockInst(BeginBlockInst* node) override;
     virtual void visitBlockInst(BlockInst* node) override;
     virtual void visitLoopInst(LoopInst* node) override;
     virtual void visitIfInst(IfInst* node) override;

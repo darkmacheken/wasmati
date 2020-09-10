@@ -1,9 +1,9 @@
 ;;; TOOL: wat2wasm
 (module
   (func
-    i32.const 0
     loop $loop
       block $block
+        i32.const 0
         if 
           br $block
         else

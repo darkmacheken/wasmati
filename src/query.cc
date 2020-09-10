@@ -2,6 +2,20 @@
 namespace wasmati {
 const Query::EdgeCondition& Query::allEdges = [](Edge*) { return true; };
 
+Query::NodeSet Query::children(const NodeSet& nodes,
+                               const EdgeCondition& edgeCondition) {
+    NodeSet result;
+    for (Node* node : nodes) {
+        EdgeSet edges = filterEdges(
+            EdgeSet(node->outEdges().begin(), node->outEdges().end()),
+            edgeCondition);
+        for (Edge* e : edges) {
+            result.insert(e->dest());
+        }
+    }
+    return result;
+}
+
 Query::EdgeSet Query::filterEdges(const EdgeSet& edges,
                                   const EdgeCondition& edgeCondition) {
     EdgeSet result;
@@ -13,10 +27,21 @@ Query::EdgeSet Query::filterEdges(const EdgeSet& edges,
     return result;
 }
 
-Query::NodeSet Query::searchBackwards(const NodeSet& nodes,
-                                      const NodeCondition& nodeCondition,
-                                      const EdgeCondition& edgeCondition,
-                                      Index limit) {
+Query::NodeSet Query::filter(const NodeSet& nodes,
+                             const NodeCondition& nodeCondition) {
+    NodeSet result;
+    for (Node* node : nodes) {
+        if (nodeCondition(node)) {
+            result.insert(node);
+        }
+    }
+    return result;
+}
+
+Query::NodeSet Query::backwardsBFS(const NodeSet& nodes,
+                                   const NodeCondition& nodeCondition,
+                                   const EdgeCondition& edgeCondition,
+                                   Index limit) {
     NodeSet result;
     NodeSet nextQuery;
     if (nodes.size() == 0 || limit == 0) {
@@ -39,7 +64,40 @@ Query::NodeSet Query::searchBackwards(const NodeSet& nodes,
     if (nextQuery.size() == 0) {
         return result;
     }
-    auto queryResult = searchBackwards(nextQuery, nodeCondition, edgeCondition);
+    auto queryResult = backwardsBFS(nextQuery, nodeCondition, edgeCondition);
+    if (queryResult.size() == 0) {
+        return result;
+    }
+    result.insert(queryResult.begin(), queryResult.end());
+    return result;
+}
+Query::NodeSet Query::BFS(const NodeSet& nodes,
+                          const NodeCondition& nodeCondition,
+                          const EdgeCondition& edgeCondition,
+                          Index limit) {
+    NodeSet result;
+    NodeSet nextQuery;
+    if (nodes.size() == 0 || limit == 0) {
+        return result;
+    }
+
+    for (Node* node : nodes) {
+        auto outEdges = EdgeSet(node->outEdges().begin(), node->outEdges().end());
+        for (Edge* edge : filterEdges(outEdges, edgeCondition)) {
+            if (nodeCondition(edge->dest())) {
+                if (limit == 0) {
+                    return result;
+                }
+                result.insert(edge->dest());
+                limit--;
+            }
+            nextQuery.insert(edge->dest());
+        }
+    }
+    if (nextQuery.size() == 0) {
+        return result;
+    }
+    auto queryResult = BFS(nextQuery, nodeCondition, edgeCondition);
     if (queryResult.size() == 0) {
         return result;
     }

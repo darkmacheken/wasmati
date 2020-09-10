@@ -9,6 +9,7 @@
 #include "src/apply-names.h"
 #include "src/ast-builder.h"
 #include "src/cfg-builder.h"
+#include "src/pdg-builder.h"
 #include "src/common.h"
 #include "src/dot-writer.h"
 #include "src/error-formatter.h"
@@ -159,6 +160,8 @@ void generateCPG(Graph& graph, GenerateCPGOptions options) {
     ast.generateAST(cpgOptions);
     CFG cfg(*graph.getModuleContext(), graph, ast);
     cfg.generateCFG(cpgOptions);
+    PDG pdg(*graph.getModuleContext(), graph);
+    //pdg.generatePDG(cpgOptions);
 }
 
 int main(int argc, char** argv) {

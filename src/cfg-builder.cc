@@ -13,7 +13,7 @@ void CFG::generateCFG(GenerateCPGOptions& options) {
 
         if (!isImport) {
             Node* returnFuncNode = ast.returnFunc.at(f);
-            Query::NodeSet instNodeQuery = Query::searchBackwards(
+            Query::NodeSet instNodeQuery = Query::backwardsBFS(
                 {returnFuncNode},
                 [](Node* node) {
                     return node->type() == NodeType::Instructions;
@@ -22,193 +22,241 @@ void CFG::generateCFG(GenerateCPGOptions& options) {
             assert(instNodeQuery.size() == 1);
 
             Node* insts = *instNodeQuery.begin();
-            auto lastInst = construct(f->exprs, insts, false);
-            if (lastInst != nullptr) {
-                new CFGEdge(lastInst, ast.returnFunc.at(f));
+            if (f->exprs.empty()) {
+                new CFGEdge(insts, returnFuncNode);
+                continue;
+            }
+            new CFGEdge(insts, ast.exprNodes.at(&f->exprs.front()));
+
+            auto unreachable = construct(f->exprs);
+
+            // Connect return
+            if (!unreachable) {
+                insertEdgeFromLastExpr(f->exprs, returnFuncNode);
+            } else {
+                continue;
+            }
+            auto childlessReturn = Query::BFS(
+                {insts},
+                [](Node* node) {
+                    return node->outEdges(EdgeType::CFG).size() == 0 &&
+                           node->inEdges(EdgeType::CFG).size() > 0 &&
+                           node->type() == NodeType::Instruction &&
+                           node->instType() != ExprType::Return;
+                },
+                [](Edge* e) { return e->type() == EdgeType::AST; });
+            for (Node* node : childlessReturn) {
+                new CFGEdge(node, returnFuncNode);
             }
         }
 
         func_index++;
     }
 }
-Node* CFG::construct(const Expr& e, Node* lastInst, bool ifCondition) {
-    assert(lastInst != nullptr);
-    Node* currentInst = ast.exprNodes.at(&e);
-
-    bool lastIsBrIf = false;
-    bool lastIsIf = false;
-
-    if (e.type() != ExprType::Block && e.type() != ExprType::Loop &&
-        e.type() != ExprType::If) {
-        if (lastInst->type() == NodeType::Instruction &&
-            lastInst->instType() == ExprType::BrIf) {
-            new CFGEdge(lastInst, currentInst, "false");
-            lastIsBrIf = true;
+bool CFG::construct(const ExprList& es) {
+    for (auto it = es.begin(); it != es.end(); it++) {
+        switch (it->type()) {
+        case ExprType::Return: {
+            return false;
         }
-        if (lastInst->type() == NodeType::Instruction &&
-            lastInst->instType() == ExprType::If) {
-            lastIsIf = true;
-            if (ifCondition) {
-                new CFGEdge(lastInst, currentInst, "true");
-            } else {
-                new CFGEdge(lastInst, currentInst, "false");
+        case ExprType::Unreachable: {
+            Node* inst = ast.exprNodes.at(&*it);
+            new CFGEdge(inst, graph.getTrap());
+            return true;
+        }
+        case ExprType::Br: {
+            auto expr = cast<BrExpr>(&*it);
+            Node* inst = ast.exprNodes.at(expr);
+            std::string target = expr->var.name();
+            new CFGEdge(inst, getBlock(target));
+            return true;
+        }
+        case ExprType::BrIf: {
+            auto expr = cast<BrIfExpr>(&*it);
+            Node* inst = ast.exprNodes.at(expr);
+            std::string target = expr->var.name();
+            new CFGEdge(inst, getBlock(target), "true");
+            // if it's not the last
+            if (&*it != &es.back()) {
+                new CFGEdge(inst, ast.exprNodes.at(&*std::next(it)), "false");
             }
-        }
-    }
-
-    switch (e.type()) {
-    case ExprType::Br: {
-        auto br = cast<BrExpr>(&e);
-        if (!lastIsBrIf && !lastIsIf) {
-            new CFGEdge(lastInst, currentInst);
-        }
-
-        std::string target = br->var.name();
-        for (auto p : _blocks) {
-            if (target.compare(p.first) == 0) {
-                new CFGEdge(currentInst, p.second);
-                return nullptr;
-            }
-        }
-        assert(false);
-        break;
-    }
-    case ExprType::BrIf: {
-        auto brif = cast<BrIfExpr>(&e);
-        if (!lastIsBrIf && !lastIsIf) {
-            new CFGEdge(lastInst, currentInst);
-        }
-        std::string target = brif->var.name();
-        for (auto p : _blocks) {
-            if (target.compare(p.first) == 0) {
-                new CFGEdge(currentInst, p.second, "true");
-                break;
-            }
-        }
-
-        break;
-    }
-    case ExprType::BrTable: {
-        auto brTable = cast<BrTableExpr>(&e);
-        if (!lastIsBrIf && !lastIsIf) {
-            new CFGEdge(lastInst, currentInst);
-        }
-        for (Index i = 0; i < brTable->targets.size(); i++) {
-            for (auto block : _blocks) {
-                if (block.first.compare(brTable->targets[i].name()) == 0) {
-                    new CFGEdge(currentInst, block.second, std::to_string(i));
-                }
-            }
-        }
-
-        for (auto block : _blocks) {
-            if (block.first.compare(brTable->default_target.name()) == 0) {
-                new CFGEdge(currentInst, block.second, "default");
-            }
-        }
-        return nullptr;
-        break;
-    }
-    case ExprType::If: {
-        auto ifExpr = cast<IfExpr>(&e);
-        if (!lastIsBrIf && !lastIsIf) {
-            new CFGEdge(lastInst, currentInst);
-        }
-
-        // Visit True Block
-        Node* lastInstTrueBlock =
-            construct(ifExpr->true_.exprs, currentInst, true);
-        if (lastInstTrueBlock != nullptr &&
-            lastInst->type() == NodeType::Instruction &&
-            !(lastInst->instType() == ExprType::BrIf)) {
-            new CFGEdge(lastInstTrueBlock, ast.ifBlocks.at(&ifExpr->true_));
-        }
-
-        Node* lastInstFalseBlock = nullptr;
-        // Visit False Block if exists
-        if (!ifExpr->false_.empty()) {
-            // In the Else "block" is the same block of the true
-            // so we need to put the true block in the stack in case there is a
-            // br
-            _blocks.emplace_front(ifExpr->true_.label,
-                                  ast.ifBlocks.at(&ifExpr->true_));
-            // Visit False Block
-            lastInstFalseBlock = construct(ifExpr->false_, currentInst, false);
-
-            if (lastInstFalseBlock != nullptr &&
-                lastInst->type() == NodeType::Instruction &&
-                !(lastInst->instType() == ExprType::BrIf)) {
-                new CFGEdge(lastInstFalseBlock,
-                            ast.ifBlocks.at(&ifExpr->true_));
-            }
-            // Pop block
-            _blocks.pop_front();
-        }
-
-        if (lastInstTrueBlock == nullptr && lastInstFalseBlock == nullptr) {
-            // unreachable from now on
-            return nullptr;
-        } else {
-            return ast.ifBlocks.at(&ifExpr->true_);
-        }
-    }
-    case ExprType::Block: {
-        auto block = cast<BlockExpr>(&e);
-        _blocks.emplace_front(block->block.label, currentInst);
-        lastInst = construct(block->block.exprs, lastInst, ifCondition);
-        if (lastInst == nullptr) {
-            // if there are CFG edges to this block
-            // then there are br and is not unreachable from now on
-            // otherwise is unreachable
-            if (currentInst->hasInEdgesOf(EdgeType::CFG)) {
-                _blocks.pop_front();
-                return currentInst;
-            }
-        }
-        _blocks.pop_front();
-        if (!lastIsBrIf && !lastIsIf) {
-            new CFGEdge(lastInst, currentInst);
-        }
-        break;
-    }
-    case ExprType::Loop: {
-        auto loop = cast<LoopExpr>(&e);
-        if (!lastIsBrIf && !lastIsIf) {
-            new CFGEdge(lastInst, currentInst);
-        }
-        _blocks.emplace_front(loop->block.label, currentInst);
-        lastInst = currentInst;
-        lastInst = construct(loop->block.exprs, lastInst, ifCondition);
-        if (lastInst->type() == NodeType::Instruction &&
-            lastInst->instType() == ExprType::Br) {
-            lastInst = nullptr;
-        }
-        _blocks.pop_front();
-        return lastInst;
-    }
-    case ExprType::Unreachable:
-        new CFGEdge(lastInst, currentInst);
-        new CFGEdge(currentInst, graph.getTrap());
-        return nullptr;
-    default:
-        if (!lastIsBrIf && !lastIsIf) {
-            new CFGEdge(lastInst, currentInst);
-        }
-        break;
-    }
-    return currentInst;
-}
-
-Node* CFG::construct(const ExprList& es, Node* lastInst, bool ifCondition) {
-    if (lastInst == nullptr) {
-        return nullptr;
-    }
-    for (auto& expr : es) {
-        lastInst = construct(expr, lastInst, ifCondition);
-        if (lastInst == nullptr) {
             break;
         }
+        case ExprType::BrTable: {
+            auto expr = cast<BrTableExpr>(&*it);
+            Node* inst = ast.exprNodes.at(expr);
+            for (Index i = 0; i < expr->targets.size(); i++) {
+                const std::string target = expr->targets[i].name();
+                new CFGEdge(inst, getBlock(target), std::to_string(i));
+            }
+
+            new CFGEdge(inst, getBlock(expr->default_target.name()), "default");
+            break;
+        }
+        case ExprType::Block: {
+            auto expr = cast<BlockExpr>(&*it);
+            Node* beginBlockInst = ast.exprNodes.at(expr);
+            Node* blockInst = beginBlockInst->block();
+
+            // Push Label
+            _blocks.emplace_front(expr->block.label, blockInst);
+
+            // In case the block is empty
+            if (expr->block.exprs.empty()) {
+                new CFGEdge(beginBlockInst, blockInst);
+            } else {
+                auto& firstExpr = expr->block.exprs.front();
+                new CFGEdge(beginBlockInst, ast.exprNodes.at(&firstExpr));
+            }
+
+            // construct
+            auto unreachable = construct(expr->block.exprs);
+
+            if (!unreachable) {
+                insertEdgeFromLastExpr(expr->block.exprs, blockInst);
+            }
+
+            if (!blockInst->hasInEdgesOf(EdgeType::CFG)) {
+                _blocks.pop_front();
+                return false;
+            }
+
+            // if it's not the last
+            if (&*it != &es.back()) {
+                new CFGEdge(blockInst, ast.exprNodes.at(&*std::next(it)));
+            }
+
+            // Pop label
+            _blocks.pop_front();
+            break;
+        }
+        case ExprType::Loop: {
+            auto expr = cast<LoopExpr>(&*it);
+            Node* inst = ast.exprNodes.at(expr);
+
+            // Push Label
+            _blocks.emplace_front(expr->block.label, inst);
+
+            // In case the loop is empty
+            if (expr->block.exprs.empty()) {
+                assert(false);
+            } else {
+                auto& firstExpr = expr->block.exprs.front();
+                new CFGEdge(inst, ast.exprNodes.at(&firstExpr));
+            }
+
+            // construct
+            construct(expr->block.exprs);
+
+            // Pop label
+            _blocks.pop_front();
+            break;
+        }
+        case ExprType::If: {
+            auto expr = cast<IfExpr>(&*it);
+            Node* inst = ast.exprNodes.at(expr);
+
+            // True Condition
+            auto trueBeginInst = ast.ifBlocks.at(&expr->true_);
+            auto trueBlockInst = trueBeginInst->block();
+            new CFGEdge(inst, trueBeginInst, "true");
+
+            _blocks.emplace_front(expr->true_.label, trueBlockInst);
+            auto unreachable = construct(expr->true_.exprs);
+            if (!expr->true_.exprs.empty()) {
+                new CFGEdge(trueBeginInst,
+                            ast.exprNodes.at(&expr->true_.exprs.front()));
+            }
+            if (!unreachable) {
+                insertEdgeFromLastExpr(expr->true_.exprs, trueBlockInst);
+            }
+            _blocks.pop_front();
+
+            // False Condition
+            if (!expr->false_.empty()) {
+                // In the Else "block" is the same block of the true
+                // so we need to put the true block in the stack in case there
+                // is a br
+                _blocks.emplace_front(expr->true_.label, trueBlockInst);
+                // Visit False Block
+                auto fUnreachable = construct(expr->false_);
+                auto falseBeginInst = new BeginBlockInst(
+                    expr->true_.label, static_cast<BlockInst*>(trueBlockInst));
+                graph.insertNode(falseBeginInst);
+                new CFGEdge(inst, falseBeginInst, "false");
+                new CFGEdge(falseBeginInst,
+                            ast.exprNodes.at(&expr->false_.front()));
+                if (!fUnreachable) {
+                    insertEdgeFromLastExpr(expr->false_, trueBlockInst);
+                }
+                // Pop block
+                _blocks.pop_front();
+                if (unreachable && fUnreachable) {
+                    return true;
+                }
+            }
+
+            // if it's not the last
+            if (&*it != &es.back() &&
+                trueBlockInst->hasInEdgesOf(EdgeType::CFG)) {
+                new CFGEdge(trueBlockInst, ast.exprNodes.at(&*std::next(it)));
+            }
+            break;
+        }
+        default:
+            Node* inst = ast.exprNodes.at(&*it);
+            // if it's not the last
+            if (&*it != &es.back()) {
+                new CFGEdge(inst, ast.exprNodes.at(&*std::next(it)));
+            }
+        }
     }
-    return lastInst;
+    return false;
+}
+void CFG::insertEdgeFromLastExpr(const wabt::ExprList& es,
+                                 wasmati::Node* blockInst) {
+    // Edge cases for last instruction:
+    // In case of a Br || BrTable || Loop || return || unreachable: Do nothing
+    // In case of a BrIf: Handle false case to this block.
+    // In case of Block: Point the BlockInst node to this block
+    // In case of an If: If has else: point inner blockInst to this
+    // block
+    //      If not: handle false case to this block
+    // Other cases: point inst to this block
+    auto& lastExpr = es.back();
+    if (lastExpr.type() == ExprType::Br ||
+        lastExpr.type() == ExprType::BrTable ||
+        lastExpr.type() == ExprType::Loop ||
+        lastExpr.type() == ExprType::Return ||
+        lastExpr.type() == ExprType::Unreachable) {
+        // do nothing
+    } else if (lastExpr.type() == ExprType::BrIf) {
+        new CFGEdge(ast.exprNodes.at(&lastExpr), blockInst, "false");
+    } else if (lastExpr.type() == ExprType::Block) {
+        auto lastBlockInst = ast.exprNodes.at(&lastExpr)->block();
+        new CFGEdge(lastBlockInst, blockInst);
+    } else if (lastExpr.type() == ExprType::If) {
+        auto ifExpr = cast<IfExpr>(&lastExpr);
+        auto ifInst = ast.exprNodes.at(&lastExpr);
+        if (ifExpr->false_.empty()) {
+            new CFGEdge(ifInst, blockInst, "false");
+        } else {
+            auto innerBlock = ifInst->getOutEdge(1, EdgeType::AST)->dest();
+            if (innerBlock->inEdges(EdgeType::CFG).size() > 0) {
+                new CFGEdge(innerBlock, blockInst);
+            }
+        }
+    } else {
+        new CFGEdge(ast.exprNodes.at(&lastExpr), blockInst);
+    }
+}
+Node* CFG::getBlock(const std::string& target) {
+    for (auto p : _blocks) {
+        if (target.compare(p.first) == 0) {
+            return p.second;
+        }
+    }
+    assert(false);
+    return nullptr;
 }
 }  // namespace wasmati

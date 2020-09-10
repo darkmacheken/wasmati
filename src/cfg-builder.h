@@ -1,9 +1,10 @@
 #ifndef WASMATI_CFG_BUILDER_H_
 #define WASMATI_CFG_BUILDER_H_
 
-#include "src/ast-builder.h"
-#include "src/query.h"
 #include <list>
+#include "src/ast-builder.h"
+#include "src/cast.h"
+#include "src/query.h"
 
 using namespace wabt;
 
@@ -21,8 +22,14 @@ struct CFG {
 
     void generateCFG(GenerateCPGOptions& options);
 
-    Node* construct(const Expr& e, Node* lastInst, bool ifCondition);
-    Node* construct(const ExprList& es, Node* lastInst, bool ifCondition);
+    /// @brief Constructs the CFG in the given expression list
+    /// @param es Expression list
+    bool construct(const ExprList& es);
+
+private:
+    void insertEdgeFromLastExpr(const wabt::ExprList& es,
+                                wasmati::Node* blockInst);
+    Node* getBlock(const std::string& expr);
 };
 
 }  // namespace wasmati

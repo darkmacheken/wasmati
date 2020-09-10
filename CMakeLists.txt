@@ -238,6 +238,8 @@ add_library(wasmati STATIC
   src/ast-builder.cc
   src/cfg-builder.h
   src/cfg-builder.cc
+  src/pdg-builder.h
+  src/pdg-builder.cc
   src/query.h
   src/query.cc
   src/dot-writer.h

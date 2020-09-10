@@ -4,24 +4,28 @@
 #include <cstdlib>
 
 #include "src/apply-names.h"
+#include "src/ast-builder.h"
 #include "src/binary-reader-ir.h"
 #include "src/binary-reader.h"
+#include "src/cfg-builder.h"
 #include "src/decompiler.h"
 #include "src/dot-writer.h"
 #include "src/error-formatter.h"
 #include "src/feature.h"
 #include "src/generate-names.h"
 #include "src/graph.h"
-#include "src/ast-builder.h"
-#include "src/options.h"
 #include "src/ir.h"
 #include "src/option-parser.h"
+#include "src/options.h"
+#include "src/pdg-builder.h"
 #include "src/stream.h"
 #include "src/validator.h"
 #include "src/wast-lexer.h"
 
 using namespace wabt;
 using namespace wasmati;
+
+void generateCPG(Graph&, GenerateCPGOptions);
 
 static int s_verbose;
 static std::string s_infile;
@@ -133,8 +137,7 @@ int ProgramMain(int argc, char** argv) {
             }
 
             Graph graph(&module);
-            AST ast(*graph.getModuleContext(), graph);
-            ast.generateAST(cpgOptions);
+            generateCPG(graph, cpgOptions);
 
             if (Succeeded(result)) {
                 FileStream stream(!s_outfile.empty() ? FileStream(s_outfile)
@@ -146,6 +149,15 @@ int ProgramMain(int argc, char** argv) {
         FormatErrorsToFile(errors, Location::Type::Binary);
     }
     return result != Result::Ok;
+}
+
+void generateCPG(Graph& graph, GenerateCPGOptions options) {
+    AST ast(*graph.getModuleContext(), graph);
+    ast.generateAST(cpgOptions);
+    CFG cfg(*graph.getModuleContext(), graph, ast);
+    cfg.generateCFG(cpgOptions);
+    PDG pdg(*graph.getModuleContext(), graph);
+    pdg.generatePDG(cpgOptions);
 }
 
 int main(int argc, char** argv) {
