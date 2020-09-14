@@ -41,7 +41,7 @@ public:
     static NodeSet parents(const NodeSet& nodes,
                            const EdgeCondition& edgeCondition = ALL_EDGES);
 
-    /// @brief Given a set of Edges, returns the edges that satisfy the
+    /// @brief Given a set of Edges, returns the edges that satisfies the
     /// given condition.
     /// @param edges Set of edges.
     /// @param edgeCondition Edge condition to be present in the result.
@@ -49,7 +49,7 @@ public:
     static EdgeSet filterEdges(const EdgeSet& edges,
                                const EdgeCondition& edgeCondition = ALL_EDGES);
 
-    /// @brief Filter the given nodes and return those that satisfy the given
+    /// @brief Filter the given nodes and return those that satisfies the given
     /// nodeCondition
     /// @param nodes Set of nodes
     /// @param nodeCondition Node condition.
@@ -57,16 +57,26 @@ public:
     static NodeSet filter(const NodeSet& nodes,
                           const NodeCondition& nodeCondition);
 
-    /// @brief Returns true if there is a node that satisfy the condition
+    /// @brief Returns true if there is a node that satisfies the condition
     /// nodeCondition and false otehrwise
     /// @param nodes Set of nodes
     /// @param nodeCondition Node condition
-    /// @return true if the set contains a node that satisfy the given condition
+    /// @return true if the set contains a node that satisfies the given
+    /// condition
     static bool contains(const NodeSet& nodes,
                          const NodeCondition& nodeCondition);
 
-    /// @brief Makes a classic BFS alongside the edges that satisfy the
-    /// condition edgeCondition, and returns the nodes that satisfy the
+    /// @brief Returns true if there is an edge that satisfies the condition
+    /// edgeCondition and false otherwise
+    /// @param edges Set of edges
+    /// @param edgeCondition Edgte condition
+    /// @return true if the set contains an edge that satisfies the given
+    /// condition
+    static bool containsEdge(const EdgeSet& edges,
+                             const EdgeCondition& edgeCondition);
+
+    /// @brief Makes a classic BFS alongside the edges that satisfies the
+    /// condition edgeCondition, and returns the nodes that satisfies the
     /// condition nodeCondition
     /// @param nodes Set of nodes
     /// @param nodeCondition Node Condition to be present in the result.
@@ -84,18 +94,18 @@ public:
     /// @return A set cointaining the node module
     static NodeSet module();
 
-    /// @brief Returns all the function nodes that satisfy teh condition
+    /// @brief Returns all the function nodes that satisfies teh condition
     /// nodeCondition
     /// @param nodeCondition Node condition to be present in the result.
     /// @return Set of nodes containing function nodes.
     static NodeSet functions(const NodeCondition& nodeCondition);
 
-    /// @brief Returns all the instructions of the given functions that satisfy
-    /// the nodeCondition
+    /// @brief Returns all the instructions of the given functions that
+    /// satisfies the nodeCondition
     /// @param nodes A set of function nodes.
     /// @param nodeCondition Condition to filter the nodes
-    /// @return A set of instructions from the given functions that satisfy the
-    /// condition
+    /// @return A set of instructions from the given functions that satisfies
+    /// the condition
     static NodeSet instructions(const NodeSet& nodes,
                                 const NodeCondition& nodeCondition);
 

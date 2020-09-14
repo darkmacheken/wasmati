@@ -73,6 +73,16 @@ bool Query::contains(const NodeSet& nodes, const NodeCondition& nodeCondition) {
     return false;
 }
 
+bool Query::containsEdge(const EdgeSet& edges,
+                         const EdgeCondition& edgeCondition) {
+    for (Edge* e : edges) {
+        if (edgeCondition(e)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 NodeSet Query::BFS(const NodeSet& nodes,
                    const NodeCondition& nodeCondition,
                    const EdgeCondition& edgeCondition,
@@ -146,74 +156,65 @@ void Query::checkVulnerabilities(Graph* graph) {
 void Query::checkBufferSizes() {
     auto funcs = functions(ALL_NODES);
     for (auto func : funcs) {
-        std::cout << func->name() << std::endl;
+        EdgeSet queryEdges;
         int totalSizeAllocated;
         int sizeAllocated;
-        std::string local;
         auto allocQuery = Query::instructions({func}, [&](Node* node) {
-            if (node->instType() == ExprType::GlobalSet &&
-                node->label().compare("$g0") == 0) {
-                auto bfs = BFS({node}, ALL_NODES, AST_EDGES);
-                auto filterBfs = filter(bfs, [](Node* node) {
-                    return node->instType() == ExprType::LocalTee ||
-                           (node->instType() == ExprType::Binary &&
-                            node->opcode() == Opcode::I32Sub) ||
-                           (node->instType() == ExprType::GlobalGet &&
-                            node->label().compare("$g0") == 0) ||
-                           node->instType() == ExprType::Const;
+            if (node->instType() == ExprType::Binary &&
+                node->opcode() == Opcode::I32Sub) {
+                auto inEdges = node->inEdges(EdgeType::PDG);
+                EdgeSet edgeSet = EdgeSet(inEdges.begin(), inEdges.end());
+                queryEdges = Query::filterEdges(edgeSet, [](Edge* e) {
+                    return e->pdgType() == PDGType::Const ||
+                           (e->pdgType() == PDGType::Global &&
+                            e->label().compare("$g0") == 0);
                 });
-                if (bfs == filterBfs) {
-                    local = (*filter(bfs,
-                                     [](Node* node) {
-                                         return node->instType() ==
-                                                ExprType::LocalTee;
-                                     })
-                                  .begin())
-                                ->label();
-                    totalSizeAllocated =
-                        (*filter(bfs,
-                                 [](Node* node) {
-                                     return node->instType() == ExprType::Const;
-                                 })
-                              .begin())
-                            ->value()
-                            .u32;
-                    sizeAllocated = totalSizeAllocated - 32;
-                    return true;
-                }
+                return queryEdges.size() == 2;
             }
             return false;
         });
-        if (allocQuery.size() == 0) {
+
+        if (allocQuery.size() != 1 || queryEdges.size() != 2) {
             std::cout << "No buffer found" << std::endl;
             return;
         }
-        std::cout << "\tAllocation size: " << sizeAllocated << std::endl;
-        std::set<int> buffs;
 
-        auto buffQuery = instructions({func}, [&](Node* node) {
+        for (Edge* e : queryEdges) {
+            if (e->pdgType() == PDGType::Const) {
+                totalSizeAllocated = e->value().u32;
+                sizeAllocated = totalSizeAllocated - 32;
+            }
+        }
+        std::cout << "\tAllocation size: " << sizeAllocated << std::endl;
+
+        std::set<int> buffs;
+        auto buffQuery = Query::instructions({func}, [&](Node* node) {
             if (node->instType() == ExprType::Binary &&
                 node->opcode() == Opcode::I32Add) {
-                auto childrenQuery = children({node}, AST_EDGES);
-                auto constQuery = filter(childrenQuery, [](Node* node) {
-                    return node->instType() == ExprType::Const;
+                auto inEdges = node->inEdges(EdgeType::PDG);
+                EdgeSet edgeSet = EdgeSet(inEdges.begin(), inEdges.end());
+                auto queryEdges = Query::filterEdges(edgeSet, [&](Edge* e) {
+                    return (e->pdgType() == PDGType::Const &&
+                            e->value().u32 >= 32 &&
+                            e->value().u32 < totalSizeAllocated) ||
+                           (e->pdgType() == PDGType::Global &&
+                            e->label().compare("$g0") == 0);
                 });
-                auto localGetQuery = filter(childrenQuery, [&](Node* n) {
-                    return n->instType() == ExprType::LocalGet &&
-                           n->label().compare(local) == 0;
-                });
-                if (constQuery.size() == 1 && localGetQuery.size() == 1) {
-                    int val = (*constQuery.begin())->value().u32;
-                    if (val < 32 || val >= totalSizeAllocated) {
-                        return false;
-                    }
-                    buffs.insert(val);
-                    return true;
-                }
+                auto querySub = Query::BFS(
+                    {node}, [&](Node* n) { return n == *allocQuery.begin(); },
+                    Query::PDG_EDGES, 1, true);
+                return queryEdges.size() == 2 && querySub.size() == 1;
             }
             return false;
         });
 
+        for (Node* node : buffQuery) {
+            for (Edge* e : node->inEdges(EdgeType::PDG)) {
+                if (e->pdgType() == PDGType::Const) {
+                    buffs.insert(e->value().u32);
+                }
+            }
+        }
         std::cout << "\tBuffers found: " << buffs.size() << std::endl;
         for (auto it = buffs.begin(); it != buffs.end(); ++it) {
             int size = 0;
@@ -222,8 +223,92 @@ void Query::checkBufferSizes() {
             } else {
                 size = totalSizeAllocated - *it;
             }
-            std::cout << "\t\t@+" << *it << ": "<< size << std::endl;
+            std::cout << "\t\t@+" << *it << ": " << size << std::endl;
         }
     }
 }
+// void Query::checkBufferSizes() {
+//    auto funcs = functions(ALL_NODES);
+//    for (auto func : funcs) {
+//        std::cout << func->name() << std::endl;
+//        int totalSizeAllocated;
+//        int sizeAllocated;
+//        std::string local;
+//        auto allocQuery = Query::instructions({func}, [&](Node* node) {
+//            if (node->instType() == ExprType::GlobalSet &&
+//                node->label().compare("$g0") == 0) {
+//                auto bfs = BFS({node}, ALL_NODES, AST_EDGES);
+//                auto filterBfs = filter(bfs, [](Node* node) {
+//                    return node->instType() == ExprType::LocalTee ||
+//                           (node->instType() == ExprType::Binary &&
+//                            node->opcode() == Opcode::I32Sub) ||
+//                           (node->instType() == ExprType::GlobalGet &&
+//                            node->label().compare("$g0") == 0) ||
+//                           node->instType() == ExprType::Const;
+//                });
+//                if (bfs == filterBfs) {
+//                    local = (*filter(bfs,
+//                                     [](Node* node) {
+//                                         return node->instType() ==
+//                                                ExprType::LocalTee;
+//                                     })
+//                                  .begin())
+//                                ->label();
+//                    totalSizeAllocated =
+//                        (*filter(bfs,
+//                                 [](Node* node) {
+//                                     return node->instType() ==
+//                                     ExprType::Const;
+//                                 })
+//                              .begin())
+//                            ->value()
+//                            .u32;
+//                    sizeAllocated = totalSizeAllocated - 32;
+//                    return true;
+//                }
+//            }
+//            return false;
+//        });
+//        if (allocQuery.size() == 0) {
+//            std::cout << "No buffer found" << std::endl;
+//            return;
+//        }
+//        std::cout << "\tAllocation size: " << sizeAllocated << std::endl;
+//        std::set<int> buffs;
+//
+//        auto buffQuery = instructions({func}, [&](Node* node) {
+//            if (node->instType() == ExprType::Binary &&
+//                node->opcode() == Opcode::I32Add) {
+//                auto childrenQuery = children({node}, AST_EDGES);
+//                auto constQuery = filter(childrenQuery, [](Node* node) {
+//                    return node->instType() == ExprType::Const;
+//                });
+//                auto localGetQuery = filter(childrenQuery, [&](Node* n) {
+//                    return n->instType() == ExprType::LocalGet &&
+//                           n->label().compare(local) == 0;
+//                });
+//                if (constQuery.size() == 1 && localGetQuery.size() == 1) {
+//                    int val = (*constQuery.begin())->value().u32;
+//                    if (val < 32 || val >= totalSizeAllocated) {
+//                        return false;
+//                    }
+//                    buffs.insert(val);
+//                    return true;
+//                }
+//            }
+//            return false;
+//        });
+//
+//        std::cout << "\tBuffers found: " << buffs.size() << std::endl;
+//        for (auto it = buffs.begin(); it != buffs.end(); ++it) {
+//            int size = 0;
+//            if (std::next(it) != buffs.end()) {
+//                size = (*std::next(it)) - *it;
+//            } else {
+//                size = totalSizeAllocated - *it;
+//            }
+//            std::cout << "\t\t@+" << *it << ": "<< size << std::endl;
+//        }
+//    }
+//}
 }  // namespace wasmati
