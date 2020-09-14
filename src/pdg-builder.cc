@@ -214,7 +214,7 @@ void PDG::visitConstInst(ConstInst* node) {
 
     reachDef->push();
     auto def = reachDef->peek();
-    def->insert(ConstInst::writeConst(node->value()), PDGType::Const, node);
+    def->insert(node->value(), node);
     // ---------------------------------------
     advance(node, getReachDef(node));
 }
@@ -596,7 +596,7 @@ inline bool PDG::waitPaths(Instruction* inst, bool isLoop) {
 }
 
 inline std::shared_ptr<ReachDefinition> PDG::getReachDef(Instruction* inst) {
-    auto reachDefs = _reachDef[inst];
+    auto& reachDefs = _reachDef[inst];
     int numReachDefs = reachDefs.size();
 
     assert(numReachDefs > 0);

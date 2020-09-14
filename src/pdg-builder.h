@@ -99,13 +99,23 @@ class Definition {
 public:
     struct Var {
         const std::string name;
+        const Const value;
         const PDGType type;
 
         Var(const std::string& name, const PDGType type)
-            : name(name), type(type) {}
+            : name(name), type(type), value(Const::I32()) {}
+
+        Var(const Const& value)
+            : value(value), type(PDGType::Const), name("") {}
 
         bool operator<(const Var& o) const {
             std::hash<std::string> str_hash;
+            if (type == PDGType::Const) {
+                return str_hash(ConstInst::writeConst(value) +
+                                std::to_string(static_cast<int>(type))) <
+                       str_hash(ConstInst::writeConst(value) +
+                                std::to_string(static_cast<int>(o.type)));
+            }
             return str_hash(name + std::to_string(static_cast<int>(type))) <
                    str_hash(o.name + std::to_string(static_cast<int>(o.type)));
         }
@@ -125,6 +135,10 @@ public:
 
     inline void insert(const std::string& name, PDGType type, Node* node) {
         _def[Var(name, type)].insert(node);
+    }
+
+    inline void insert(const Const& value, Node* node) {
+        _def[Var(value)].insert(node);
     }
 
     inline void unionDef(std::shared_ptr<Definition> otherDef) {
@@ -151,16 +165,13 @@ public:
         if (!isLoopStackEmpty) {
             return;
         }
-        for (auto kv : _def) {
+        for (auto const& kv : _def) {
             for (auto& node : kv.second) {
-                Query::filter(
-                    Query::children({node},
-                                    [&](Edge* e) {
-                                        return e->type() == EdgeType::PDG &&
-                                               e->pdgType() == kv.first.type;
-                                    }),
-                    [&](Node* n) { return n == target; });
-                new PDGEdge(node, target, kv.first.name, kv.first.type);
+                if (kv.first.type == PDGType::Const) {
+                    new PDGEdgeConst(node, target, kv.first.value);
+                } else {
+                    new PDGEdge(node, target, kv.first.name, kv.first.type);
+                }
             }
         }
     }
