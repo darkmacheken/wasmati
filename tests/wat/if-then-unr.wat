@@ -6,4 +6,5 @@
       nop
       unreachable
       nop
-    end))
+    end
+    nop))

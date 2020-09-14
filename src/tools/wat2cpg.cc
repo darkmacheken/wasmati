@@ -161,7 +161,7 @@ void generateCPG(Graph& graph, GenerateCPGOptions options) {
     CFG cfg(*graph.getModuleContext(), graph, ast);
     cfg.generateCFG(cpgOptions);
     PDG pdg(*graph.getModuleContext(), graph);
-    //pdg.generatePDG(cpgOptions);
+    pdg.generatePDG(cpgOptions);
 }
 
 int main(int argc, char** argv) {

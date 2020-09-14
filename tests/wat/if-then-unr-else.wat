@@ -7,4 +7,5 @@
       unreachable
     else
       nop
-    end))
+    end
+    nop))

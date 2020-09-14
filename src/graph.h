@@ -279,6 +279,47 @@ public:
     Const value() const override { return _value; }
 
     void accept(GraphVisitor* visitor);
+
+    static std::string writeConst(const Const& _const) {
+        std::string s;
+        switch (_const.type) {
+        case Type::I32:
+            s += Opcode::I32Const_Opcode.GetName();
+            s += " " + std::to_string(static_cast<int32_t>(_const.u32));
+            break;
+
+        case Type::I64:
+            s += Opcode::I64Const_Opcode.GetName();
+            s += " " + std::to_string(static_cast<int64_t>(_const.u64));
+            break;
+
+        case Type::F32: {
+            s += Opcode::F32Const_Opcode.GetName();
+            float f32;
+            memcpy(&f32, &_const.f32_bits, sizeof(f32));
+            s += " " + std::to_string(f32);
+            break;
+        }
+
+        case Type::F64: {
+            s += Opcode::F64Const_Opcode.GetName();
+            double f64;
+            memcpy(&f64, &_const.f64_bits, sizeof(f64));
+            s += " " + std::to_string(f64);
+            break;
+        }
+
+        case Type::V128: {
+            assert(false);
+            break;
+        }
+
+        default:
+            assert(false);
+            break;
+        }
+        return s;
+    }
 };
 
 template <ExprType T>
@@ -398,8 +439,6 @@ public:
                    const Location loc = Location())
         : LabeledInst<ExprType::Block>(label, loc), _block(block) {}
 
-    inline const BlockInst* getBlock() { return _block; }
-
     Node* block() override { return _block; }
 
     virtual void accept(GraphVisitor* visitor);
@@ -420,6 +459,7 @@ public:
     virtual void accept(GraphVisitor* visitor);
 };
 
+enum class PDGType { Local, Global, Function, Control, Const };
 struct Edge {
 private:
     Node* const _src;
@@ -439,6 +479,14 @@ public:
     inline Node* src() const { return _src; }
     inline Node* dest() const { return _dest; }
     inline EdgeType type() const { return _type; }
+    virtual PDGType pdgType() const {
+        assert(false);
+        return PDGType::Local;
+    }
+    virtual const std::string& label() const {
+        assert(false);
+        return emptyString();
+    }
     virtual void accept(GraphVisitor* visitor) = 0;
 };
 
@@ -456,23 +504,25 @@ struct CFGEdge : Edge {
         : Edge(src, dest, EdgeType::CFG), _label(label) {}
     void accept(GraphVisitor* visitor);
     static bool classof(const Edge* e) { return e->type() == EdgeType::CFG; }
+    inline const std::string& label() const { return _label; }
 };
 
 struct PDGEdge : Edge {
-    enum class Type { Local, Global, Function, Control };
-
     const std::string _label;
-    const Type _type;
+    const PDGType _pdgType;
 
-    PDGEdge(Node* src, Node* dest, Type type)
-        : Edge(src, dest, EdgeType::PDG), _type(type) {}
+    PDGEdge(Node* src, Node* dest, PDGType type)
+        : Edge(src, dest, EdgeType::PDG), _pdgType(type) {}
     PDGEdge(CFGEdge* e)
-        : PDGEdge(e->src(), e->dest(), e->_label, Type::Control) {}
-    PDGEdge(Node* src, Node* dest, const std::string& label, Type type)
-        : Edge(src, dest, EdgeType::PDG), _label(label), _type(type) {}
+        : PDGEdge(e->src(), e->dest(), e->_label, PDGType::Control) {}
+    PDGEdge(Node* src, Node* dest, const std::string& label, PDGType type)
+        : Edge(src, dest, EdgeType::PDG), _label(label), _pdgType(type) {}
 
     void accept(GraphVisitor* visitor);
     static bool classof(const Edge* e) { return e->type() == EdgeType::PDG; }
+
+    inline const std::string& label() const { return _label; }
+    inline PDGType pdgType() const override { return _pdgType; }
 };
 
 class Graph {
@@ -481,11 +531,6 @@ class Graph {
     Trap* _trap;
     Start* _start;
     Module* _module;
-
-    //    void getLocalsNames(Func* f, std::vector<std::string>& names) const;
-    //    void generateAST(GenerateCPGOptions& options);
-    //    void generateCFG(GenerateCPGOptions& options);
-    //    void generatePDG(GenerateCPGOptions& options);
 
 public:
     Graph(wabt::Module* mc);
@@ -512,7 +557,7 @@ public:
         }
         return _start;
     }
-    inline Module* getModule() {
+    inline Module* getModule() const {
         assert(_module != nullptr);
         return _module;
     }

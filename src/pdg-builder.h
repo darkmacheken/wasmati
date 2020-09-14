@@ -4,6 +4,7 @@
 #include <list>
 #include <map>
 #include <set>
+#include <stack>
 #include "src/graph.h"
 #include "src/query.h"
 
@@ -19,6 +20,9 @@ private:
 
     Func* currentFunction = nullptr;
     std::map<Node*, std::vector<std::shared_ptr<ReachDefinition>>> _reachDef;
+    std::map<Node*, std::shared_ptr<ReachDefinition>> _loops;
+    std::map<Node*, std::set<Node*>> _loopsInsts;
+    std::stack<LoopInst*> _loopsStack;
 
 public:
     PDG(ModuleContext& mc, Graph& graph) : mc(mc), graph(graph) {}
@@ -73,7 +77,7 @@ private:
     virtual void visitIfInst(IfInst* node) override;
 
     // Auxiliars
-    inline bool waitPaths(Instruction* inst);
+    inline bool waitPaths(Instruction* inst, bool isLoop = false);
     inline std::shared_ptr<ReachDefinition> getReachDef(Instruction* inst);
     inline void advance(Instruction* inst,
                         std::shared_ptr<ReachDefinition> resultReachDef);
@@ -84,6 +88,10 @@ struct Label {
     Index pointer;
 
     Label(std::string name, Index pointer) : name(name), pointer(pointer) {}
+
+    inline bool equals(const Label& other) const {
+        return name.compare(other.name) == 0 && pointer == other.pointer;
+    }
 };
 
 // A set
@@ -91,9 +99,9 @@ class Definition {
 public:
     struct Var {
         const std::string name;
-        const PDGEdge::Type type;
+        const PDGType type;
 
-        Var(const std::string& name, const PDGEdge::Type type)
+        Var(const std::string& name, const PDGType type)
             : name(name), type(type) {}
 
         bool operator<(const Var& o) const {
@@ -101,26 +109,27 @@ public:
             return str_hash(name + std::to_string(static_cast<int>(type))) <
                    str_hash(o.name + std::to_string(static_cast<int>(o.type)));
         }
+
+        inline bool equals(const Var& other) const {
+            return name.compare(other.name) == 0 && type == other.type;
+        }
     };
 
 private:
-    std::map<Var, std::set<Node*>> _def;
+    std::map<const Var, std::set<Node*>> _def;
 
 public:
     Definition() {}
 
     Definition(const Definition& def) : _def(def._def) {}
 
-    inline void insert(const std::string& name,
-                       PDGEdge::Type type,
-                       Node* node) {
+    inline void insert(const std::string& name, PDGType type, Node* node) {
         _def[Var(name, type)].insert(node);
     }
 
     inline void unionDef(std::shared_ptr<Definition> otherDef) {
         for (auto kv : otherDef->_def) {
-            _def[Var(kv.first.name, kv.first.type)].insert(kv.second.begin(),
-                                                           kv.second.end());
+            _def[kv.first].insert(kv.second.begin(), kv.second.end());
         }
     }
 
@@ -138,12 +147,45 @@ public:
 
     inline bool isEmpty() const { return _def.size() == 0; }
 
-    inline void insertPDGEdge(Node* target) {
+    inline void insertPDGEdge(Node* target, bool isLoopStackEmpty) {
+        if (!isLoopStackEmpty) {
+            return;
+        }
         for (auto kv : _def) {
             for (auto& node : kv.second) {
+                Query::filter(
+                    Query::children({node},
+                                    [&](Edge* e) {
+                                        return e->type() == EdgeType::PDG &&
+                                               e->pdgType() == kv.first.type;
+                                    }),
+                    [&](Node* n) { return n == target; });
                 new PDGEdge(node, target, kv.first.name, kv.first.type);
             }
         }
+    }
+
+    inline void removeConsts() {
+        for (auto kv : _def) {
+            if (kv.first.type == PDGType::Const) {
+                _def.erase(kv.first);
+            }
+        }
+    }
+
+    inline bool equals(const Definition& other) {
+        if (_def.size() != other._def.size()) {
+            return false;
+        }
+        for (auto it = _def.cbegin(), ito = other._def.cbegin();
+             it != _def.cend(); ++it, ++ito) {
+            if (!it->first.equals(ito->first)) {
+                return false;
+            } else if (it->second != ito->second) {
+                return false;
+            }
+        }
+        return true;
     }
 };
 
@@ -183,6 +225,22 @@ public:
             _defs[kv.first]->unionDef(kv.second);
         }
     }
+
+    inline bool equals(const Definitions& other) {
+        if (_defs.size() != other._defs.size()) {
+            return false;
+        }
+
+        for (auto it = _defs.cbegin(), ito = other._defs.cbegin();
+             it != _defs.cend(); ++it, ++ito) {
+            if (it->first.compare(ito->first) != 0) {
+                return false;
+            } else if (!it->second.get()->equals(*ito->second.get())) {
+                return false;
+            }
+        }
+        return true;
+    }
 };
 
 class ReachDefinition {
@@ -200,7 +258,8 @@ public:
     ReachDefinition(const ReachDefinition& reachDef)
         : _globals(reachDef._globals),
           _locals(reachDef._locals),
-          _stack(reachDef._stack) {}
+          _stack(reachDef._stack),
+          _labels(reachDef._labels) {}
 
     inline void insertGlobal(const std::string& var) { _globals.insert(var); }
 
@@ -292,10 +351,37 @@ public:
             while (_stack.size() != 0) {
                 pop();
             }
+            _labels.pop_front();
             if (top.name.compare(name) == 0) {
                 return;
             }
         }
+    }
+
+    inline bool equals(const ReachDefinition& other) {
+        if (!_globals.equals(other._globals)) {
+            return false;
+        }
+        if (!_locals.equals(other._locals)) {
+            return false;
+        }
+        if (_stack.size() == other._stack.size()) {
+            for (auto it = _stack.cbegin(), ito = other._stack.cbegin();
+                 it != _stack.cend(); ++it, ++ito) {
+                if (!(*it)->equals(*(*ito))) {
+                    return false;
+                }
+            }
+        }
+        if (_labels.size() == other._labels.size()) {
+            for (auto it = _labels.cbegin(), ito = other._labels.cbegin();
+                 it != _labels.cend(); ++it, ++ito) {
+                if (!(*it).equals((*ito))) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 };
 

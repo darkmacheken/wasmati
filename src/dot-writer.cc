@@ -195,7 +195,7 @@ void DotWriter::visitMemoryGrowInst(MemoryGrowInst* node) {
 
 void DotWriter::visitConstInst(ConstInst* node) {
     writeString(std::to_string(node->getId()) + " [label=<<TABLE><TR><TD>");
-    writeString(writeConst(node->value()));
+    writeString(ConstInst::writeConst(node->value()));
     writeStringln("</TD></TR></TABLE>>];");
 }
 
@@ -316,48 +316,6 @@ void DotWriter::visitIfInst(IfInst* node) {
     writeString(std::to_string(node->getId()) + " [label=<<TABLE><TR><TD>");
     writeString(Opcode::If_Opcode.GetName());
     writeStringln("</TD></TR></TABLE>>];");
-}
-
-
-std::string DotWriter::writeConst(const Const& const_) {
-    std::string s;
-    switch (const_.type) {
-    case Type::I32:
-        s += Opcode::I32Const_Opcode.GetName();
-        s += " " + std::to_string(static_cast<int32_t>(const_.u32));
-        break;
-
-    case Type::I64:
-        s += Opcode::I64Const_Opcode.GetName();
-        s += " " + std::to_string(static_cast<int64_t>(const_.u64));
-        break;
-
-    case Type::F32: {
-        s += Opcode::F32Const_Opcode.GetName();
-        float f32;
-        memcpy(&f32, &const_.f32_bits, sizeof(f32));
-        s += " " + std::to_string(f32);
-        break;
-    }
-
-    case Type::F64: {
-        s += Opcode::F64Const_Opcode.GetName();
-        double f64;
-        memcpy(&f64, &const_.f64_bits, sizeof(f64));
-        s += " " + std::to_string(f64);
-        break;
-    }
-
-    case Type::V128: {
-        assert(false);
-        break;
-    }
-
-    default:
-        assert(0);
-        break;
-    }
-    return s;
 }
 
 void DotWriter::setSameRank() {

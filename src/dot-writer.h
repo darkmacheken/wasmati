@@ -20,7 +20,6 @@ public:
 
 private:
     void visitSimpleNode(int nodeId, const std::string& nodeName);
-    std::string writeConst(const Const& const_);
     void setSameRank();
     void setDepth(const Node* node, Index depth);
     std::string typeToString(Type type);

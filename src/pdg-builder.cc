@@ -12,7 +12,13 @@ void PDG::visitASTEdge(ASTEdge* e) {
 void PDG::visitCFGEdge(CFGEdge* e) {
     if (!e->_label.empty()) {
         // it is true or false label or (br_table)
-        new PDGEdge(e);
+        auto outEdges = e->src()->outEdges(EdgeType::PDG);
+        auto filterQuery = Query::filterEdges(
+            EdgeSet(outEdges.begin(), outEdges.end()),
+            [&](Edge* edge) { return e->label().compare(edge->label()) == 0; });
+        if (filterQuery.size() == 0) {
+            new PDGEdge(e);
+        }
     }
     e->dest()->accept(this);
 }
@@ -114,7 +120,7 @@ void PDG::visitReturnInst(ReturnInst* node) {
     assert(reachDef->stackSize() <= 1);
     assert(currentFunction->GetNumResults() == reachDef->stackSize());
     if (reachDef->stackSize() == 1) {
-        reachDef->peek()->insertPDGEdge(node);
+        reachDef->peek()->insertPDGEdge(node, _loopsStack.empty());
     }
     // ---------------------------------------
     advance(node, reachDef);
@@ -129,7 +135,7 @@ void PDG::visitBrTableInst(BrTableInst* node) {
     assert(reachDef->stackSize() >= 1);
 
     auto arg = reachDef->pop();
-    arg->insertPDGEdge(node);
+    arg->insertPDGEdge(node, _loopsStack.empty());
 
     // ---------------------------------------
     advance(node, getReachDef(node));
@@ -161,7 +167,7 @@ void PDG::visitSelectInst(SelectInst* node) {
 
     // selects works: if c = 0 then val2 else val1
     // select depends on c, the following instructions will depend val1 and val2
-    c->insertPDGEdge(node);
+    c->insertPDGEdge(node, _loopsStack.empty());
 
     // union of vals and push
     val1->unionDef(val2);
@@ -191,7 +197,7 @@ void PDG::visitMemoryGrowInst(MemoryGrowInst* node) {
 
     auto n = reachDef->pop();
     // this inst depends on n
-    n->insertPDGEdge(node);
+    n->insertPDGEdge(node, _loopsStack.empty());
 
     // memory.grow pushes new size of memory if OK or else an error number
     reachDef->push();
@@ -206,7 +212,9 @@ void PDG::visitConstInst(ConstInst* node) {
     // ---------------------------------------
     auto reachDef = getReachDef(node);
 
-    reachDef->push();  // push empty def
+    reachDef->push();
+    auto def = reachDef->peek();
+    def->insert(ConstInst::writeConst(node->value()), PDGType::Const, node);
     // ---------------------------------------
     advance(node, getReachDef(node));
 }
@@ -221,7 +229,8 @@ void PDG::visitBinaryInst(BinaryInst* node) {
     auto arg1 = reachDef->pop();
     auto arg2 = reachDef->pop();
     arg1->unionDef(arg2);
-    arg1->insertPDGEdge(node);
+    arg1->insertPDGEdge(node, _loopsStack.empty());
+    arg1->removeConsts();
     arg1->clear(node);
     reachDef->push(arg1);
     // ---------------------------------------
@@ -238,7 +247,8 @@ void PDG::visitCompareInst(CompareInst* node) {
     auto arg1 = reachDef->pop();
     auto arg2 = reachDef->pop();
     arg1->unionDef(arg2);
-    arg1->insertPDGEdge(node);
+    arg1->insertPDGEdge(node, _loopsStack.empty());
+    arg1->removeConsts();
     arg1->clear(node);
     reachDef->push(arg1);
     // ---------------------------------------
@@ -253,7 +263,7 @@ void PDG::visitConvertInst(ConvertInst* node) {
     assert(reachDef->stackSize() >= 1);
 
     // write dependencies of arg in top of the stack to this inst
-    reachDef->peek()->insertPDGEdge(node);
+    reachDef->peek()->insertPDGEdge(node, _loopsStack.empty());
 
     // following inst using this value depend of the result in this inst
     reachDef->peek()->clear(node);
@@ -271,7 +281,8 @@ void PDG::visitUnaryInst(UnaryInst* node) {
 
     auto arg = reachDef->peek();
     // write dependecies
-    arg->insertPDGEdge(node);
+    arg->insertPDGEdge(node, _loopsStack.empty());
+    arg->removeConsts();
 
     // Set dependencies to this inst
     arg->clear(node);
@@ -288,7 +299,7 @@ void PDG::visitLoadInst(LoadInst* node) {
     assert(reachDef->stackSize() >= 1);
 
     // pop index and write dependencies
-    reachDef->pop()->insertPDGEdge(node);
+    reachDef->pop()->insertPDGEdge(node, _loopsStack.empty());
 
     // push a value to the stack
     reachDef->push();
@@ -308,8 +319,8 @@ void PDG::visitStoreInst(StoreInst* node) {
     auto i = reachDef->pop();
 
     // write dependencies to this inst
-    c->insertPDGEdge(node);
-    i->insertPDGEdge(node);
+    c->insertPDGEdge(node, _loopsStack.empty());
+    i->insertPDGEdge(node, _loopsStack.empty());
     // ---------------------------------------
     advance(node, getReachDef(node));
 }
@@ -331,7 +342,7 @@ void PDG::visitBrIfInst(BrIfInst* node) {
     assert(reachDef->stackSize() >= 1);
 
     auto arg = reachDef->pop();
-    arg->insertPDGEdge(node);
+    arg->insertPDGEdge(node, _loopsStack.empty());
 
     // it expects the jumpp block (if true) to pop labels
     // ---------------------------------------
@@ -346,9 +357,11 @@ void PDG::visitGlobalGetInst(GlobalGetInst* node) {
 
     reachDef->push(reachDef->getGlobal(node->label()));
     auto varDef = reachDef->peek();
+    varDef->insertPDGEdge(node, _loopsStack.empty());
+    varDef->clear(node);
     if (varDef->isEmpty()) {
         // set is empty, thus the var depends on itself
-        varDef->insert(node->label(), PDGEdge::Type::Global, node);
+        varDef->insert(node->label(), PDGType::Global, node);
     }
     // ---------------------------------------
     advance(node, getReachDef(node));
@@ -361,7 +374,10 @@ void PDG::visitGlobalSetInst(GlobalSetInst* node) {
     auto reachDef = getReachDef(node);
     assert(reachDef->stackSize() >= 1);
 
-    reachDef->insertGlobal(node->label(), reachDef->pop());
+    auto arg = reachDef->pop();
+    arg->insertPDGEdge(node, _loopsStack.empty());
+    arg->clear(node);
+    reachDef->insertGlobal(node->label(), arg);
 
     // ---------------------------------------
     advance(node, getReachDef(node));
@@ -375,9 +391,11 @@ void PDG::visitLocalGetInst(LocalGetInst* node) {
 
     reachDef->push(reachDef->getLocal(node->label()));
     auto varDef = reachDef->peek();
+    varDef->insertPDGEdge(node, _loopsStack.empty());
+    varDef->clear(node);
     if (varDef->isEmpty()) {
         // set is empty, thus the var depends on itself
-        varDef->insert(node->label(), PDGEdge::Type::Local, node);
+        varDef->insert(node->label(), PDGType::Local, node);
     }
 
     // ---------------------------------------
@@ -391,7 +409,11 @@ void PDG::visitLocalSetInst(LocalSetInst* node) {
     auto reachDef = getReachDef(node);
     assert(reachDef->stackSize() >= 1);
 
-    reachDef->insertLocal(node->label(), reachDef->pop());
+    auto arg = reachDef->pop();
+    arg->insertPDGEdge(node, _loopsStack.empty());
+    arg->clear(node);
+
+    reachDef->insertLocal(node->label(), arg);
     // ---------------------------------------
     advance(node, getReachDef(node));
 }
@@ -405,12 +427,16 @@ void PDG::visitLocalTeeInst(LocalTeeInst* node) {
 
     // pop value
     auto arg = reachDef->pop();
+    arg->insertPDGEdge(node, _loopsStack.empty());
 
     // perform a local.set of value
     reachDef->insertLocal(node->label(), arg);
 
+    arg->clear(node);
+
     // push back value to stack
     reachDef->push(arg);
+
     // ---------------------------------------
     advance(node, getReachDef(node));
 }
@@ -425,7 +451,7 @@ void PDG::visitCallInst(CallInst* node) {
     // Pop args
     for (Index i = 0; i < node->nargs(); i++) {
         auto arg = reachDef->pop();
-        arg->insertPDGEdge(node);
+        arg->insertPDGEdge(node, _loopsStack.empty());
     }
 
     // push returns
@@ -433,7 +459,7 @@ void PDG::visitCallInst(CallInst* node) {
     for (Index i = 0; i < node->nresults(); i++) {
         reachDef->push();
         auto def = reachDef->peek();
-        def->insert(node->label(), PDGEdge::Type::Function, node);
+        def->insert(node->label(), PDGType::Function, node);
     }
 
     // ---------------------------------------
@@ -449,12 +475,12 @@ void PDG::visitCallIndirectInst(CallIndirectInst* node) {
 
     // pop func index
     auto index = reachDef->pop();
-    index->insertPDGEdge(node);
+    index->insertPDGEdge(node, _loopsStack.empty());
 
     // Pop args
     for (Index i = 0; i < node->nargs() - 1; i++) {
         auto arg = reachDef->pop();
-        arg->insertPDGEdge(node);
+        arg->insertPDGEdge(node, _loopsStack.empty());
     }
 
     // push returns
@@ -462,12 +488,15 @@ void PDG::visitCallIndirectInst(CallIndirectInst* node) {
     for (Index i = 0; i < node->nresults(); i++) {
         reachDef->push();
         auto def = reachDef->peek();
-        def->insert(node->label(), PDGEdge::Type::Function, node);
+        def->insert(node->label(), PDGType::Function, node);
     }
     // ---------------------------------------
     advance(node, getReachDef(node));
 }
 void PDG::visitBeginBlockInst(BeginBlockInst* node) {
+    if (!_loopsStack.empty() && _loopsInsts.count(_loopsStack.top()) == 1) {
+        _loopsInsts[_loopsStack.top()].insert(node);
+    }
     if (waitPaths(node)) {
         return;
     }
@@ -495,8 +524,42 @@ void PDG::visitBlockInst(BlockInst* node) {
     advance(node, getReachDef(node));
 }
 void PDG::visitLoopInst(LoopInst* node) {
-    assert(false);
-    // TODO
+    int count = _loops.count(node);
+    if (count == 0 && waitPaths(node, true)) {
+        return;
+    } else if (count == 1 && _loopsStack.empty()) {
+        assert(getReachDef(node)->equals(*_loops[node]));
+        _loopsInsts.clear();
+        return;
+    } else if (count == 0 || (count == 1 && _loopsStack.top() != node)) {
+        _loopsStack.push(node);
+        if (_loopsInsts.count(node) == 0) {
+            _loopsInsts[node] =
+                Query::BFS({node}, Query::ALL_NODES, Query::AST_EDGES);
+        }
+    }
+    // ---------------------------------------
+    auto reachDef = getReachDef(node);
+    assert(reachDef->stackSize() >= node->nresults());
+    // gets results
+    auto results = reachDef->pop(node->nresults());
+    if (count == 1) {
+        // pop label
+        reachDef->popLabel(node->label());
+    }
+    // push label
+    reachDef->pushLabel(node->label());
+    // push back the results
+    reachDef->push(results);
+    if (count == 1 && reachDef->equals(*_loops[node])) {
+        assert(_loopsStack.top() == node);
+        _loopsStack.pop();
+    }
+    // Save loop def
+    _loops[node] = reachDef;
+    _reachDef.erase(node);
+    // ---------------------------------------
+    advance(node, reachDef);
 }
 
 void PDG::visitIfInst(IfInst* node) {
@@ -508,14 +571,28 @@ void PDG::visitIfInst(IfInst* node) {
     assert(reachDef->stackSize() >= 1);
 
     auto condition = reachDef->pop();
-    condition->insertPDGEdge(node);
+    condition->insertPDGEdge(node, _loopsStack.empty());
     // ---------------------------------------
     advance(node, getReachDef(node));
 }
 
-inline bool PDG::waitPaths(Instruction* inst) {
-    Index inEdgesNum = inst->inEdges(EdgeType::CFG).size();
-    return _reachDef[inst].size() != inEdgesNum;
+inline bool PDG::waitPaths(Instruction* inst, bool isLoop) {
+    if (!_loopsStack.empty()) {
+        return _loopsInsts[_loopsStack.top()].count(inst) != 1;
+    }
+    if (isLoop) {
+        // We need to wait for those that enter the loop from outside. If a
+        // parent is a Br or a BrIf, then it comes from inside the loop.
+        auto filterQuery = Query::filter(
+            Query::parents({inst}, Query::CFG_EDGES), [](Node* node) {
+                return node->instType() != ExprType::Br &&
+                       node->instType() != ExprType::BrIf;
+            });
+        return _reachDef[inst].size() != filterQuery.size();
+    } else {
+        Index inEdgesNum = inst->inEdges(EdgeType::CFG).size();
+        return _reachDef[inst].size() != inEdgesNum;
+    }
 }
 
 inline std::shared_ptr<ReachDefinition> PDG::getReachDef(Instruction* inst) {

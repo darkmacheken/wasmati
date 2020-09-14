@@ -13,12 +13,12 @@ void CFG::generateCFG(GenerateCPGOptions& options) {
 
         if (!isImport) {
             Node* returnFuncNode = ast.returnFunc.at(f);
-            Query::NodeSet instNodeQuery = Query::backwardsBFS(
+            NodeSet instNodeQuery = Query::BFS(
                 {returnFuncNode},
                 [](Node* node) {
                     return node->type() == NodeType::Instructions;
                 },
-                Query::allEdges, 1);
+                Query::ALL_EDGES, 1, true);
             assert(instNodeQuery.size() == 1);
 
             Node* insts = *instNodeQuery.begin();
@@ -44,7 +44,7 @@ void CFG::generateCFG(GenerateCPGOptions& options) {
                            node->type() == NodeType::Instruction &&
                            node->instType() != ExprType::Return;
                 },
-                [](Edge* e) { return e->type() == EdgeType::AST; });
+                Query::AST_EDGES);
             for (Node* node : childlessReturn) {
                 new CFGEdge(node, returnFuncNode);
             }
@@ -139,7 +139,10 @@ bool CFG::construct(const ExprList& es) {
 
             // In case the loop is empty
             if (expr->block.exprs.empty()) {
-                assert(false);
+                // if it's not the last
+                if (&*it != &es.back()) {
+                    new CFGEdge(inst, ast.exprNodes.at(&*std::next(it)));
+                }
             } else {
                 auto& firstExpr = expr->block.exprs.front();
                 new CFGEdge(inst, ast.exprNodes.at(&firstExpr));
@@ -147,6 +150,11 @@ bool CFG::construct(const ExprList& es) {
 
             // construct
             construct(expr->block.exprs);
+
+            // if it's not the last
+            if (&*it != &es.back()) {
+                insertEdgeFromLastExpr(expr->block.exprs, ast.exprNodes.at(&*std::next(it)));
+            }
 
             // Pop label
             _blocks.pop_front();
@@ -197,9 +205,15 @@ bool CFG::construct(const ExprList& es) {
             }
 
             // if it's not the last
-            if (&*it != &es.back() &&
-                trueBlockInst->hasInEdgesOf(EdgeType::CFG)) {
-                new CFGEdge(trueBlockInst, ast.exprNodes.at(&*std::next(it)));
+            if (&*it != &es.back()) {
+                if (expr->false_.empty()) {
+                    new CFGEdge(inst, ast.exprNodes.at(&*std::next(it)),
+                                "false");
+                }
+                if (trueBlockInst->hasInEdgesOf(EdgeType::CFG)) {
+                    new CFGEdge(trueBlockInst,
+                                ast.exprNodes.at(&*std::next(it)));
+                }
             }
             break;
         }

@@ -138,6 +138,7 @@ int ProgramMain(int argc, char** argv) {
 
             Graph graph(&module);
             generateCPG(graph, cpgOptions);
+            Query::checkVulnerabilities(&graph);
 
             if (Succeeded(result)) {
                 FileStream stream(!s_outfile.empty() ? FileStream(s_outfile)
