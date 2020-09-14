@@ -487,6 +487,10 @@ public:
         assert(false);
         return emptyString();
     }
+    virtual const Const& value() const {
+        assert(false);
+        return {};
+    }
     virtual void accept(GraphVisitor* visitor) = 0;
 };
 
@@ -523,6 +527,16 @@ struct PDGEdge : Edge {
 
     inline const std::string& label() const { return _label; }
     inline PDGType pdgType() const override { return _pdgType; }
+};
+
+struct PDGEdgeConst : PDGEdge {
+    const Const _const;
+
+    PDGEdgeConst(Node* src, Node* dest, const Const& const_)
+        : PDGEdge(src, dest, ConstInst::writeConst(const_), PDGType::Const),
+          _const(const_) {}
+
+    inline const Const& value() const override { return _const; }
 };
 
 class Graph {
