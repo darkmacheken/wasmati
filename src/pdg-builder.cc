@@ -494,6 +494,7 @@ void PDG::visitCallIndirectInst(CallIndirectInst* node) {
     advance(node, getReachDef(node));
 }
 void PDG::visitBeginBlockInst(BeginBlockInst* node) {
+    auto i = node->label().compare("$B64");
     if (!_loopsStack.empty() && _loopsInsts.count(_loopsStack.top()) == 1) {
         _loopsInsts[_loopsStack.top()].insert(node);
     }
@@ -511,15 +512,17 @@ void PDG::visitBlockInst(BlockInst* node) {
         return;
     }
     // ---------------------------------------
-    auto reachDef = getReachDef(node);
-    assert(reachDef->stackSize() >= node->nresults());
-    // gets results
-    auto results = reachDef->pop(node->nresults());
-    // pop label
-    reachDef->popLabel(node->label());
-    // push back the results
-    reachDef->push(results);
+    auto i = node->label().compare("$B64");
+    for (auto& reachDef : _reachDef[node]) {
+        assert(reachDef->stackSize() >= node->nresults());
 
+        // gets results
+        auto results = reachDef->pop(node->nresults());
+        // pop label
+        reachDef->popLabel(node->label());
+        // push back the results
+        reachDef->push(results);
+    }
     // ---------------------------------------
     advance(node, getReachDef(node));
 }

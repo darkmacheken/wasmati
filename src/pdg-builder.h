@@ -106,16 +106,15 @@ public:
             : name(name), type(type), value(Const::I32()) {}
 
         Var(const Const& value)
-            : value(value), type(PDGType::Const), name("") {}
+            : value(value),
+              type(PDGType::Const),
+              name(ConstInst::writeConst(value)) {}
+
+        Var(const std::string& name, const Const& value, const PDGType type)
+            : name(name), value(value), type(type) {}
 
         bool operator<(const Var& o) const {
             std::hash<std::string> str_hash;
-            if (type == PDGType::Const) {
-                return str_hash(ConstInst::writeConst(value) +
-                                std::to_string(static_cast<int>(type))) <
-                       str_hash(ConstInst::writeConst(value) +
-                                std::to_string(static_cast<int>(o.type)));
-            }
             return str_hash(name + std::to_string(static_cast<int>(type))) <
                    str_hash(o.name + std::to_string(static_cast<int>(o.type)));
         }
@@ -142,7 +141,7 @@ public:
     }
 
     inline void unionDef(std::shared_ptr<Definition> otherDef) {
-        for (auto kv : otherDef->_def) {
+        for (auto& kv : otherDef->_def) {
             _def[kv.first].insert(kv.second.begin(), kv.second.end());
         }
     }
@@ -150,10 +149,9 @@ public:
     inline void clear(const Var& var) { _def[var].clear(); }
 
     inline void clear(Node* inst) {
-        for (auto kv : _def) {
-            auto test = kv.first;
-            _def[kv.first].clear();
-            _def[kv.first].insert(inst);
+        for (auto& kv : _def) {
+            kv.second.clear();
+            kv.second.insert(inst);
         }
     }
 
@@ -177,9 +175,11 @@ public:
     }
 
     inline void removeConsts() {
-        for (auto kv : _def) {
-            if (kv.first.type == PDGType::Const) {
-                _def.erase(kv.first);
+        for (auto it = _def.begin(); it != _def.end();) {
+            if (it->first.type == PDGType::Const) {
+                it = _def.erase(it);
+            } else {
+                ++it;
             }
         }
     }
@@ -208,7 +208,7 @@ public:
     Definitions() {}
 
     Definitions(const Definitions& defs) {
-        for (auto kv : defs._defs) {
+        for (auto const& kv : defs._defs) {
             _defs.insert(std::make_pair(
                 kv.first, std::make_shared<Definition>(*kv.second)));
         }
@@ -232,7 +232,7 @@ public:
     }
 
     inline void unionDef(const Definitions& otherDefs) {
-        for (auto kv : otherDefs._defs) {
+        for (auto const& kv : otherDefs._defs) {
             _defs[kv.first]->unionDef(kv.second);
         }
     }
@@ -297,7 +297,7 @@ public:
     inline void push() { _stack.emplace_front(std::make_shared<Definition>()); }
 
     inline void push(std::list<std::shared_ptr<Definition>> list) {
-        _stack.insert(_stack.end(), list.begin(), list.end());
+        _stack.splice(_stack.begin(), list);
     }
 
     inline void push(const Definition& def) {
@@ -359,7 +359,7 @@ public:
         assert(containsLabel(name));
         while (true) {
             Label top = _labels.front();
-            while (_stack.size() != 0) {
+            while (stackSize() != 0) {
                 pop();
             }
             _labels.pop_front();

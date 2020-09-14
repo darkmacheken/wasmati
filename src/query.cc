@@ -135,6 +135,9 @@ NodeSet Query::instructions(const NodeSet& nodes,
     NodeSet funcInstsNode;
     for (Node* node : nodes) {
         assert(node->type() == NodeType::Function);
+        if (node->isImport()) {
+            continue;
+        }
         funcInstsNode.insert(node->getChild(1, EdgeType::AST));
     }
 
@@ -156,6 +159,7 @@ void Query::checkVulnerabilities(Graph* graph) {
 void Query::checkBufferSizes() {
     auto funcs = functions(ALL_NODES);
     for (auto func : funcs) {
+        std::cout << func->name() << std::endl;
         EdgeSet queryEdges;
         int totalSizeAllocated;
         int sizeAllocated;
@@ -175,8 +179,8 @@ void Query::checkBufferSizes() {
         });
 
         if (allocQuery.size() != 1 || queryEdges.size() != 2) {
-            std::cout << "No buffer found" << std::endl;
-            return;
+            std::cout << "\tNo buffer found" << std::endl;
+            continue;
         }
 
         for (Edge* e : queryEdges) {
@@ -184,6 +188,10 @@ void Query::checkBufferSizes() {
                 totalSizeAllocated = e->value().u32;
                 sizeAllocated = totalSizeAllocated - 32;
             }
+        }
+        if (sizeAllocated <= 0) {
+            std::cout << "\tNo buffer found" << std::endl;
+            continue;
         }
         std::cout << "\tAllocation size: " << sizeAllocated << std::endl;
 
@@ -227,88 +235,4 @@ void Query::checkBufferSizes() {
         }
     }
 }
-// void Query::checkBufferSizes() {
-//    auto funcs = functions(ALL_NODES);
-//    for (auto func : funcs) {
-//        std::cout << func->name() << std::endl;
-//        int totalSizeAllocated;
-//        int sizeAllocated;
-//        std::string local;
-//        auto allocQuery = Query::instructions({func}, [&](Node* node) {
-//            if (node->instType() == ExprType::GlobalSet &&
-//                node->label().compare("$g0") == 0) {
-//                auto bfs = BFS({node}, ALL_NODES, AST_EDGES);
-//                auto filterBfs = filter(bfs, [](Node* node) {
-//                    return node->instType() == ExprType::LocalTee ||
-//                           (node->instType() == ExprType::Binary &&
-//                            node->opcode() == Opcode::I32Sub) ||
-//                           (node->instType() == ExprType::GlobalGet &&
-//                            node->label().compare("$g0") == 0) ||
-//                           node->instType() == ExprType::Const;
-//                });
-//                if (bfs == filterBfs) {
-//                    local = (*filter(bfs,
-//                                     [](Node* node) {
-//                                         return node->instType() ==
-//                                                ExprType::LocalTee;
-//                                     })
-//                                  .begin())
-//                                ->label();
-//                    totalSizeAllocated =
-//                        (*filter(bfs,
-//                                 [](Node* node) {
-//                                     return node->instType() ==
-//                                     ExprType::Const;
-//                                 })
-//                              .begin())
-//                            ->value()
-//                            .u32;
-//                    sizeAllocated = totalSizeAllocated - 32;
-//                    return true;
-//                }
-//            }
-//            return false;
-//        });
-//        if (allocQuery.size() == 0) {
-//            std::cout << "No buffer found" << std::endl;
-//            return;
-//        }
-//        std::cout << "\tAllocation size: " << sizeAllocated << std::endl;
-//        std::set<int> buffs;
-//
-//        auto buffQuery = instructions({func}, [&](Node* node) {
-//            if (node->instType() == ExprType::Binary &&
-//                node->opcode() == Opcode::I32Add) {
-//                auto childrenQuery = children({node}, AST_EDGES);
-//                auto constQuery = filter(childrenQuery, [](Node* node) {
-//                    return node->instType() == ExprType::Const;
-//                });
-//                auto localGetQuery = filter(childrenQuery, [&](Node* n) {
-//                    return n->instType() == ExprType::LocalGet &&
-//                           n->label().compare(local) == 0;
-//                });
-//                if (constQuery.size() == 1 && localGetQuery.size() == 1) {
-//                    int val = (*constQuery.begin())->value().u32;
-//                    if (val < 32 || val >= totalSizeAllocated) {
-//                        return false;
-//                    }
-//                    buffs.insert(val);
-//                    return true;
-//                }
-//            }
-//            return false;
-//        });
-//
-//        std::cout << "\tBuffers found: " << buffs.size() << std::endl;
-//        for (auto it = buffs.begin(); it != buffs.end(); ++it) {
-//            int size = 0;
-//            if (std::next(it) != buffs.end()) {
-//                size = (*std::next(it)) - *it;
-//            } else {
-//                size = totalSizeAllocated - *it;
-//            }
-//            std::cout << "\t\t@+" << *it << ": "<< size << std::endl;
-//        }
-//    }
-//}
 }  // namespace wasmati
