@@ -1,12 +1,9 @@
-cmake_minimum_required(VERSION 3.0.0)
+cmake_minimum_required(VERSION 3.14.0)
 project(WASMATI VERSION 0.1.1)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_PROJECT_VERSION "${CMAKE_PROJECT_VERSION} (${GIT_VERSION})")
 
-option(BUILD_TESTS "Build GTest-based tests" ON)
-option(USE_SYSTEM_GTEST "Use system GTest, instead of building" OFF)
-option(BUILD_TOOLS "Build wabt commandline tools" ON)
 option(USE_ASAN "Use address sanitizer" OFF)
 option(USE_MSAN "Use memory sanitizer" OFF)
 option(USE_LSAN "Use leak sanitizer" OFF)
@@ -16,7 +13,11 @@ option(WITH_EXCEPTIONS "Build with exceptions enabled" OFF)
 option(WERROR "Build with warnings as errors" OFF)
 option(WIP_TOOLS "Build Work-In-Progress functionality" OFF)
 
-if (CMAKE_C_COMPILER_ID MATCHES "Clang")
+if (MSVC)
+  set(COMPILER_IS_CLANG 0)
+  set(COMPILER_IS_GNU 0)
+  set(COMPILER_IS_MSVC 1)
+elseif (CMAKE_C_COMPILER_ID MATCHES "Clang")
   set(COMPILER_IS_CLANG 1)
   set(COMPILER_IS_GNU 0)
   set(COMPILER_IS_MSVC 0)
@@ -24,10 +25,6 @@ elseif (CMAKE_C_COMPILER_ID STREQUAL "GNU")
   set(COMPILER_IS_CLANG 0)
   set(COMPILER_IS_GNU 1)
   set(COMPILER_IS_MSVC 0)
-elseif (MSVC)
-  set(COMPILER_IS_CLANG 0)
-  set(COMPILER_IS_GNU 0)
-  set(COMPILER_IS_MSVC 1)
 elseif (CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
   set(COMPILER_IS_CLANG 1)
   set(COMPILER_IS_GNU 0)
@@ -40,6 +37,7 @@ endif ()
 
 include(CheckIncludeFile)
 include(CheckSymbolExists)
+include(FetchContent)
 
 check_include_file("alloca.h" HAVE_ALLOCA_H)
 check_include_file("unistd.h" HAVE_UNISTD_H)
@@ -54,22 +52,6 @@ endif ()
 include(CheckTypeSize)
 check_type_size(ssize_t SSIZE_T)
 check_type_size(size_t SIZEOF_SIZE_T)
-
-FIND_PACKAGE(Git QUIET REQUIRED)
-EXECUTE_PROCESS(COMMAND
-        "${GIT_EXECUTABLE}" --git-dir=${CMAKE_CURRENT_SOURCE_DIR}/third_party/wabt/.git describe --tags
-        RESULT_VARIABLE
-            GIT_HASH_RESULT
-        OUTPUT_VARIABLE
-            GIT_HASH
-        OUTPUT_STRIP_TRAILING_WHITESPACE)
-
-IF(${GIT_HASH_RESULT})
-    MESSAGE(WARNING "Error running git describe to determine version")
-    SET(WABT_VERSION_INFO "(unable to determine version)")
-ELSE()
-    SET(WABT_VERSION_INFO "${GIT_HASH}")
-ENDIF()
 
 configure_file(
   ${WASMATI_SOURCE_DIR}/src/config/config.h.in
@@ -210,25 +192,16 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${WASMATI_SOURCE_DIR}/cmake)
 
 add_custom_target(everything_wasm)
 
-if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/third_party/wabt)
-    # we couldn't find the header files for FOO or they don't exist
-    message("Unable to find wabt.")
+FetchContent_Declare(
+        wabt
+        GIT_REPOSITORY "https://github.com/WebAssembly/wabt"
+        GIT_TAG "4ba97c116d1417b2fb516299a37965820b93ced3"
+)
 
-    # we have a submodule setup for wabt
-    # now we need to clone this submodule
-    execute_process(COMMAND git submodule update --init -- third_party/wabt
-                    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+FetchContent_MakeAvailable(wabt)
+include_directories(${wabt_SOURCE_DIR})
 
-    # set WABT_INCLUDE_DIR properly
-    set(WABT_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/wabt
-        CACHE PATH "WABT include directory")
-
-endif()
-
-add_subdirectory(third_party/wabt)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/wabt)
-
-add_library(wasmati STATIC
+add_library(wasmatilib STATIC
   src/config/config.h
   src/config/config.cc
   src/options.h
@@ -259,8 +232,8 @@ if (NOT EMSCRIPTEN)
   function(wasmati_executable)
     cmake_parse_arguments(EXE "WITH_LIBM;INSTALL" "NAME" "SOURCES;LIBS" ${ARGN})
 
-    # Always link libwabt.
-    set(EXE_LIBS "${EXE_LIBS};wasmati")
+    # Always link wasmatilib.
+    set(EXE_LIBS "${EXE_LIBS};wasmatilib")
 
     # Optionally link libm.
     if (EXE_WITH_LIBM AND (COMPILER_IS_CLANG OR COMPILER_IS_GNU))
@@ -297,6 +270,13 @@ if (NOT EMSCRIPTEN)
     wasmati_executable(
       NAME wat2cpg
       SOURCES src/tools/wat2cpg.cc
+      INSTALL
+    )
+
+    # wasmati
+    wasmati_executable(
+      NAME wasmati
+      SOURCES src/tools/wasmati.cc
       INSTALL
     )
   endif ()

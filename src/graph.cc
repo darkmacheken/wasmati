@@ -79,7 +79,7 @@ void Node::acceptEdges(GraphVisitor* visitor) {
     }
 }
 
-Graph::Graph(wabt::Module* mc) : _mc(new ModuleContext(*mc)) {
+Graph::Graph(wabt::Module& mc) : _mc(ModuleContext(mc)) {
     _trap = nullptr;
 }
 
@@ -87,7 +87,6 @@ Graph::~Graph() {
     for (auto node : _nodes) {
         delete node;
     }
-    delete _mc;
 }
 void Module::accept(GraphVisitor* visitor) {
     visitor->visitModule(this);

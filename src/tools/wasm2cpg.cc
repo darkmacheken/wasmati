@@ -136,7 +136,7 @@ int ProgramMain(int argc, char** argv) {
                 WABT_USE(dummy_result);
             }
 
-            Graph graph(&module);
+            Graph graph(module);
             generateCPG(graph, cpgOptions);
             Query::checkVulnerabilities(&graph);
 
@@ -153,11 +153,11 @@ int ProgramMain(int argc, char** argv) {
 }
 
 void generateCPG(Graph& graph, GenerateCPGOptions options) {
-    AST ast(*graph.getModuleContext(), graph);
+    AST ast(graph.getModuleContext(), graph);
     ast.generateAST(cpgOptions);
-    CFG cfg(*graph.getModuleContext(), graph, ast);
+    CFG cfg(graph.getModuleContext(), graph, ast);
     cfg.generateCFG(cpgOptions);
-    PDG pdg(*graph.getModuleContext(), graph);
+    PDG pdg(graph.getModuleContext(), graph);
     pdg.generatePDG(cpgOptions);
 }
 

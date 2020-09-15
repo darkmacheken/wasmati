@@ -103,12 +103,12 @@ public:
         const PDGType type;
 
         Var(const std::string& name, const PDGType type)
-            : name(name), type(type), value(Const::I32()) {}
+            : name(name), value(Const::I32()), type(type) {}
 
         Var(const Const& value)
-            : value(value),
-              type(PDGType::Const),
-              name(ConstInst::writeConst(value)) {}
+            : name(ConstInst::writeConst(value)),
+              value(value),
+              type(PDGType::Const) {}
 
         Var(const std::string& name, const Const& value, const PDGType type)
             : name(name), value(value), type(type) {}

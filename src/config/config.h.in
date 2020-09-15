@@ -1,12 +1,10 @@
-#ifndef WASM_AST_CONFIG_H_
-#define WASM_AST_CONFIG_H_
+#ifndef WASMATI_CONFIG_H_
+#define WASMATI_CONFIG_H_
 
 #include <stdint.h>
 #include <stdlib.h>
 
-#cmakedefine WASM_AST_VERSION_INFO "${WASM_AST_VERSION_INFO}"
-
-#cmakedefine WABT_VERSION_INFO "${WABT_VERSION_INFO}"
+#cmakedefine WASMATI_VERSION_INFO "${WASMATI_VERSION_INFO}"
 
 #cmakedefine CMAKE_PROJECT_VERSION "${CMAKE_PROJECT_VERSION}"
 

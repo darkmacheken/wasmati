@@ -1,19 +1,17 @@
 #include <cassert>
-#include <cstdarg>
-#include <cstdint>
+#include <cinttypes>
 #include <cstdio>
 #include <cstdlib>
-#include <string>
 
-#include "config.h"
 #include "src/apply-names.h"
 #include "src/ast-builder.h"
+#include "src/binary-reader-ir.h"
+#include "src/binary-reader.h"
 #include "src/cfg-builder.h"
-#include "src/common.h"
+#include "src/decompiler.h"
 #include "src/dot-writer.h"
 #include "src/error-formatter.h"
 #include "src/feature.h"
-#include "src/filenames.h"
 #include "src/generate-names.h"
 #include "src/graph.h"
 #include "src/ir.h"
@@ -23,36 +21,45 @@
 #include "src/resolve-names.h"
 #include "src/stream.h"
 #include "src/validator.h"
+#include "src/wast-lexer.h"
 #include "src/wast-parser.h"
 
 using namespace wabt;
 using namespace wasmati;
 
 void generateCPG(Graph&, GenerateCPGOptions);
+bool hasEnding(std::string const& fullString, std::string const& ending);
+Result watFile(std::unique_ptr<wabt::Module>* mod);
+Result wasmFile(std::unique_ptr<wabt::Module>* mod);
 
 static int s_verbose;
 static std::string s_infile;
 static std::string s_outfile;
+static std::string s_doutfile;
+static bool generate_dot = false;
+static bool is_wat = false;
+static bool is_wasm = false;
 static GenerateCPGOptions cpgOptions;
 static Features s_features;
+static bool s_read_debug_names = true;
 static bool s_fail_on_custom_section_error = true;
 static std::unique_ptr<FileStream> s_log_stream;
 static bool s_validate = true;
 
 static const char s_description[] =
-    R"(  Read a file in the WebAssembly text format, and convert it to
-  the Code Property Graph.
+    R"(  Read a file in the WebAssembly binary format or text format, and produces its
+  Code Property Graph to perform queries and find vulnerabilities in the code.
 
 examples:
   # parse binary file test.wasm and write text file test.wast
-  $ wasm2wat test.wasm -o test.wat
+  $ wasm2cpg test.wasm -o test.wat
 
   # parse test.wasm, write test.wat, but ignore the debug names, if any
-  $ wasm2wat test.wasm --no-debug-names -o test.wat
+  $ wasm2cpg test.wasm --no-debug-names -o test.wat
 )";
 
 static void ParseOptions(int argc, char** argv) {
-    OptionParser parser("wasm2wat", s_description);
+    OptionParser parser("wasmati", s_description);
 
     parser.AddOption('v', "verbose", "Use multiple times for more info", []() {
         s_verbose++;
@@ -60,11 +67,22 @@ static void ParseOptions(int argc, char** argv) {
     });
     parser.AddOption(
         'o', "output", "FILENAME",
-        "Output file for the generated wast file, by default use stdout",
+        "Output file for vulnerability report, by default use stdout",
         [](const char* argument) {
             s_outfile = argument;
             ConvertBackslashToSlash(&s_outfile);
         });
+    parser.AddOption('d', "dot-output", "FILENAME",
+                     "Output file for vulnerability report.",
+                     [](const char* argument) {
+                         s_doutfile = argument;
+                         ConvertBackslashToSlash(&s_doutfile);
+                         generate_dot = true;
+                     });
+    parser.AddOption("wat", "Treat input file as a wat file.",
+                     []() { is_wat = true; });
+    parser.AddOption("wasm", "Treat input file as a wasm file.",
+                     []() { is_wasm = true; });
     parser.AddOption('f', "function", "FUNCTIONNAME",
                      "Output file for the given function.",
                      [](const char* argument) {
@@ -105,9 +123,33 @@ static void ParseOptions(int argc, char** argv) {
 
 int ProgramMain(int argc, char** argv) {
     InitStdio();
-
     ParseOptions(argc, argv);
 
+    std::unique_ptr<wabt::Module> module;
+    Result result;
+
+    if (is_wat || hasEnding(s_infile, ".wat") || hasEnding(s_infile, ".wast")) {
+        result = watFile(&module);
+    } else if (is_wasm || hasEnding(s_infile, ".wasm")) {
+        result = wasmFile(&module);
+    } else {
+        WABT_FATAL("Unable to verify file type: %s\n", s_infile.c_str());
+    }
+
+    Graph graph(*module.get());
+    generateCPG(graph, cpgOptions);
+    Query::checkVulnerabilities(&graph);
+
+    if (Succeeded(result) && generate_dot) {
+        FileStream stream(!s_doutfile.empty() ? FileStream(s_doutfile)
+                                              : FileStream(stdout));
+        DotWriter writer(&stream, &graph, cpgOptions);
+        writer.writeGraph();
+    }
+    return result != Result::Ok;
+}
+
+Result watFile(std::unique_ptr<wabt::Module>* module) {
     std::vector<uint8_t> file_data;
     Result result = ReadFile(s_infile, &file_data);
     std::unique_ptr<WastLexer> lexer = WastLexer::CreateBufferLexer(
@@ -117,42 +159,65 @@ int ProgramMain(int argc, char** argv) {
     }
 
     Errors errors;
-    std::unique_ptr<wabt::Module> module;
     WastParseOptions parse_wast_options(s_features);
-    result = ParseWatModule(lexer.get(), &module, &errors, &parse_wast_options);
+    result = ParseWatModule(lexer.get(), module, &errors, &parse_wast_options);
 
     if (Succeeded(result)) {
-        result = ResolveNamesModule(module.get(), &errors);
+        result = ResolveNamesModule(module->get(), &errors);
 
         if (Succeeded(result) && s_validate) {
             ValidateOptions options(s_features);
-            result = ValidateModule(module.get(), &errors, options);
+            result = ValidateModule(module->get(), &errors, options);
         }
 
         auto line_finder = lexer->MakeLineFinder();
         FormatErrorsToFile(errors, Location::Type::Text, line_finder.get());
 
-        result = GenerateNames(module.get());
+        result = GenerateNames(module->get());
 
         if (Succeeded(result)) {
             /* TODO(binji): This shouldn't fail; if a name can't be applied
              * (because the index is invalid, say) it should just be skipped. */
-            Result dummy_result = ApplyNames(module.get());
+            Result dummy_result = ApplyNames(module->get());
             WABT_USE(dummy_result);
-        }
-
-        Graph graph(*module.get());
-        generateCPG(graph, cpgOptions);
-
-        if (Succeeded(result)) {
-            FileStream stream(!s_outfile.empty() ? FileStream(s_outfile)
-                                                 : FileStream(stdout));
-            DotWriter writer(&stream, &graph, cpgOptions);
-            writer.writeGraph();
         }
     }
 
-    return result != Result::Ok;
+    return result;
+}
+
+Result wasmFile(std::unique_ptr<wabt::Module>* mod) {
+    auto module = MakeUnique<wabt::Module>();
+    std::vector<uint8_t> file_data;
+    Result result = ReadFile(s_infile.c_str(), &file_data);
+    if (Succeeded(result)) {
+        Errors errors;
+        const bool kStopOnFirstError = true;
+        ReadBinaryOptions options(s_features, s_log_stream.get(),
+                                  s_read_debug_names, kStopOnFirstError,
+                                  s_fail_on_custom_section_error);
+        result = ReadBinaryIr(s_infile.c_str(), file_data.data(),
+                              file_data.size(), options, &errors, module.get());
+        if (Succeeded(result)) {
+            if (Succeeded(result) && s_validate) {
+                ValidateOptions options(s_features);
+                result = ValidateModule(module.get(), &errors, options);
+            }
+
+            result = GenerateNames(module.get());
+
+            if (Succeeded(result)) {
+                /* TODO(binji): This shouldn't fail; if a name can't be applied
+                 * (because the index is invalid, say) it should just be
+                 * skipped. */
+                Result dummy_result = ApplyNames(module.get());
+                WABT_USE(dummy_result);
+            }
+        }
+        FormatErrorsToFile(errors, Location::Type::Binary);
+    }
+    *mod = std::move(module);
+    return result;
 }
 
 void generateCPG(Graph& graph, GenerateCPGOptions options) {
@@ -162,6 +227,15 @@ void generateCPG(Graph& graph, GenerateCPGOptions options) {
     cfg.generateCFG(cpgOptions);
     PDG pdg(graph.getModuleContext(), graph);
     pdg.generatePDG(cpgOptions);
+}
+
+bool hasEnding(std::string const& fullString, std::string const& ending) {
+    if (fullString.length() >= ending.length()) {
+        return (0 == fullString.compare(fullString.length() - ending.length(),
+                                        ending.length(), ending));
+    } else {
+        return false;
+    }
 }
 
 int main(int argc, char** argv) {

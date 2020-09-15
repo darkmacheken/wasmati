@@ -19,6 +19,11 @@ inline const std::string& emptyString() {
     return empty;
 }
 
+inline const Const& emptyConst() {
+    static const Const empty = {};
+    return empty;
+}
+
 enum class EdgeType { AST, CFG, PDG };
 
 enum class NodeType {
@@ -489,7 +494,7 @@ public:
     }
     virtual const Const& value() const {
         assert(false);
-        return {};
+        return emptyConst();
     }
     virtual void accept(GraphVisitor* visitor) = 0;
 };
@@ -540,14 +545,14 @@ struct PDGEdgeConst : PDGEdge {
 };
 
 class Graph {
-    wabt::ModuleContext* _mc;
+    wabt::ModuleContext _mc;
     std::vector<Node*> _nodes;
     Trap* _trap;
     Start* _start;
     Module* _module;
 
 public:
-    Graph(wabt::Module* mc);
+    Graph(wabt::Module& mc);
     ~Graph();
 
     inline void setModule(Module* module) {
@@ -556,7 +561,7 @@ public:
     }
     inline void insertNode(Node* node) { _nodes.push_back(node); }
     inline const std::vector<Node*>& getNodes() const { return _nodes; }
-    inline wabt::ModuleContext* getModuleContext() { return _mc; }
+    inline wabt::ModuleContext& getModuleContext() { return _mc; }
     inline Trap* getTrap() {
         if (_trap == nullptr) {
             _trap = new Trap();
