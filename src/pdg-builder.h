@@ -4,9 +4,10 @@
 #include <list>
 #include <map>
 #include <set>
+#include <sstream>
 #include <stack>
-#include "src/graph.h"
-#include "src/query.h"
+#include "graph.h"
+#include "query.h"
 
 using namespace wabt;
 
@@ -19,10 +20,12 @@ private:
     Graph& graph;
 
     Func* currentFunction = nullptr;
-    std::map<Node*, std::vector<std::shared_ptr<ReachDefinition>>> _reachDef;
+    std::map<Node*, std::set<std::shared_ptr<ReachDefinition>>> _reachDef;
     std::map<Node*, std::shared_ptr<ReachDefinition>> _loops;
-    std::map<Node*, std::set<Node*>> _loopsInsts;
+    std::map<Node*, NodeSet> _loopsInsts;
     std::stack<LoopInst*> _loopsStack;
+    std::set<LoopInst*> _loopEnd;
+    std::set<LoopInst*> _loopAdvance;
 
 public:
     PDG(ModuleContext& mc, Graph& graph) : mc(mc), graph(graph) {}
@@ -92,6 +95,8 @@ struct Label {
     inline bool equals(const Label& other) const {
         return name.compare(other.name) == 0 && pointer == other.pointer;
     }
+
+    bool operator==(const Label& o) const { return equals(o); }
 };
 
 // A set
@@ -99,28 +104,32 @@ class Definition {
 public:
     struct Var {
         const std::string name;
-        const Const value;
+        const Const* value;
         const PDGType type;
 
         Var(const std::string& name, const PDGType type)
-            : name(name), value(Const::I32()), type(type) {}
+            : name(name), value(nullptr), type(type) {}
 
-        Var(const Const& value)
-            : name(ConstInst::writeConst(value)),
+        Var(const Const* value)
+            : name(ConstInst::writeConst(*value)),
               value(value),
               type(PDGType::Const) {}
 
-        Var(const std::string& name, const Const& value, const PDGType type)
+        Var(const std::string& name, const Const* value, const PDGType type)
             : name(name), value(value), type(type) {}
 
-        bool operator<(const Var& o) const {
-            std::hash<std::string> str_hash;
-            return str_hash(name + std::to_string(static_cast<int>(type))) <
-                   str_hash(o.name + std::to_string(static_cast<int>(o.type)));
+        Var(const Var& var) : Var(var.name, var.value, var.type) {}
+
+        bool operator==(const Var& o) const {
+            return name.compare(o.name) == 0 && value == o.value &&
+                   type == o.type;
         }
 
-        inline bool equals(const Var& other) const {
-            return name.compare(other.name) == 0 && type == other.type;
+        bool operator<(const Var& o) const {
+            std::ostringstream left, right;
+            left << name << static_cast<int>(type) << value;
+            right << o.name << static_cast<int>(o.type) << o.value;
+            return left.str() < right.str();
         }
     };
 
@@ -130,13 +139,17 @@ private:
 public:
     Definition() {}
 
-    Definition(const Definition& def) : _def(def._def) {}
+    Definition(const Definition& def) {
+        for (auto const& kv : def._def) {
+            _def[kv.first] = kv.second;
+        }
+    }
 
     inline void insert(const std::string& name, PDGType type, Node* node) {
         _def[Var(name, type)].insert(node);
     }
 
-    inline void insert(const Const& value, Node* node) {
+    inline void insert(const Const* value, Node* node) {
         _def[Var(value)].insert(node);
     }
 
@@ -159,14 +172,21 @@ public:
 
     inline bool isEmpty() const { return _def.size() == 0; }
 
-    inline void insertPDGEdge(Node* target, bool isLoopStackEmpty) {
-        if (!isLoopStackEmpty) {
-            return;
-        }
+    inline void insertPDGEdge(Node* target) {
         for (auto const& kv : _def) {
             for (auto& node : kv.second) {
+                auto inEdges = target->inEdges(EdgeType::PDG);
+                auto filter = Query::filterEdges(
+                    EdgeSet(inEdges.begin(), inEdges.end()), [&](Edge* e) {
+                        return e->src() == node && e->dest() == target &&
+                               e->pdgType() == kv.first.type &&
+                               e->label() == kv.first.name;
+                    });
+                if (filter.size() > 0) {
+                    continue;
+                }
                 if (kv.first.type == PDGType::Const) {
-                    new PDGEdgeConst(node, target, kv.first.value);
+                    new PDGEdgeConst(node, target, *kv.first.value);
                 } else {
                     new PDGEdge(node, target, kv.first.name, kv.first.type);
                 }
@@ -190,7 +210,7 @@ public:
         }
         for (auto it = _def.cbegin(), ito = other._def.cbegin();
              it != _def.cend(); ++it, ++ito) {
-            if (!it->first.equals(ito->first)) {
+            if (!(it->first == ito->first)) {
                 return false;
             } else if (it->second != ito->second) {
                 return false;
@@ -327,7 +347,8 @@ public:
         _globals.unionDef(otherDef._globals);
         _locals.unionDef(otherDef._locals);
 
-        assert(_stack.size() == otherDef.stackSize());
+        assert(_stack.size() == otherDef._stack.size());
+        assert(_labels == otherDef._labels);
 
         for (auto it = std::make_pair(_stack.begin(), otherDef._stack.begin());
              it.first != _stack.end(); it.first++, it.second++) {
@@ -367,6 +388,11 @@ public:
                 return;
             }
         }
+    }
+
+    inline void popAllLabel() {
+        _labels.clear();
+        _stack.clear();
     }
 
     inline bool equals(const ReachDefinition& other) {

@@ -1,9 +1,9 @@
 #ifndef WASMATI_AST_BUILDER_H_
 #define WASMATI_AST_BUILDER_H_
 
+#include "graph.h"
 #include "src/cast.h"
 #include "src/generate-names.h"
-#include "src/graph.h"
 #include "src/ir-util.h"
 #include "src/ir.h"
 #include "src/options.h"

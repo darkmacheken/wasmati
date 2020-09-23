@@ -1,4 +1,4 @@
-#include "src/ast-builder.h"
+#include "ast-builder.h"
 namespace wasmati {
 void AST::generateAST(GenerateCPGOptions& options) {
     Module* m;

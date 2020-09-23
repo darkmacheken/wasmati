@@ -2,9 +2,9 @@
 #define WASMATI_CFG_BUILDER_H_
 
 #include <list>
-#include "src/ast-builder.h"
+#include "ast-builder.h"
 #include "src/cast.h"
-#include "src/query.h"
+#include "query.h"
 
 using namespace wabt;
 

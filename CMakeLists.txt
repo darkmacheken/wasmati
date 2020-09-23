@@ -198,8 +198,19 @@ FetchContent_Declare(
         GIT_TAG "4ba97c116d1417b2fb516299a37965820b93ced3"
 )
 
+
+FetchContent_Declare(json
+  GIT_REPOSITORY https://github.com/ArthurSonzogni/nlohmann_json_cmake_fetchcontent
+  GIT_TAG v3.9.1)
+
 FetchContent_MakeAvailable(wabt)
 include_directories(${wabt_SOURCE_DIR})
+
+#FetchContent_GetProperties(json)
+#if(NOT json_POPULATED)
+#  FetchContent_Populate(json)
+#  add_subdirectory(${json_SOURCE_DIR} ${json_BINARY_DIR} EXCLUDE_FROM_ALL)
+#endif()
 
 add_library(wasmatilib STATIC
   src/config/config.h
@@ -217,6 +228,8 @@ add_library(wasmatilib STATIC
   src/query.cc
   src/dot-writer.h
   src/dot-writer.cc
+  src/vulns.h
+  src/vulns.cc
 )
 
 if (NOT EMSCRIPTEN)
@@ -242,7 +255,7 @@ if (NOT EMSCRIPTEN)
 
     add_executable(${EXE_NAME} ${EXE_SOURCES})
     add_dependencies(everything_wasm ${EXE_NAME})
-    target_link_libraries(${EXE_NAME} ${EXE_LIBS} wabt)
+    target_link_libraries(${EXE_NAME} PRIVATE ${EXE_LIBS} wabt)
     set_property(TARGET ${EXE_NAME} PROPERTY CXX_STANDARD 11)
     set_property(TARGET ${EXE_NAME} PROPERTY CXX_STANDARD_REQUIRED ON)
 

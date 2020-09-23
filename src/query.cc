@@ -1,4 +1,4 @@
-#include "src/query.h"
+#include "query.h"
 #include <iostream>
 namespace wasmati {
 const Graph* Query::_graph = nullptr;
@@ -147,92 +147,5 @@ NodeSet Query::instructions(const NodeSet& nodes,
             return node->type() == NodeType::Instruction && nodeCondition(node);
         },
         AST_EDGES);
-}
-void Query::checkVulnerabilities(Graph* graph) {
-    _graph = graph;
-    // checkUnreachableCode();
-    // checkBufferOverflow();
-    // checkIntegerOverflow();
-    // checkUseAfterFree();
-    checkBufferSizes();
-}
-void Query::checkBufferSizes() {
-    auto funcs = functions(ALL_NODES);
-    for (auto func : funcs) {
-        std::cout << func->name() << std::endl;
-        EdgeSet queryEdges;
-        int totalSizeAllocated;
-        int sizeAllocated;
-        auto allocQuery = Query::instructions({func}, [&](Node* node) {
-            if (node->instType() == ExprType::Binary &&
-                node->opcode() == Opcode::I32Sub) {
-                auto inEdges = node->inEdges(EdgeType::PDG);
-                EdgeSet edgeSet = EdgeSet(inEdges.begin(), inEdges.end());
-                queryEdges = Query::filterEdges(edgeSet, [](Edge* e) {
-                    return e->pdgType() == PDGType::Const ||
-                           (e->pdgType() == PDGType::Global &&
-                            e->label().compare("$g0") == 0);
-                });
-                return queryEdges.size() == 2;
-            }
-            return false;
-        });
-
-        if (allocQuery.size() != 1 || queryEdges.size() != 2) {
-            std::cout << "\tNo buffer found" << std::endl;
-            continue;
-        }
-
-        for (Edge* e : queryEdges) {
-            if (e->pdgType() == PDGType::Const) {
-                totalSizeAllocated = e->value().u32;
-                sizeAllocated = totalSizeAllocated - 32;
-            }
-        }
-        if (sizeAllocated <= 0) {
-            std::cout << "\tNo buffer found" << std::endl;
-            continue;
-        }
-        std::cout << "\tAllocation size: " << sizeAllocated << std::endl;
-
-        std::set<int> buffs;
-        auto buffQuery = Query::instructions({func}, [&](Node* node) {
-            if (node->instType() == ExprType::Binary &&
-                node->opcode() == Opcode::I32Add) {
-                auto inEdges = node->inEdges(EdgeType::PDG);
-                EdgeSet edgeSet = EdgeSet(inEdges.begin(), inEdges.end());
-                auto queryEdges = Query::filterEdges(edgeSet, [&](Edge* e) {
-                    return (e->pdgType() == PDGType::Const &&
-                            e->value().u32 >= 32 &&
-                            e->value().u32 < totalSizeAllocated) ||
-                           (e->pdgType() == PDGType::Global &&
-                            e->label().compare("$g0") == 0);
-                });
-                auto querySub = Query::BFS(
-                    {node}, [&](Node* n) { return n == *allocQuery.begin(); },
-                    Query::PDG_EDGES, 1, true);
-                return queryEdges.size() == 2 && querySub.size() == 1;
-            }
-            return false;
-        });
-
-        for (Node* node : buffQuery) {
-            for (Edge* e : node->inEdges(EdgeType::PDG)) {
-                if (e->pdgType() == PDGType::Const) {
-                    buffs.insert(e->value().u32);
-                }
-            }
-        }
-        std::cout << "\tBuffers found: " << buffs.size() << std::endl;
-        for (auto it = buffs.begin(); it != buffs.end(); ++it) {
-            int size = 0;
-            if (std::next(it) != buffs.end()) {
-                size = (*std::next(it)) - *it;
-            } else {
-                size = totalSizeAllocated - *it;
-            }
-            std::cout << "\t\t@+" << *it << ": " << size << std::endl;
-        }
-    }
 }
 }  // namespace wasmati

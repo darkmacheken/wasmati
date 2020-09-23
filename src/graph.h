@@ -1,13 +1,12 @@
 #ifndef WASMATI_GRAPH_H
 #define WASMATI_GRAPH_H
+#include <set>
 #include "src/cast.h"
 #include "src/common.h"
 #include "src/ir-util.h"
 #include "src/ir.h"
 #include "src/options.h"
 #include "src/stream.h"
-
-#include <set>
 
 using namespace wabt;
 namespace wasmati {
@@ -89,9 +88,9 @@ public:
         assert(false);
         return {};
     }
-    virtual Const value() const {
+    virtual const Const& value() const {
         assert(false);
-        return {};
+        return emptyConst();
     }
     virtual const std::string& label() const {
         assert(false);
@@ -281,7 +280,7 @@ public:
     ConstInst(const ConstExpr* expr)
         : BaseInstruction(expr->loc), _value(expr->const_) {}
 
-    Const value() const override { return _value; }
+    const Const& value() const override { return _value; }
 
     void accept(GraphVisitor* visitor);
 
@@ -847,6 +846,9 @@ template <ExprType t>
 inline void LabeledInst<t>::accept(GraphVisitor* visitor) {
     assert(false);
 }
+
+typedef std::set<Node*> NodeSet;
+typedef std::set<Edge*> EdgeSet;
 
 }  // namespace wasmati
 

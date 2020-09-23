@@ -1,4 +1,4 @@
-#include "src/dot-writer.h"
+#include "dot-writer.h"
 
 namespace wasmati {
 

@@ -1,19 +1,18 @@
 #ifndef WASMATI_QUERY_BUILDER_H_
 #define WASMATI_QUERY_BUILDER_H_
 
-#include "src/graph.h"
-
 #include <set>
-using namespace wabt;
+#include "graph.h"
 
 namespace wasmati {
 typedef std::function<bool(Node*)> NodeCondition;
 typedef std::function<bool(Edge*)> EdgeCondition;
-typedef std::set<Node*> NodeSet;
-typedef std::set<Edge*> EdgeSet;
 
 class Query {
     static const Graph* _graph;
+
+public:
+    static void setGraph(const Graph* graph) { _graph = graph; }
 
 public:
     /// @brief Condition to return all edges
@@ -108,14 +107,6 @@ public:
     /// the condition
     static NodeSet instructions(const NodeSet& nodes,
                                 const NodeCondition& nodeCondition);
-
-public:
-    static void checkVulnerabilities(Graph* graph);
-    static void checkUnreachableCode() {}
-    static void checkBufferOverflow() {}
-    static void checkIntegerOverflow() {}
-    static void checkUseAfterFree() {}
-    static void checkBufferSizes();
 };
 }  // namespace wasmati
 #endif  // WABT_AST_BUILDER_H_

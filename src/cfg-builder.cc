@@ -1,4 +1,4 @@
-#include "src/cfg-builder.h"
+#include "cfg-builder.h"
 
 namespace wasmati {
 void CFG::generateCFG(GenerateCPGOptions& options) {

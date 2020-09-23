@@ -21,6 +21,7 @@
 #include "src/stream.h"
 #include "src/validator.h"
 #include "src/wast-lexer.h"
+#include "src/vulns.h"
 
 using namespace wabt;
 using namespace wasmati;
@@ -138,7 +139,7 @@ int ProgramMain(int argc, char** argv) {
 
             Graph graph(module);
             generateCPG(graph, cpgOptions);
-            Query::checkVulnerabilities(&graph);
+            checkVulnerabilities(&graph);
 
             if (Succeeded(result)) {
                 FileStream stream(!s_outfile.empty() ? FileStream(s_outfile)

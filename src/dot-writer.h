@@ -1,6 +1,6 @@
 #ifndef WASMATI_DOT_H
 #define WASMATI_DOT_H
-#include "src/graph.h"
+#include "graph.h"
 
 namespace wasmati {
 

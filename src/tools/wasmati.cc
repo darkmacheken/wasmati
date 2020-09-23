@@ -23,6 +23,7 @@
 #include "src/validator.h"
 #include "src/wast-lexer.h"
 #include "src/wast-parser.h"
+#include "src/vulns.h"
 
 using namespace wabt;
 using namespace wasmati;
@@ -138,7 +139,7 @@ int ProgramMain(int argc, char** argv) {
 
     Graph graph(*module.get());
     generateCPG(graph, cpgOptions);
-    Query::checkVulnerabilities(&graph);
+    checkVulnerabilities(&graph);
 
     if (Succeeded(result) && generate_dot) {
         FileStream stream(!s_doutfile.empty() ? FileStream(s_doutfile)
