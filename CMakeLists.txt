@@ -203,8 +203,8 @@ FetchContent_Declare(json
   GIT_REPOSITORY https://github.com/ArthurSonzogni/nlohmann_json_cmake_fetchcontent
   GIT_TAG v3.9.1)
 
-FetchContent_MakeAvailable(wabt)
-include_directories(${wabt_SOURCE_DIR})
+FetchContent_MakeAvailable(wabt json)
+include_directories(${wabt_SOURCE_DIR} ${json_SOURCE_DIR})
 
 #FetchContent_GetProperties(json)
 #if(NOT json_POPULATED)
@@ -255,7 +255,7 @@ if (NOT EMSCRIPTEN)
 
     add_executable(${EXE_NAME} ${EXE_SOURCES})
     add_dependencies(everything_wasm ${EXE_NAME})
-    target_link_libraries(${EXE_NAME} PRIVATE ${EXE_LIBS} wabt)
+    target_link_libraries(${EXE_NAME} PRIVATE ${EXE_LIBS} wabt nlohmann_json::nlohmann_json)
     set_property(TARGET ${EXE_NAME} PROPERTY CXX_STANDARD 11)
     set_property(TARGET ${EXE_NAME} PROPERTY CXX_STANDARD_REQUIRED ON)
 

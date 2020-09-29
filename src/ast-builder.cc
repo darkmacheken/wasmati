@@ -293,6 +293,21 @@ void AST::construct(const ExprList& es,
         new ASTEdge(holder, node);
     }
 
+    if (es.rbegin() != es.rend() &&
+        es.rbegin()->type() == ExprType::Unreachable &&
+        expStack.size() < nresults) {
+        while (expStack.size() > 0) {
+            new ASTEdge(holder, expStack.back());
+            expStack.pop_back();
+        }
+        if (function != nullptr) {
+            auto ret = returnFunc[function];
+            new ASTEdge(holder, ret);
+            mc.EndFunc();
+            currentFunction = nullptr;
+        }
+        return;
+    }
     assert(expStack.size() >= nresults);
     if (function != nullptr) {
         auto ret = returnFunc[function];

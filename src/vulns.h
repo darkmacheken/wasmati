@@ -1,38 +1,39 @@
 #ifndef WASMATI_VULNS_BUILDER_H_
 #define WASMATI_VULNS_BUILDER_H_
 
-//#include "include/nlohmann/json.hpp"
+#include <list>
 #include <map>
+#include "include/nlohmann/json.hpp"
 #include "query.h"
 
-// using json = nlohmann::json;
-//
+using nlohmann::json;
+
 namespace wasmati {
-//
-// static const json defaultConfig = R"(
-//{
-//    "importAsSources": true,
-//    "exportedAsSinks": true,
-//    "blackList": [],
-//    "whiteList": [],
-//    "tainted": {
-//        "main": {"params": [1,2]}
-//    },
-//    "bufferOverflow": {
-//        "read" : {
-//            "buffer": 2,
-//            "size": 3
-//        },
-//        "fgets" : {
-//            "buffer": 1,
-//            "size": 2
-//        },
-//        "gets" : {
-//            "buffer": 1,
-//        }
-//    },
-//}
-//)"_json;
+
+static const json defaultConfig = R"(
+{
+	"importAsSources": true,
+	"exportedAsSinks": true,
+	"blackList": [],
+	"whiteList": [],
+	"tainted": {
+		"main": { "params": [ 1, 2 ] }
+	},
+	"bufferOverflow": {
+		"$read": {
+			"buffer": 1,
+			"size": 2
+		},
+		"$fgets": {
+			"buffer": 0,
+			"size": 1
+		},
+		"$gets": {
+			"buffer": 0
+		}
+	}
+}
+)"_json;
 
 enum class VulnType {
     Unreachable,
@@ -44,22 +45,61 @@ enum class VulnType {
     IntegerOverflow
 };
 
-// NLOHMANN_JSON_SERIALIZE_ENUM(VulnType,
-//                             {
-//                                 {Unreachable, "Unreachable"},
-//                                 {FormatStrings, "Format Strings"},
-//                                 {BufferOverflow, "Buffer Overflow"},
-//                                 {Tainted, "Tainted Variable"},
-//                                 {UaF, "Use After Free"},
-//                                 {DoubleFree, "Double Free"},
-//                                 {IntegerOverflow, "IntegerOverflow"},
-//                             });
+NLOHMANN_JSON_SERIALIZE_ENUM(VulnType,
+                             {
+                                 {VulnType::Unreachable, "Unreachable"},
+                                 {VulnType::FormatStrings, "Format Strings"},
+                                 {VulnType::BufferOverflow, "Buffer Overflow"},
+                                 {VulnType::Tainted, "Tainted Variable"},
+                                 {VulnType::UaF, "Use After Free"},
+                                 {VulnType::DoubleFree, "Double Free"},
+                                 {VulnType::IntegerOverflow, "IntegerOverflow"},
+                             });
 
-void checkVulnerabilities(Graph* graph);
-void checkUnreachableCode();
-void checkBufferOverflow();
-void checkIntegerOverflow();
-void checkUseAfterFree();
+struct Vulnerability {
+    VulnType type;
+    std::string function;
+    std::string caller;
+    std::string description;
+
+    Vulnerability(VulnType type,
+                  const std::string& function,
+                  const std::string& caller,
+                  const std::string description)
+        : type(type),
+          function(function),
+          caller(caller),
+          description(description) {}
+
+    friend void to_json(json& j, const Vulnerability& v) {
+        j = json{{"type", v.type}, {"function", v.function}};
+        if (!v.caller.empty()) {
+            j["caller"] = v.caller;
+        }
+        if (!v.description.empty()) {
+            j["description"] = v.description;
+        }
+    }
+
+    friend void from_json(const json& j, Vulnerability& v) {
+        j.at("type").get_to(v.type);
+        j.at("function").get_to(v.function);
+        if (j.contains("caller")) {
+            j.at("caller").get_to(v.caller);
+        }
+        if (j.contains("description")) {
+            j.at("description").get_to(v.description);
+        }
+    }
+};
+
+void checkVulnerabilities(Graph* graph,
+                          json& config,
+                          std::list<Vulnerability>& vulns);
+void checkUnreachableCode(json& config, std::list<Vulnerability>& vulns);
+void checkBufferOverflow(json& config, std::list<Vulnerability>& vulns);
+void checkIntegerOverflow(json& config);
+void checkUseAfterFree(json& config);
 std::map<int, int> checkBufferSizes(Node* func);
 
 }  // namespace wasmati

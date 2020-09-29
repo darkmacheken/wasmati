@@ -2,7 +2,8 @@
 #include <cinttypes>
 #include <cstdio>
 #include <cstdlib>
-
+#include <fstream>
+#include <iostream>
 #include "src/apply-names.h"
 #include "src/ast-builder.h"
 #include "src/binary-reader-ir.h"
@@ -21,9 +22,9 @@
 #include "src/resolve-names.h"
 #include "src/stream.h"
 #include "src/validator.h"
+#include "src/vulns.h"
 #include "src/wast-lexer.h"
 #include "src/wast-parser.h"
-#include "src/vulns.h"
 
 using namespace wabt;
 using namespace wasmati;
@@ -34,6 +35,7 @@ Result watFile(std::unique_ptr<wabt::Module>* mod);
 Result wasmFile(std::unique_ptr<wabt::Module>* mod);
 
 static int s_verbose;
+static std::string s_configfile;
 static std::string s_infile;
 static std::string s_outfile;
 static std::string s_doutfile;
@@ -79,6 +81,12 @@ static void ParseOptions(int argc, char** argv) {
                          s_doutfile = argument;
                          ConvertBackslashToSlash(&s_doutfile);
                          generate_dot = true;
+                     });
+    parser.AddOption('c', "config", "FILENAME",
+                     "Output file for vulnerability report.",
+                     [](const char* argument) {
+                         s_configfile = argument;
+                         ConvertBackslashToSlash(&s_configfile);
                      });
     parser.AddOption("wat", "Treat input file as a wat file.",
                      []() { is_wat = true; });
@@ -137,9 +145,34 @@ int ProgramMain(int argc, char** argv) {
         WABT_FATAL("Unable to verify file type: %s\n", s_infile.c_str());
     }
 
+    // Config file
+    json config;
+    if (s_configfile.empty()) {
+        config = defaultConfig;
+    } else {
+        std::ifstream stream(s_configfile);
+        stream >> config;
+    }
+
     Graph graph(*module.get());
     generateCPG(graph, cpgOptions);
-    checkVulnerabilities(&graph);
+
+    std::list<Vulnerability> vulns;
+    checkVulnerabilities(&graph, config, vulns);
+
+    json list = json::array();
+    for (auto const& vuln : vulns) {
+        json j;
+        to_json(j, vuln);
+        list.insert(list.end(), j);
+    }
+
+    if (s_outfile.empty()) {
+        std::cout << list.dump(4) << std::endl;
+    } else {
+        std::ofstream o(s_outfile);
+        o << list.dump(4) << std::endl;
+    }
 
     if (Succeeded(result) && generate_dot) {
         FileStream stream(!s_doutfile.empty() ? FileStream(s_doutfile)

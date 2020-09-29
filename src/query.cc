@@ -122,6 +122,45 @@ NodeSet Query::BFS(const NodeSet& nodes,
     return result;
 }
 
+NodeSet Query::BFSincludes(const NodeSet& nodes,
+                           const NodeCondition& nodeCondition,
+                           const EdgeCondition& edgeCondition,
+                           Index limit,
+                           bool reverse) {
+    NodeSet result;
+    NodeSet nextQuery;
+    if (nodes.size() == 0 || limit == 0) {
+        return result;
+    }
+
+    for (Node* node : nodes) {
+        if (nodeCondition(node)) {
+            if (limit == 0) {
+                return result;
+            }
+            result.insert(node);
+            limit--;
+        }
+        auto edges =
+            reverse ? EdgeSet(node->inEdges().begin(), node->inEdges().end())
+                    : EdgeSet(node->outEdges().begin(), node->outEdges().end());
+        for (Edge* edge : filterEdges(edges, edgeCondition)) {
+            auto node = reverse ? edge->src() : edge->dest();
+            nextQuery.insert(node);
+        }
+    }
+    if (nextQuery.size() == 0) {
+        return result;
+    }
+    auto queryResult =
+        BFS(nextQuery, nodeCondition, edgeCondition, limit, reverse);
+    if (queryResult.size() == 0) {
+        return result;
+    }
+    result.insert(queryResult.begin(), queryResult.end());
+    return result;
+}
+
 NodeSet Query::module() {
     assert(_graph != nullptr);
     return {_graph->getModule()};

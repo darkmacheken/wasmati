@@ -39,6 +39,15 @@ std::vector<Edge*> Node::outEdges(EdgeType type) {
     return res;
 }
 
+inline Edge* Node::getOutEdge(Index i, EdgeType type) {
+    auto edges = outEdges(type);
+    std::sort(edges.begin(), edges.end(), [](Edge* a, Edge* b) {
+        return a->dest()->getId() < b->dest()->getId();
+    });
+    assert(i < edges.size());
+    return edges[i];
+}
+
 Node* Node::getChild(Index n, EdgeType type) {
     return getOutEdge(n, type)->dest();
 }

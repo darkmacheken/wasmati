@@ -89,6 +89,21 @@ public:
                        Index limit = UINT32_MAX,
                        bool reverse = false);
 
+    /// @brief Makes a classic BFS alongside the edges that satisfies the
+    /// condition edgeCondition, and returns the nodes that satisfies the
+    /// condition nodeCondition including the begining nodes.
+    /// @param nodes Set of nodes
+    /// @param nodeCondition Node Condition to be present in the result.
+    /// @param edgeCondition Edge Condition to be taken.
+    /// @param limit The maximum number os elements in the result set.
+    /// @param reverse If true, performs a backward BFS
+    /// @return Set of nodes
+    static NodeSet BFSincludes(const NodeSet& nodes,
+                               const NodeCondition& nodeCondition,
+                               const EdgeCondition& edgeCondition = ALL_EDGES,
+                               Index limit = UINT32_MAX,
+                               bool reverse = false);
+
     /// @brief Returns the module of the graph
     /// @return A set cointaining the node module
     static NodeSet module();

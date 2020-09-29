@@ -122,12 +122,7 @@ public:
     std::vector<Edge*> inEdges(EdgeType type);
     std::vector<Edge*> outEdges(EdgeType type);
 
-    inline Edge* getOutEdge(Index i, EdgeType type) {
-        auto edges = outEdges(type);
-        assert(i < edges.size());
-        return edges[i];
-    }
-
+    inline Edge* getOutEdge(Index i, EdgeType type);
     inline Index getNumOutEdges() const { return _outEdges.size(); }
     inline Edge* getInEdge(Index i, EdgeType type) {
         auto edges = inEdges(type);
