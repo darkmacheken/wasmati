@@ -109,24 +109,21 @@ static void ParseOptions(int argc, char** argv) {
                            s_infile = argument;
                            ConvertBackslashToSlash(&s_infile);
                        });
-    parser.AddOption("ast", "Output just the Abstract Syntax Tree", []() {
-        cpgOptions.printNoCFG = true;
-        cpgOptions.printNoPDG = true;
+    parser.AddOption("ast", "Output the Abstract Syntax Tree", []() {
+        cpgOptions.printNoAST = false;
     });
-    parser.AddOption("cfg", "Output just the Control Flow Graph", []() {
-        cpgOptions.printNoAST = true;
-        cpgOptions.printNoPDG = true;
+    parser.AddOption("cfg", "Output the Control Flow Graph", []() {
+        cpgOptions.printNoCFG = false;
     });
-    parser.AddOption("pdg", "Output just the Program Dependence Graph", []() {
-        cpgOptions.printNoAST = true;
-        cpgOptions.printNoCFG = true;
+    parser.AddOption("pdg", "Output the Program Dependence Graph", []() {
+        cpgOptions.printNoPDG = false;
     });
-    parser.AddOption("no-ast", "Output just the Abstract Syntax Tree",
-                     []() { cpgOptions.printNoAST = true; });
-    parser.AddOption("no-cfg", "Output just the Control Flow Graph",
-                     []() { cpgOptions.printNoCFG = true; });
-    parser.AddOption("no-pdg", "Output just the Program Dependence Graph",
-                     []() { cpgOptions.printNoPDG = true; });
+    parser.AddOption("cg", "Output the Call Graph", []() {
+        cpgOptions.printNoCG = false;
+    });
+    parser.AddOption("pg", "Output the Parameters Graph", []() {
+        cpgOptions.printNoPG = false;
+    });
     parser.Parse(argc, argv);
 }
 
@@ -155,10 +152,11 @@ int ProgramMain(int argc, char** argv) {
     }
 
     Graph graph(*module.get());
+    Query::setGraph(&graph);
     generateCPG(graph, cpgOptions);
 
     std::list<Vulnerability> vulns;
-    checkVulnerabilities(&graph, config, vulns);
+    checkVulnerabilities(config, vulns);
 
     json list = json::array();
     for (auto const& vuln : vulns) {

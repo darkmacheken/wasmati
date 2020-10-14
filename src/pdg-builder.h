@@ -39,6 +39,8 @@ private:
     virtual void visitASTEdge(ASTEdge* e) override;
     virtual void visitCFGEdge(CFGEdge* e) override;
     virtual void visitPDGEdge(PDGEdge* e) override;
+    virtual void visitCGEdge(CGEdge* e) override;
+    virtual void visitPGEdge(PGEdge* e) override;
     virtual void visitModule(Module* node) override;
     virtual void visitFunction(Function* node) override;
     virtual void visitFunctionSignature(FunctionSignature* node) override;
@@ -176,12 +178,11 @@ public:
         for (auto const& kv : _def) {
             for (auto& node : kv.second) {
                 auto inEdges = target->inEdges(EdgeType::PDG);
-                auto filter = Query::filterEdges(
-                    EdgeSet(inEdges.begin(), inEdges.end()), [&](Edge* e) {
-                        return e->src() == node && e->dest() == target &&
-                               e->pdgType() == kv.first.type &&
-                               e->label() == kv.first.name;
-                    });
+                auto filter = Query::filterEdges(inEdges, [&](Edge* e) {
+                    return e->src() == node && e->dest() == target &&
+                           e->pdgType() == kv.first.type &&
+                           e->label() == kv.first.name;
+                });
                 if (filter.size() > 0) {
                     continue;
                 }

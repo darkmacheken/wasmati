@@ -16,6 +16,8 @@ public:
     void visitASTEdge(ASTEdge*) override;
     void visitCFGEdge(CFGEdge*) override;
     void visitPDGEdge(PDGEdge*) override;
+    void visitCGEdge(CGEdge*) override;
+    void visitPGEdge(PGEdge*) override;
 
 
 private:

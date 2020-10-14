@@ -3,6 +3,7 @@
 
 #include <list>
 #include <map>
+#include <sstream>
 #include "include/nlohmann/json.hpp"
 #include "query.h"
 
@@ -17,7 +18,7 @@ static const json defaultConfig = R"(
 	"blackList": [],
 	"whiteList": [],
 	"tainted": {
-		"main": { "params": [ 1, 2 ] }
+		"main": { "params": [ 0, 1 ] }
 	},
 	"bufferOverflow": {
 		"$read": {
@@ -31,6 +32,19 @@ static const json defaultConfig = R"(
 		"$gets": {
 			"buffer": 0
 		}
+	},
+	"formatString": {
+		"$fprintf": 1,
+		"$printf": 0,
+		"$iprintf": 0,
+		"$sprintf": 1,
+		"$snprintf": 2,
+		"$vfprintf": 1,
+		"$vprintf": 0,
+		"$vsprintf": 1,
+		"$vsnprintf": 2,
+		"$syslog": 1,
+		"$vsyslog": 1
 	}
 }
 )"_json;
@@ -65,7 +79,7 @@ struct Vulnerability {
     Vulnerability(VulnType type,
                   const std::string& function,
                   const std::string& caller,
-                  const std::string description)
+                  const std::string description = "")
         : type(type),
           function(function),
           caller(caller),
@@ -93,11 +107,14 @@ struct Vulnerability {
     }
 };
 
-void checkVulnerabilities(Graph* graph,
-                          json& config,
-                          std::list<Vulnerability>& vulns);
+void checkVulnerabilities(json& config, std::list<Vulnerability>& vulns);
 void checkUnreachableCode(json& config, std::list<Vulnerability>& vulns);
+
 void checkBufferOverflow(json& config, std::list<Vulnerability>& vulns);
+void checkBoBuffsStatic(json& config, std::list<Vulnerability>& vulns);
+void checkBoScanfLoops(json& config, std::list<Vulnerability>& vulns);
+
+void checkFormatString(json& config, std::list<Vulnerability>& vulns);
 void checkIntegerOverflow(json& config);
 void checkUseAfterFree(json& config);
 std::map<int, int> checkBufferSizes(Node* func);

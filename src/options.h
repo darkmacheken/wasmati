@@ -3,9 +3,11 @@
 namespace wasmati {
 struct GenerateCPGOptions {
     std::string funcName;
-    bool printNoAST = false;
-    bool printNoCFG = false;
-    bool printNoPDG = false;
+    bool printNoAST = true;
+    bool printNoCFG = true;
+    bool printNoPDG = true;
+    bool printNoCG = true;
+    bool printNoPG = true;
 };
 
 }  // namespace wasmati

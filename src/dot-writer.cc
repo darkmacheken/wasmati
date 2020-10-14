@@ -70,6 +70,22 @@ void DotWriter::visitPDGEdge(PDGEdge* e) {
     }
 }
 
+void DotWriter::visitCGEdge(CGEdge* e) {
+    if (_options.printNoCG) {
+        return;
+    }
+    writeStringln(std::to_string(e->src()->getId()) + " -> " +
+        std::to_string(e->dest()->getId()) + " [color=mediumpurple3]");
+}
+
+void DotWriter::visitPGEdge(PGEdge* e) {
+    if (_options.printNoPG) {
+        return;
+    }
+    writeStringln(std::to_string(e->src()->getId()) + " -> " +
+        std::to_string(e->dest()->getId()) + " [color=orangered]");
+}
+
 void DotWriter::visitModule(Module* mod) {
     std::string s;
     if (mod->name().empty()) {

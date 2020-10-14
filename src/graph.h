@@ -12,6 +12,13 @@ using namespace wabt;
 namespace wasmati {
 class GraphVisitor;
 class Edge;
+class Node;
+
+struct Compare {
+    bool operator()(Node* const& n1, Node* const& n2) const;
+};
+typedef std::set<Node*, Compare> NodeSet;
+typedef std::set<Edge*> EdgeSet;
 
 inline const std::string& emptyString() {
     static const std::string empty = "";
@@ -23,7 +30,7 @@ inline const Const& emptyConst() {
     return empty;
 }
 
-enum class EdgeType { AST, CFG, PDG };
+enum class EdgeType { AST, CFG, PDG, CG, PG };
 
 enum class NodeType {
     Module,
@@ -44,8 +51,8 @@ enum class NodeType {
 class Node {
     static Index idCount;
     const Index _id;
-    std::vector<Edge*> _inEdges;
-    std::vector<Edge*> _outEdges;
+    EdgeSet _inEdges;
+    EdgeSet _outEdges;
 
 public:
     const NodeType _type;
@@ -117,24 +124,22 @@ public:
     virtual ~Node();
 
     inline Index getId() const { return _id; }
-    inline const std::vector<Edge*>& inEdges() const { return _inEdges; }
-    inline const std::vector<Edge*>& outEdges() const { return _outEdges; }
-    std::vector<Edge*> inEdges(EdgeType type);
-    std::vector<Edge*> outEdges(EdgeType type);
+    inline const EdgeSet& inEdges() const { return _inEdges; }
+    inline const EdgeSet& outEdges() const { return _outEdges; }
+    EdgeSet inEdges(EdgeType type);
+    EdgeSet outEdges(EdgeType type);
+
+    inline Index getNumOutEdges() const { return _outEdges.size(); }
+    inline Index getNumInEdges() const { return _inEdges.size(); }
 
     inline Edge* getOutEdge(Index i, EdgeType type);
-    inline Index getNumOutEdges() const { return _outEdges.size(); }
-    inline Edge* getInEdge(Index i, EdgeType type) {
-        auto edges = inEdges(type);
-        assert(i < edges.size());
-        return edges[i];
-    }
+    inline Edge* getInEdge(Index i, EdgeType type);
 
-    Node* getChild(Index n, EdgeType type);
-    Node* getParent(Index n, EdgeType type);
-    inline Index getNumInEdges() const { return _inEdges.size(); }
-    inline void addInEdge(Edge* e) { _inEdges.push_back(e); }
-    inline void addOutEdge(Edge* e) { _outEdges.push_back(e); }
+    Node* getChild(Index n, EdgeType type = EdgeType::AST);
+    Node* getParent(Index n, EdgeType type = EdgeType::AST);
+
+    inline void addInEdge(Edge* e) { _inEdges.insert(e); }
+    inline void addOutEdge(Edge* e) { _outEdges.insert(e); }
 
     bool hasEdgesOf(EdgeType) const;
     bool hasInEdgesOf(EdgeType) const;
@@ -528,6 +533,18 @@ struct PDGEdge : Edge {
     inline PDGType pdgType() const override { return _pdgType; }
 };
 
+struct CGEdge : Edge {
+    CGEdge(Node* src, Node* dest) : Edge(src, dest, EdgeType::CG) {}
+    void accept(GraphVisitor* visitor);
+    static bool classof(const Edge* e) { return e->type() == EdgeType::CG; }
+};
+
+struct PGEdge : Edge {
+    PGEdge(Node* src, Node* dest) : Edge(src, dest, EdgeType::PG) {}
+    void accept(GraphVisitor* visitor);
+    static bool classof(const Edge* e) { return e->type() == EdgeType::PG; }
+};
+
 struct PDGEdgeConst : PDGEdge {
     const Const _const;
 
@@ -582,6 +599,8 @@ public:
     virtual void visitASTEdge(ASTEdge* e) = 0;
     virtual void visitCFGEdge(CFGEdge* e) = 0;
     virtual void visitPDGEdge(PDGEdge* e) = 0;
+    virtual void visitCGEdge(CGEdge* e) = 0;
+    virtual void visitPGEdge(PGEdge* e) = 0;
 
     // Nodes
     virtual void visitModule(Module* node) = 0;
@@ -841,9 +860,6 @@ template <ExprType t>
 inline void LabeledInst<t>::accept(GraphVisitor* visitor) {
     assert(false);
 }
-
-typedef std::set<Node*> NodeSet;
-typedef std::set<Edge*> EdgeSet;
 
 }  // namespace wasmati
 

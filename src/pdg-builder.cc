@@ -13,9 +13,9 @@ void PDG::visitCFGEdge(CFGEdge* e) {
     if (!e->_label.empty()) {
         // it is true or false label or (br_table)
         auto outEdges = e->src()->outEdges(EdgeType::PDG);
-        auto filterQuery = Query::filterEdges(
-            EdgeSet(outEdges.begin(), outEdges.end()),
-            [&](Edge* edge) { return e->label().compare(edge->label()) == 0; });
+        auto filterQuery = Query::filterEdges(outEdges, [&](Edge* edge) {
+            return e->label().compare(edge->label()) == 0;
+        });
         if (filterQuery.size() == 0) {
             new PDGEdge(e);
         }
@@ -24,6 +24,14 @@ void PDG::visitCFGEdge(CFGEdge* e) {
 }
 
 void PDG::visitPDGEdge(PDGEdge* e) {
+    assert(false);
+}
+
+void PDG::visitCGEdge(CGEdge* e) {
+    assert(false);
+}
+
+void PDG::visitPGEdge(PGEdge* e) {
     assert(false);
 }
 
@@ -38,11 +46,19 @@ void PDG::visitFunction(Function* node) {
         return;
     }
     currentFunction = node->getFunc();
-    auto childrens = Query::children(
-        {node}, [](Edge* e) { return e->type() == EdgeType::AST; });
     auto filterInsts = Query::filter(
-        childrens, [](Node* n) { return n->type() == NodeType::Instructions; });
+        Query::children({node}, Query::AST_EDGES),
+        [](Node* n) { return n->type() == NodeType::Instructions; });
     assert(filterInsts.size() == 1);
+
+    // clear
+    _reachDef.clear();
+    _loops.clear();
+    _loopsInsts.clear();
+    _loopsStack = {};
+    _loopEnd.clear();
+    _loopAdvance.clear();
+
     // Visit instructions
     (*filterInsts.begin())->accept(this);
 }
@@ -64,11 +80,11 @@ void PDG::visitInstructions(Instructions* node) {
         reachDefs->insertLocal(local.first);
     }
 
-    std::vector<Edge*> outEdges = node->outEdges(EdgeType::CFG);
+    EdgeSet outEdges = node->outEdges(EdgeType::CFG);
     assert(outEdges.size() == 1);
-    _reachDef[outEdges[0]->dest()].insert(reachDefs);
+    _reachDef[(*outEdges.begin())->dest()].insert(reachDefs);
 
-    outEdges[0]->accept(this);
+    (*outEdges.begin())->accept(this);
 }
 void PDG::visitLocals(Locals* node) {
     assert(false);
@@ -387,7 +403,6 @@ void PDG::visitLocalGetInst(LocalGetInst* node) {
         return;
     }
     // ---------------------------------------
-    auto test = reinterpret_cast<long>(node) == 0x555555af2db0;
     auto reachDef = getReachDef(node);
 
     reachDef->push(reachDef->getLocal(node->label()));
@@ -495,7 +510,6 @@ void PDG::visitCallIndirectInst(CallIndirectInst* node) {
     advance(node, getReachDef(node));
 }
 void PDG::visitBeginBlockInst(BeginBlockInst* node) {
-    auto test = node->label() == "$I2" && node->inEdges()[0]->label() == "true";
     if (!_loopsStack.empty() && _loopsInsts.count(_loopsStack.top()) == 1) {
         _loopsInsts[_loopsStack.top()].insert(node);
     }
@@ -527,7 +541,11 @@ void PDG::visitBlockInst(BlockInst* node) {
     advance(node, getReachDef(node));
 }
 void PDG::visitLoopInst(LoopInst* node) {
-    auto test = node->label() == "$L20";
+    auto test = node->label() == "$L2";
+    static int counter = 0;
+    if (test) {
+        counter++;
+    }
     int count = _loops.count(node);
     if (count == 0 && waitPaths(node, true)) {
         return;
@@ -669,7 +687,7 @@ inline void PDG::advance(Instruction* inst,
     auto outEdges = inst->outEdges(EdgeType::CFG);
 
     if (outEdges.size() >= 1) {
-        _reachDef[outEdges[0]->dest()].insert(resultReachDef);
+        _reachDef[(*outEdges.begin())->dest()].insert(resultReachDef);
     }
 
     std::stack<LoopInst*> loopsStack;
@@ -680,10 +698,11 @@ inline void PDG::advance(Instruction* inst,
         loopsStack = _loopsStack;
         loopEnd = _loopEnd;
         loopAdvance = _loopAdvance;
-        for (Index i = 1; i < outEdges.size(); i++) {
+        for (auto it = std::next(outEdges.begin()); it != outEdges.end();
+             ++it) {
             auto newReachDef =
                 std::make_shared<ReachDefinition>(*resultReachDef);
-            _reachDef[outEdges[i]->dest()].insert(newReachDef);
+            _reachDef[(*it)->dest()].insert(newReachDef);
         }
     }
 
@@ -694,8 +713,8 @@ inline void PDG::advance(Instruction* inst,
     for (auto e : outEdges) {
         if (notFirst) {
             _loopsStack = loopsStack;
-            _loopEnd = loopEnd;
-            _loopAdvance = loopAdvance;
+            _loopEnd.insert(loopEnd.begin(), loopEnd.end());
+            _loopAdvance.insert(_loopAdvance.begin(), _loopAdvance.end());
         }
         e->accept(this);
         notFirst = true;

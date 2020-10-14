@@ -153,7 +153,8 @@ bool CFG::construct(const ExprList& es) {
 
             // if it's not the last
             if (&*it != &es.back()) {
-                insertEdgeFromLastExpr(expr->block.exprs, ast.exprNodes.at(&*std::next(it)));
+                insertEdgeFromLastExpr(expr->block.exprs,
+                                       ast.exprNodes.at(&*std::next(it)));
             }
 
             // Pop label
@@ -215,6 +216,72 @@ bool CFG::construct(const ExprList& es) {
                                 ast.exprNodes.at(&*std::next(it)));
                 }
             }
+            break;
+        }
+        case ExprType::Call: {
+            Node* inst = ast.exprNodes.at(&*it);
+            // if it's not the last
+            if (&*it != &es.back()) {
+                new CFGEdge(inst, ast.exprNodes.at(&*std::next(it)));
+            }
+
+            // query function by name
+            auto query = Query::functions(
+                [&](Node* node) { return node->name() == inst->label(); });
+
+            if (query.size() == 1) {
+                Node* func = *query.begin();
+                new CGEdge(inst, func);
+
+                // insert PG
+                auto funcParams = Query::parameters({func});
+                auto callParams = Query::children({inst}, Query::AST_EDGES);
+
+                for (auto itf = funcParams.begin(), itc = callParams.begin();
+                     itf != funcParams.end(); ++itf, ++itc) {
+                    new PGEdge(*itc, *itf);
+                }
+            }
+            break;
+        }
+        case ExprType::CallIndirect: {
+            Node* inst = ast.exprNodes.at(&*it);
+            // if it's not the last
+            if (&*it != &es.back()) {
+                new CFGEdge(inst, ast.exprNodes.at(&*std::next(it)));
+            }
+
+            // get all functions possible
+            auto expr = cast<CallIndirectExpr>(&*it);
+            std::set<std::string> funcs;
+            for (auto elems : mc.module.elem_segments) {
+                if (expr->table.name() == elems->table_var.name()) {
+                    for (auto elem : elems->elem_exprs) {
+                        assert(elem.kind == ElemExprKind::RefFunc);
+                        auto func = mc.module.GetFunc(elem.var);
+                        if (expr->decl.sig == func->decl.sig) {
+                            funcs.insert(func->name);
+                        }
+                    }
+                }
+            }
+            // query possible functions
+            auto query = Query::functions(
+                [&](Node* node) { return funcs.count(node->name()) == 1; });
+
+            for (Node* func : query) {
+                new CGEdge(inst, func);
+
+                // insert PG
+                auto funcParams = Query::parameters({ func });
+                auto callParams = Query::children({ inst }, Query::AST_EDGES);
+
+                for (auto itf = funcParams.begin(), itc = callParams.begin();
+                    itf != funcParams.end(); ++itf, ++itc) {
+                    new PGEdge(*itc, *itf);
+                }
+            }
+
             break;
         }
         default:

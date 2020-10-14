@@ -19,21 +19,21 @@ Node::~Node() {
     }
 }
 
-std::vector<Edge*> Node::inEdges(EdgeType type) {
-    std::vector<Edge*> res;
+EdgeSet Node::inEdges(EdgeType type) {
+    EdgeSet res;
     for (auto e : _inEdges) {
         if (e->type() == type) {
-            res.push_back(e);
+            res.insert(e);
         }
     }
     return res;
 }
 
-std::vector<Edge*> Node::outEdges(EdgeType type) {
-    std::vector<Edge*> res;
+EdgeSet Node::outEdges(EdgeType type) {
+    EdgeSet res;
     for (auto e : _outEdges) {
         if (e->type() == type) {
-            res.push_back(e);
+            res.insert(e);
         }
     }
     return res;
@@ -41,11 +41,23 @@ std::vector<Edge*> Node::outEdges(EdgeType type) {
 
 inline Edge* Node::getOutEdge(Index i, EdgeType type) {
     auto edges = outEdges(type);
-    std::sort(edges.begin(), edges.end(), [](Edge* a, Edge* b) {
+    assert(i < edges.size());
+    std::vector<Edge*> vec(edges.begin(), edges.end());
+    std::sort(vec.begin(), vec.end(), [](Edge* a, Edge* b) {
         return a->dest()->getId() < b->dest()->getId();
     });
+    return vec[i];
+}
+
+inline Edge* Node::getInEdge(Index i, EdgeType type) {
+    auto edges = inEdges(type);
     assert(i < edges.size());
-    return edges[i];
+    std::vector<Edge*> vec(edges.begin(), edges.end());
+    std::sort(vec.begin(), vec.end(), [](Edge* a, Edge* b) {
+        return a->src()->getId() < b->src()->getId();
+    });
+
+    return vec[i];
 }
 
 Node* Node::getChild(Index n, EdgeType type) {
@@ -127,8 +139,19 @@ void PDGEdge::accept(GraphVisitor* visitor) {
     visitor->visitPDGEdge(this);
 }
 
+void CGEdge::accept(GraphVisitor* visitor) {
+    visitor->visitCGEdge(this);
+}
+
+void PGEdge::accept(GraphVisitor* visitor) {
+    visitor->visitPGEdge(this);
+}
+
 void BeginBlockInst::accept(GraphVisitor* visitor) {
     visitor->visitBeginBlockInst(this);
 }
 
+bool Compare::operator()(Node* const& n1, Node* const& n2) const {
+    return n1->getId() < n2->getId();
+}
 }  // namespace wasmati

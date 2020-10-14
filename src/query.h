@@ -10,6 +10,12 @@ typedef std::function<bool(Edge*)> EdgeCondition;
 
 class Query {
     static const Graph* _graph;
+    static NodeSet emptyNodeSet;
+
+    static NodeSet& getEmptyNodeSet() {
+        emptyNodeSet.clear();
+        return emptyNodeSet;
+    }
 
 public:
     static void setGraph(const Graph* graph) { _graph = graph; }
@@ -23,6 +29,10 @@ public:
     static const EdgeCondition& CFG_EDGES;
     /// @brief Condition to return only PDG edges
     static const EdgeCondition& PDG_EDGES;
+    /// @brief Condition to return only CG edges
+    static const EdgeCondition& CG_EDGES;
+    /// @brief Condition to return all inst nodes
+    static const NodeCondition& ALL_INSTS;
     /// @brief Condition to return all nodes
     static const NodeCondition& ALL_NODES;
 
@@ -84,10 +94,11 @@ public:
     /// @param reverse If true, performs a backward BFS
     /// @return Set of nodes
     static NodeSet BFS(const NodeSet& nodes,
-                       const NodeCondition& nodeCondition,
+                       const NodeCondition& nodeCondition = ALL_NODES,
                        const EdgeCondition& edgeCondition = ALL_EDGES,
                        Index limit = UINT32_MAX,
-                       bool reverse = false);
+                       bool reverse = false,
+                       NodeSet& visited = getEmptyNodeSet());
 
     /// @brief Makes a classic BFS alongside the edges that satisfies the
     /// condition edgeCondition, and returns the nodes that satisfies the
@@ -99,7 +110,7 @@ public:
     /// @param reverse If true, performs a backward BFS
     /// @return Set of nodes
     static NodeSet BFSincludes(const NodeSet& nodes,
-                               const NodeCondition& nodeCondition,
+                               const NodeCondition& nodeCondition = ALL_NODES,
                                const EdgeCondition& edgeCondition = ALL_EDGES,
                                Index limit = UINT32_MAX,
                                bool reverse = false);
@@ -112,7 +123,7 @@ public:
     /// nodeCondition
     /// @param nodeCondition Node condition to be present in the result.
     /// @return Set of nodes containing function nodes.
-    static NodeSet functions(const NodeCondition& nodeCondition);
+    static NodeSet functions(const NodeCondition& nodeCondition = ALL_NODES);
 
     /// @brief Returns all the instructions of the given functions that
     /// satisfies the nodeCondition
@@ -121,7 +132,16 @@ public:
     /// @return A set of instructions from the given functions that satisfies
     /// the condition
     static NodeSet instructions(const NodeSet& nodes,
-                                const NodeCondition& nodeCondition);
+                                const NodeCondition& nodeCondition = ALL_NODES);
+
+    /// @brief Returns all the parameters nodes of the given functions that
+    /// satisfies the nodeCondition
+    /// @param nodes A set of function nodes.
+    /// @param nodeCondition Condition to filter the nodes.
+    /// @return A set of parameters nodes from the given functions that
+    /// satisfies the condition.
+    static NodeSet parameters(const NodeSet& nodes,
+                              const NodeCondition& nodeCondition = ALL_NODES);
 };
 }  // namespace wasmati
 #endif  // WABT_AST_BUILDER_H_

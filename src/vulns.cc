@@ -1,12 +1,11 @@
 #include "vulns.h"
 using namespace wasmati;
 
-void wasmati::checkVulnerabilities(Graph* graph,
-                                   json& config,
+void wasmati::checkVulnerabilities(json& config,
                                    std::list<Vulnerability>& vulns) {
-    Query::setGraph(graph);
     checkUnreachableCode(config, vulns);
     checkBufferOverflow(config, vulns);
+    checkFormatString(config, vulns);
     // checkIntegerOverflow();
     // checkUseAfterFree();
 }
@@ -29,7 +28,13 @@ void wasmati::checkUnreachableCode(json& config,
 
 void wasmati::checkBufferOverflow(json& config,
                                   std::list<Vulnerability>& vulns) {
-    const std::string KEY_BO = "bufferOverflow";
+    checkBoBuffsStatic(config, vulns);
+    checkBoScanfLoops(config, vulns);
+}
+
+void wasmati::checkBoBuffsStatic(json& config,
+                                 std::list<Vulnerability>& vulns) {
+    static const std::string KEY_BO = "bufferOverflow";
     if (!config.contains(KEY_BO)) {
         return;
     }
@@ -41,7 +46,7 @@ void wasmati::checkBufferOverflow(json& config,
         funcSink.insert(kv.key());
     }
 
-    for (auto func : Query::functions(Query::ALL_NODES)) {
+    for (auto func : Query::functions()) {
         auto buffers = checkBufferSizes(func);
         if (buffers.empty()) {
             continue;
@@ -126,8 +131,8 @@ void wasmati::checkBufferOverflow(json& config,
             int sizeToWrite = 0;
             auto outEdges = limitArg->outEdges(EdgeType::PDG);
             if (outEdges.size() == 1 &&
-                outEdges[0]->pdgType() == PDGType::Const) {
-                sizeToWrite = outEdges[0]->value().u32;
+                (*outEdges.begin())->pdgType() == PDGType::Const) {
+                sizeToWrite = (*outEdges.begin())->value().u32;
             } else {
                 continue;
             }
@@ -154,6 +159,122 @@ void wasmati::checkBufferOverflow(json& config,
     }
 }
 
+void wasmati::checkBoScanfLoops(json& config, std::list<Vulnerability>& vulns) {
+    for (auto func : Query::functions()) {
+        // find all loops
+        auto loops = Query::instructions({func}, [](Node* node) {
+            return node->instType() == ExprType::Loop;
+        });
+
+        for (Node* loop : loops) {
+            auto insts = Query::BFS({loop}, Query::ALL_INSTS, Query::AST_EDGES);
+            auto callScanf = Query::filter(insts, [](Node* node) {
+                return node->instType() == ExprType::Call &&
+                       node->label() == "$scanf" &&
+                       node->getChild(1)->instType() == ExprType::LocalGet;
+            });
+            if (callScanf.size() == 0) {
+                continue;
+            }
+
+            // Get the variables dependences on arg 1
+            std::set<std::string> varDepend;
+            for (Node* call : callScanf) {
+                Node* param1 = call->getChild(1);
+                auto outEdges = param1->outEdges(EdgeType::PDG);
+                for (Edge* e : outEdges) {
+                    if (e->pdgType() == PDGType::Global ||
+                        e->pdgType() == PDGType::Local) {
+                        varDepend.insert(e->label());
+                    }
+                }
+            }
+
+            // find br_if
+            auto brifs = Query::filter(insts, [&](Node* node) {
+                if (node->instType() == ExprType::BrIf &&
+                    node->label() == loop->label()) {
+                    Node* child = node->getChild(0);
+                    return child->instType() == ExprType::Compare &&
+                           child->opcode() != Opcode::I32Eq &&
+                           child->opcode() != Opcode::I32Eqz;
+                }
+                return false;
+            });
+            if (brifs.size() == 0) {
+                continue;
+            }
+
+            // check if there is a load
+            for (Node* brif : brifs) {
+                auto instsBrif =
+                    Query::BFS({brif}, Query::ALL_NODES, Query::AST_EDGES);
+                auto loadInsts = Query::filter(instsBrif, [&](Node* node) {
+                    return node->instType() == ExprType::Load &&
+                           Query::containsEdge(
+                               node->inEdges(EdgeType::PDG), [&](Edge* e) {
+                                   return varDepend.count(e->label()) == 1;
+                               });
+                });
+                if (loadInsts.size() > 0) {
+                    std::stringstream desc;
+                    Node* childLoad = (*loadInsts.begin())->getChild(0);
+                    if (childLoad->instType() != ExprType::LocalGet) {
+                        return;
+                    }
+                    Node* param1 = brif->getChild(0);
+                    auto inEdges = param1->inEdges(EdgeType::PDG);
+                    auto filterEdges = Query::filterEdges(inEdges, [](Edge* e) {
+                        return e->pdgType() == PDGType::Const;
+                    });
+                    if (filterEdges.size() == 0) {
+                        continue;
+                    }
+                    desc << "In loop " << loop->label() << ":";
+                    desc << " buffer pointed by " << childLoad->label();
+                    desc << " reaches $scanf until *" << childLoad->label()
+                         << " = "
+                         << std::to_string((*filterEdges.begin())->value().u32);
+                    vulns.emplace_back(VulnType::BufferOverflow, func->name(),
+                                       "", desc.str());
+                }
+            }
+        }
+    }
+}
+
+void wasmati::checkFormatString(json& config, std::list<Vulnerability>& vulns) {
+    static const std::string KEY_BO = "formatString";
+    if (!config.contains(KEY_BO)) {
+        return;
+    }
+
+    json fsConfig = config.at(KEY_BO);
+
+    for (auto func : Query::functions()) {
+        if (fsConfig.contains(func->name())) {
+            continue;
+        }
+        auto query = Query::instructions({func}, [&](Node* node) {
+            if (node->instType() == ExprType::Call &&
+                fsConfig.contains(node->label())) {
+                auto child = node->getChild(fsConfig.at(node->label()));
+                auto childEdges = child->outEdges(EdgeType::PDG);
+                return !Query::containsEdge(childEdges, [](Edge* e) {
+                    return e->pdgType() == PDGType::Const;
+                });
+            }
+            return false;
+        });
+
+        // write vulns
+        for (auto call : query) {
+            vulns.emplace_back(VulnType::FormatStrings, func->name(),
+                               call->label());
+        }
+    }
+}
+
 void wasmati::checkIntegerOverflow(json& config) {}
 
 void wasmati::checkUseAfterFree(json& config) {}
@@ -162,20 +283,26 @@ std::map<int, int> wasmati::checkBufferSizes(Node* func) {
     std::map<int, int> buffers;
     EdgeSet queryEdges;
     Index totalSizeAllocated;
+    EdgeCondition edgeCond = [](Edge* e) {
+        return (e->pdgType() == PDGType::Const &&
+                static_cast<int>(e->value().u32) > 0) ||
+               (e->pdgType() == PDGType::Global &&
+                e->label().compare("$g0") == 0);
+    };
     auto allocQuery = Query::instructions({func}, [&](Node* node) {
         if (node->instType() == ExprType::Binary &&
             node->opcode() == Opcode::I32Sub) {
             auto inEdges = node->inEdges(EdgeType::PDG);
-            EdgeSet edgeSet = EdgeSet(inEdges.begin(), inEdges.end());
-            queryEdges = Query::filterEdges(edgeSet, [](Edge* e) {
-                return e->pdgType() == PDGType::Const ||
-                       (e->pdgType() == PDGType::Global &&
-                        e->label().compare("$g0") == 0);
-            });
+            auto queryEdges = Query::filterEdges(inEdges, edgeCond);
             return queryEdges.size() == 2;
         }
         return false;
     });
+
+    if (allocQuery.size() == 1) {
+        auto inEdges = (*allocQuery.begin())->inEdges(EdgeType::PDG);
+        queryEdges = Query::filterEdges(inEdges, edgeCond);
+    }
 
     if (allocQuery.size() != 1 || queryEdges.size() != 2) {
         return buffers;
@@ -193,10 +320,11 @@ std::map<int, int> wasmati::checkBufferSizes(Node* func) {
         if (node->instType() == ExprType::Binary &&
             node->opcode() == Opcode::I32Add) {
             auto inEdges = node->inEdges(EdgeType::PDG);
-            EdgeSet edgeSet = EdgeSet(inEdges.begin(), inEdges.end());
-            auto queryEdges = Query::filterEdges(edgeSet, [&](Edge* e) {
-                return (e->pdgType() == PDGType::Const && e->value().u32 > 0 &&
-                        e->value().u32 < totalSizeAllocated) ||
+            auto queryEdges = Query::filterEdges(inEdges, [&](Edge* e) {
+                return (e->pdgType() == PDGType::Const &&
+                        static_cast<int>(e->value().u32) > 0 &&
+                        static_cast<int>(e->value().u32) <
+                            totalSizeAllocated) ||
                        (e->pdgType() == PDGType::Global &&
                         e->label().compare("$g0") == 0);
             });
