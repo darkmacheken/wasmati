@@ -3,11 +3,78 @@ using namespace wasmati;
 
 void wasmati::checkVulnerabilities(json& config,
                                    std::list<Vulnerability>& vulns) {
+    verifyConfig(config);
     checkUnreachableCode(config, vulns);
     checkBufferOverflow(config, vulns);
     checkFormatString(config, vulns);
+    checkTainted(config, vulns);
     // checkIntegerOverflow();
     // checkUseAfterFree();
+}
+
+void wasmati::verifyConfig(json& config) {
+    // importAsSources
+    assert(config.contains(IMPORT_AS_SOURCES));
+    assert(config.at(IMPORT_AS_SOURCES).is_boolean());
+    // exportedAsSinks
+    assert(config.contains(EXPORTED_AS_SINKS));
+    assert(config.at(EXPORTED_AS_SINKS).is_boolean());
+    // blackList
+    assert(config.contains(BLACKLIST));
+    assert(config.at(BLACKLIST).is_array());
+    for (auto const& item : config.at(BLACKLIST).items()) {
+        assert(item.value().is_string());
+    }
+    // whiteList
+    assert(config.contains(WHITELIST));
+    assert(config.at(WHITELIST).is_array());
+    for (auto const& item : config.at(WHITELIST).items()) {
+        assert(item.value().is_string());
+    }
+    // sources
+    assert(config.contains(SOURCES));
+    assert(config.at(SOURCES).is_array());
+    for (auto const& item : config.at(SOURCES).items()) {
+        assert(item.value().is_string());
+    }
+    // sinks
+    assert(config.contains(SINKS));
+    assert(config.at(SINKS).is_array());
+    for (auto const& item : config.at(SINKS).items()) {
+        assert(item.value().is_string());
+    }
+    // tainted
+    assert(config.contains(TAINTED));
+    assert(config.at(TAINTED).is_object());
+    for (auto const& item : config.at(TAINTED).items()) {
+        assert(item.value().is_object());
+        assert(item.value().contains(PARAMS));
+        assert(item.value().at(PARAMS).is_array());
+        for (auto const& param : item.value().at(PARAMS).items()) {
+            assert(param.value().is_number_integer());
+            assert(param.value() >= 0);
+        }
+    }
+    // bufferOverflow
+    assert(config.contains(BUFFER_OVERFLOW));
+    assert(config.at(BUFFER_OVERFLOW).is_object());
+    for (auto const& item : config.at(BUFFER_OVERFLOW).items()) {
+        assert(item.value().is_object());
+        assert(item.value().contains(BUFFER));
+        assert(item.value().at(BUFFER).is_number_integer());
+        assert(item.value().at(BUFFER) >= 0);
+        if (item.value().contains(SIZE)) {
+            assert(item.value().at(SIZE).is_number_integer());
+            assert(item.value().at(SIZE) >= 0);
+        }
+    }
+    // formatString
+    assert(config.contains(FORMAT_STRING));
+    assert(config.at(FORMAT_STRING).is_object());
+    for (auto const& item : config.at(FORMAT_STRING).items()) {
+        assert(item.value().is_number_integer());
+        assert(item.value() >= 0);
+    }
 }
 
 void wasmati::checkUnreachableCode(json& config,
@@ -34,12 +101,7 @@ void wasmati::checkBufferOverflow(json& config,
 
 void wasmati::checkBoBuffsStatic(json& config,
                                  std::list<Vulnerability>& vulns) {
-    static const std::string KEY_BO = "bufferOverflow";
-    if (!config.contains(KEY_BO)) {
-        return;
-    }
-
-    json boConfig = config.at(KEY_BO);
+    json boConfig = config.at(BUFFER_OVERFLOW);
     std::set<std::string> funcSink;
 
     for (auto const& kv : boConfig.items()) {
@@ -59,20 +121,20 @@ void wasmati::checkBoBuffsStatic(json& config,
 
         for (auto call : queryCalls) {
             json callSink = boConfig.at(call->label());
-            if (!callSink.contains("buffer") ||
-                !callSink.at("buffer").is_number()) {
+            if (!callSink.contains(BUFFER) ||
+                !callSink.at(BUFFER).is_number()) {
                 assert(false);
             }
             // buffer
             int indexBuffer;
-            callSink.at("buffer").get_to(indexBuffer);
+            callSink.at(BUFFER).get_to(indexBuffer);
             Node* bufferArg =
                 call->getOutEdge(indexBuffer, EdgeType::AST)->dest();
 
             // limit
             int indexLimit = -1;
-            if (callSink.contains("size")) {
-                callSink.at("size").get_to(indexLimit);
+            if (callSink.contains(SIZE)) {
+                callSink.at(SIZE).get_to(indexLimit);
             } else {
                 vulns.emplace_back(VulnType::BufferOverflow, func->name(),
                                    call->label(), "");
@@ -244,12 +306,7 @@ void wasmati::checkBoScanfLoops(json& config, std::list<Vulnerability>& vulns) {
 }
 
 void wasmati::checkFormatString(json& config, std::list<Vulnerability>& vulns) {
-    static const std::string KEY_BO = "formatString";
-    if (!config.contains(KEY_BO)) {
-        return;
-    }
-
-    json fsConfig = config.at(KEY_BO);
+    json fsConfig = config.at(FORMAT_STRING);
 
     for (auto func : Query::functions()) {
         if (fsConfig.contains(func->name())) {
@@ -274,10 +331,6 @@ void wasmati::checkFormatString(json& config, std::list<Vulnerability>& vulns) {
         }
     }
 }
-
-void wasmati::checkIntegerOverflow(json& config) {}
-
-void wasmati::checkUseAfterFree(json& config) {}
 
 std::map<int, int> wasmati::checkBufferSizes(Node* func) {
     std::map<int, int> buffers;
@@ -354,3 +407,50 @@ std::map<int, int> wasmati::checkBufferSizes(Node* func) {
     }
     return buffers;
 }
+
+void wasmati::checkTainted(json& config, std::list<Vulnerability>& vulns) {
+    std::set<std::string> sources = config.at(SOURCES);
+    std::set<std::string> sinks = config.at(SINKS);
+
+    if (config.at(IMPORT_AS_SOURCES)) {
+        auto funcs = Query::map<std::string>(
+            Query::functions([](Node* node) { return node->isImport(); }),
+            [](Node* node) { return node->name(); });
+        sources.insert(funcs.begin(), funcs.end());
+    }
+
+    if (config.at(EXPORTED_AS_SINKS)) {
+        auto funcs = Query::map<std::string>(
+            Query::functions([](Node* node) { return node->isExport(); }),
+            [](Node* node) { return node->name(); });
+        sinks.insert(funcs.begin(), funcs.end());
+    }
+
+    auto tainted = config.at(TAINTED);
+
+    for (auto func : Query::functions()) {
+        auto query = Query::instructions({func}, [&](Node* node) {
+            if (node->instType() == ExprType::Call &&
+                sinks.count(node->label()) == 1) {
+                auto pdgEdges = node->inEdges(EdgeType::PDG);
+                return Query::containsEdge(pdgEdges, [&](Edge* e) {
+                    if (e->pdgType() == PDGType::Function &&
+                        sources.count(e->label()) == 1) {
+                        std::stringstream desc;
+                        desc << "Source " << e->label() << " reaches sink "
+                             << node->label();
+                        vulns.emplace_back(VulnType::Tainted, func->name(), "",
+                                           desc.str());
+                        return true;
+                    }
+                    return false;
+                });
+            }
+            return false;
+        });
+    }
+}
+
+void wasmati::checkIntegerOverflow(json& config) {}
+
+void wasmati::checkUseAfterFree(json& config) {}

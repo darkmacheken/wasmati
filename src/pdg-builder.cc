@@ -1,8 +1,17 @@
 #include "pdg-builder.h"
+#include <iostream>
 
 namespace wasmati {
 void PDG::generatePDG(GenerateCPGOptions& options) {
+    _options = options;
+    if (!options.loopName.empty()) {
+        _verboseLoops = Queries::loopsInsts(options.loopName);
+    }
     graph.getModule()->accept(this);
+    if (options.verbose) {
+        std::ofstream o(options.logFile);
+        o << _verbose.dump(4) << std::endl;
+    }
 }
 
 void PDG::visitASTEdge(ASTEdge* e) {
@@ -20,6 +29,7 @@ void PDG::visitCFGEdge(CFGEdge* e) {
             new PDGEdge(e);
         }
     }
+    _lastNode = e->src();
     e->dest()->accept(this);
 }
 
@@ -56,8 +66,6 @@ void PDG::visitFunction(Function* node) {
     _loops.clear();
     _loopsInsts.clear();
     _loopsStack = {};
-    _loopEnd.clear();
-    _loopAdvance.clear();
 
     // Visit instructions
     (*filterInsts.begin())->accept(this);
@@ -117,7 +125,9 @@ void PDG::visitNopInst(NopInst* node) {
     // ---------------------------------------
     // no operation => does nothing
     // ---------------------------------------
-    advance(node, getReachDef(node));
+    auto reachDef = getReachDef(node);
+    // logDefinition(node, reachDef);
+    advance(node, reachDef);
 }
 void PDG::visitUnreachableInst(UnreachableInst* node) {
     if (waitPaths(node)) {
@@ -133,6 +143,7 @@ void PDG::visitReturnInst(ReturnInst* node) {
     }
     // ---------------------------------------
     auto reachDef = getReachDef(node);
+    // logDefinition(node, reachDef);
     assert(reachDef->stackSize() <= 1);
     assert(currentFunction->GetNumResults() == reachDef->stackSize());
     if (reachDef->stackSize() == 1) {
@@ -148,13 +159,14 @@ void PDG::visitBrTableInst(BrTableInst* node) {
     }
     // ---------------------------------------
     auto reachDef = getReachDef(node);
+    // logDefinition(node, reachDef);
     assert(reachDef->stackSize() >= 1);
 
     auto arg = reachDef->pop();
     arg->insertPDGEdge(node);
 
     // ---------------------------------------
-    advance(node, getReachDef(node));
+    advance(node, reachDef);
 }
 
 void PDG::visitDropInst(DropInst* node) {
@@ -163,11 +175,12 @@ void PDG::visitDropInst(DropInst* node) {
     }
     // ---------------------------------------
     auto reachDef = getReachDef(node);
+    // logDefinition(node, reachDef);
     assert(reachDef->stackSize() >= 1);
     // pop last element of stack
     reachDef->pop();
     // ---------------------------------------
-    advance(node, getReachDef(node));
+    advance(node, reachDef);
 }
 void PDG::visitSelectInst(SelectInst* node) {
     if (waitPaths(node)) {
@@ -175,6 +188,7 @@ void PDG::visitSelectInst(SelectInst* node) {
     }
     // ---------------------------------------
     auto reachDef = getReachDef(node);
+    // logDefinition(node, reachDef);
     assert(reachDef->stackSize() >= 3);
 
     auto c = reachDef->pop();
@@ -190,7 +204,7 @@ void PDG::visitSelectInst(SelectInst* node) {
     reachDef->push(val1);
 
     // ---------------------------------------
-    advance(node, getReachDef(node));
+    advance(node, reachDef);
 }
 void PDG::visitMemorySizeInst(MemorySizeInst* node) {
     if (waitPaths(node)) {
@@ -198,10 +212,11 @@ void PDG::visitMemorySizeInst(MemorySizeInst* node) {
     }
     // ---------------------------------------
     auto reachDef = getReachDef(node);
+    // logDefinition(node, reachDef);
     // push size of memory to stack
     reachDef->push();
     // ---------------------------------------
-    advance(node, getReachDef(node));
+    advance(node, reachDef);
 }
 void PDG::visitMemoryGrowInst(MemoryGrowInst* node) {
     if (waitPaths(node)) {
@@ -209,6 +224,7 @@ void PDG::visitMemoryGrowInst(MemoryGrowInst* node) {
     }
     // ---------------------------------------
     auto reachDef = getReachDef(node);
+    // logDefinition(node, reachDef);
     assert(reachDef->stackSize() >= 1);
 
     auto n = reachDef->pop();
@@ -219,7 +235,7 @@ void PDG::visitMemoryGrowInst(MemoryGrowInst* node) {
     reachDef->push();
 
     // ---------------------------------------
-    advance(node, getReachDef(node));
+    advance(node, reachDef);
 }
 void PDG::visitConstInst(ConstInst* node) {
     if (waitPaths(node)) {
@@ -227,12 +243,13 @@ void PDG::visitConstInst(ConstInst* node) {
     }
     // ---------------------------------------
     auto reachDef = getReachDef(node);
+    // logDefinition(node, reachDef);
 
     reachDef->push();
     auto def = reachDef->peek();
     def->insert(&node->value(), node);
     // ---------------------------------------
-    advance(node, getReachDef(node));
+    advance(node, reachDef);
 }
 void PDG::visitBinaryInst(BinaryInst* node) {
     if (waitPaths(node)) {
@@ -240,6 +257,7 @@ void PDG::visitBinaryInst(BinaryInst* node) {
     }
     // ---------------------------------------
     auto reachDef = getReachDef(node);
+    // logDefinition(node, reachDef);
     assert(reachDef->stackSize() >= 2);
 
     auto arg1 = reachDef->pop();
@@ -250,7 +268,7 @@ void PDG::visitBinaryInst(BinaryInst* node) {
     arg1->clear(node);
     reachDef->push(arg1);
     // ---------------------------------------
-    advance(node, getReachDef(node));
+    advance(node, reachDef);
 }
 void PDG::visitCompareInst(CompareInst* node) {
     if (waitPaths(node)) {
@@ -258,6 +276,7 @@ void PDG::visitCompareInst(CompareInst* node) {
     }
     // ---------------------------------------
     auto reachDef = getReachDef(node);
+    // logDefinition(node, reachDef);
     assert(reachDef->stackSize() >= 2);
 
     auto arg1 = reachDef->pop();
@@ -268,7 +287,7 @@ void PDG::visitCompareInst(CompareInst* node) {
     arg1->clear(node);
     reachDef->push(arg1);
     // ---------------------------------------
-    advance(node, getReachDef(node));
+    advance(node, reachDef);
 }
 void PDG::visitConvertInst(ConvertInst* node) {
     if (waitPaths(node)) {
@@ -276,6 +295,7 @@ void PDG::visitConvertInst(ConvertInst* node) {
     }
     // ---------------------------------------
     auto reachDef = getReachDef(node);
+    // logDefinition(node, reachDef);
     assert(reachDef->stackSize() >= 1);
 
     // write dependencies of arg in top of the stack to this inst
@@ -285,7 +305,7 @@ void PDG::visitConvertInst(ConvertInst* node) {
     reachDef->peek()->clear(node);
 
     // ---------------------------------------
-    advance(node, getReachDef(node));
+    advance(node, reachDef);
 }
 void PDG::visitUnaryInst(UnaryInst* node) {
     if (waitPaths(node)) {
@@ -293,6 +313,7 @@ void PDG::visitUnaryInst(UnaryInst* node) {
     }
     // ---------------------------------------
     auto reachDef = getReachDef(node);
+    // logDefinition(node, reachDef);
     assert(reachDef->stackSize() >= 1);
 
     auto arg = reachDef->peek();
@@ -304,7 +325,7 @@ void PDG::visitUnaryInst(UnaryInst* node) {
     arg->clear(node);
 
     // ---------------------------------------
-    advance(node, getReachDef(node));
+    advance(node, reachDef);
 }
 void PDG::visitLoadInst(LoadInst* node) {
     if (waitPaths(node)) {
@@ -312,6 +333,7 @@ void PDG::visitLoadInst(LoadInst* node) {
     }
     // ---------------------------------------
     auto reachDef = getReachDef(node);
+    // logDefinition(node, reachDef);
     assert(reachDef->stackSize() >= 1);
 
     // pop index and write dependencies
@@ -321,7 +343,7 @@ void PDG::visitLoadInst(LoadInst* node) {
     reachDef->push();
 
     // ---------------------------------------
-    advance(node, getReachDef(node));
+    advance(node, reachDef);
 }
 void PDG::visitStoreInst(StoreInst* node) {
     if (waitPaths(node)) {
@@ -329,6 +351,7 @@ void PDG::visitStoreInst(StoreInst* node) {
     }
     // ---------------------------------------
     auto reachDef = getReachDef(node);
+    // logDefinition(node, reachDef);
     assert(reachDef->stackSize() >= 2);
 
     auto c = reachDef->pop();
@@ -338,7 +361,7 @@ void PDG::visitStoreInst(StoreInst* node) {
     c->insertPDGEdge(node);
     i->insertPDGEdge(node);
     // ---------------------------------------
-    advance(node, getReachDef(node));
+    advance(node, reachDef);
 }
 void PDG::visitBrInst(BrInst* node) {
     if (waitPaths(node)) {
@@ -347,14 +370,18 @@ void PDG::visitBrInst(BrInst* node) {
     // ---------------------------------------
     // it expects the jump block to pop labels
     // ---------------------------------------
-    advance(node, getReachDef(node));
+    auto reachDef = getReachDef(node);
+    // logDefinition(node, reachDef);
+    advance(node, reachDef);
 }
 void PDG::visitBrIfInst(BrIfInst* node) {
+    auto test = node->label() == "$L6";
     if (waitPaths(node)) {
         return;
     }
     // ---------------------------------------
     auto reachDef = getReachDef(node);
+    // logDefinition(node, reachDef);
     assert(reachDef->stackSize() >= 1);
 
     auto arg = reachDef->pop();
@@ -362,7 +389,7 @@ void PDG::visitBrIfInst(BrIfInst* node) {
 
     // it expects the jumpp block (if true) to pop labels
     // ---------------------------------------
-    advance(node, getReachDef(node));
+    advance(node, reachDef);
 }
 void PDG::visitGlobalGetInst(GlobalGetInst* node) {
     if (waitPaths(node)) {
@@ -370,6 +397,7 @@ void PDG::visitGlobalGetInst(GlobalGetInst* node) {
     }
     // ---------------------------------------
     auto reachDef = getReachDef(node);
+    // logDefinition(node, reachDef);
 
     reachDef->push(reachDef->getGlobal(node->label()));
     auto varDef = reachDef->peek();
@@ -380,7 +408,7 @@ void PDG::visitGlobalGetInst(GlobalGetInst* node) {
         varDef->insert(node->label(), PDGType::Global, node);
     }
     // ---------------------------------------
-    advance(node, getReachDef(node));
+    advance(node, reachDef);
 }
 void PDG::visitGlobalSetInst(GlobalSetInst* node) {
     if (waitPaths(node)) {
@@ -388,6 +416,7 @@ void PDG::visitGlobalSetInst(GlobalSetInst* node) {
     }
     // ---------------------------------------
     auto reachDef = getReachDef(node);
+    // logDefinition(node, reachDef);
     assert(reachDef->stackSize() >= 1);
 
     auto arg = reachDef->pop();
@@ -396,7 +425,7 @@ void PDG::visitGlobalSetInst(GlobalSetInst* node) {
     reachDef->insertGlobal(node->label(), arg);
 
     // ---------------------------------------
-    advance(node, getReachDef(node));
+    advance(node, reachDef);
 }
 void PDG::visitLocalGetInst(LocalGetInst* node) {
     if (waitPaths(node)) {
@@ -404,6 +433,7 @@ void PDG::visitLocalGetInst(LocalGetInst* node) {
     }
     // ---------------------------------------
     auto reachDef = getReachDef(node);
+    // logDefinition(node, reachDef);
 
     reachDef->push(reachDef->getLocal(node->label()));
     auto varDef = reachDef->peek();
@@ -415,7 +445,7 @@ void PDG::visitLocalGetInst(LocalGetInst* node) {
     }
 
     // ---------------------------------------
-    advance(node, getReachDef(node));
+    advance(node, reachDef);
 }
 void PDG::visitLocalSetInst(LocalSetInst* node) {
     if (waitPaths(node)) {
@@ -423,6 +453,7 @@ void PDG::visitLocalSetInst(LocalSetInst* node) {
     }
     // ---------------------------------------
     auto reachDef = getReachDef(node);
+    // logDefinition(node, reachDef);
     assert(reachDef->stackSize() >= 1);
 
     auto arg = reachDef->pop();
@@ -431,7 +462,7 @@ void PDG::visitLocalSetInst(LocalSetInst* node) {
 
     reachDef->insertLocal(node->label(), arg);
     // ---------------------------------------
-    advance(node, getReachDef(node));
+    advance(node, reachDef);
 }
 void PDG::visitLocalTeeInst(LocalTeeInst* node) {
     if (waitPaths(node)) {
@@ -439,6 +470,7 @@ void PDG::visitLocalTeeInst(LocalTeeInst* node) {
     }
     // ---------------------------------------
     auto reachDef = getReachDef(node);
+    // logDefinition(node, reachDef);
     assert(reachDef->stackSize() >= 1);
 
     // pop value
@@ -454,7 +486,7 @@ void PDG::visitLocalTeeInst(LocalTeeInst* node) {
     reachDef->push(arg);
 
     // ---------------------------------------
-    advance(node, getReachDef(node));
+    advance(node, reachDef);
 }
 void PDG::visitCallInst(CallInst* node) {
     if (waitPaths(node)) {
@@ -462,6 +494,7 @@ void PDG::visitCallInst(CallInst* node) {
     }
     // ---------------------------------------
     auto reachDef = getReachDef(node);
+    // logDefinition(node, reachDef);
     assert(reachDef->stackSize() >= node->nargs());
 
     // Pop args
@@ -479,7 +512,7 @@ void PDG::visitCallInst(CallInst* node) {
     }
 
     // ---------------------------------------
-    advance(node, getReachDef(node));
+    advance(node, reachDef);
 }
 void PDG::visitCallIndirectInst(CallIndirectInst* node) {
     if (waitPaths(node)) {
@@ -487,6 +520,7 @@ void PDG::visitCallIndirectInst(CallIndirectInst* node) {
     }
     // ---------------------------------------
     auto reachDef = getReachDef(node);
+    // logDefinition(node, reachDef);
     assert(reachDef->stackSize() >= node->nargs());
 
     // pop func index
@@ -507,7 +541,7 @@ void PDG::visitCallIndirectInst(CallIndirectInst* node) {
         def->insert(node->label(), PDGType::Function, node);
     }
     // ---------------------------------------
-    advance(node, getReachDef(node));
+    advance(node, reachDef);
 }
 void PDG::visitBeginBlockInst(BeginBlockInst* node) {
     if (!_loopsStack.empty() && _loopsInsts.count(_loopsStack.top()) == 1) {
@@ -519,6 +553,7 @@ void PDG::visitBeginBlockInst(BeginBlockInst* node) {
     // ---------------------------------------
     auto reachDef = getReachDef(node);
     reachDef->pushLabel(node->label());
+    // logDefinition(node, reachDef);
     // ---------------------------------------
     advance(node, getReachDef(node));
 }
@@ -537,61 +572,62 @@ void PDG::visitBlockInst(BlockInst* node) {
         // push back the results
         reachDef->push(results);
     }
+    auto reachDef = getReachDef(node);
+    // logDefinition(node, reachDef);
     // ---------------------------------------
-    advance(node, getReachDef(node));
+    advance(node, reachDef);
 }
 void PDG::visitLoopInst(LoopInst* node) {
-    auto test = node->label() == "$L2";
-    static int counter = 0;
-    if (test) {
-        counter++;
+    if (_loopsInsts.count(node) == 0) {
+        _loopsInsts[node] =
+            Query::BFSincludes({node}, Query::ALL_NODES, Query::AST_EDGES);
     }
+    auto test = node->label() == "$L68";
     int count = _loops.count(node);
-    if (count == 0 && waitPaths(node, true)) {
+    if (waitPaths(node, true)) {
         return;
-    } else if (count == 1 && _loopEnd.count(node) == 1) {
-        auto reachDef = getReachDef(node);
-        reachDef->unionDef(*_loops[node]);
-        auto noAdvance = _loopAdvance.count(node) == 1;
-        auto isEqual = reachDef->equals(*_loops[node]);
-        if (noAdvance && _loopsStack.empty()) {
-            return;
-        } else if (!noAdvance && _loopsStack.empty()) {
-            _loopAdvance.insert(node);
-            advance(node, reachDef);
-            return;
-        } else if (noAdvance && isEqual) {
-            return;
-        } else if (!noAdvance && isEqual) {
-            if (_loopsStack.top() == node) {
-                _loopsStack.pop();
-            }
-            if (_loopsStack.empty()) {
-                _loopAdvance.clear();
-            }
-            _loopAdvance.insert(node);
-            advance(node, reachDef);
-            return;
-        } else {
-            _loopAdvance.erase(node);
-            _loopsStack.push(node);
-            _loopEnd.erase(node);
-        }
-
     } else if (count == 0) {
         _loopsStack.push(node);
-        if (_loopsInsts.count(node) == 0) {
-            _loopsInsts[node] =
-                Query::BFS({node}, Query::ALL_NODES, Query::AST_EDGES);
-        }
     }
     // ---------------------------------------
+    //std::cout << "loop " + node->label() << std::endl;
     auto reachDef = getReachDef(node);
     if (count == 1) {
-        reachDef->unionDef(*_loops[node]);
+        reachDef->unionDef(_loops[node]);
+        // logDefinition(node, reachDef);
         if (reachDef->equals(*_loops[node])) {
-            _loopEnd.insert(node);
+            _loopsEntrances[node].second =
+                std::make_shared<ReachDefinition>(*reachDef);
+            if (_loopsInsts[node].count(_lastNode) == 1 &&
+                (_loopsStack.empty() || _loopsStack.top() != node)) {
+                return;
+            }
+            if (!_loopsStack.empty() && _loopsStack.top() == node) {
+                // pop stack
+                _loopsStack.pop();
+            }
+
+            _reachDef.erase(node);
+            advance(node, reachDef);
+            return;
+        } else if (_loopsStack.empty() || _loopsStack.top() != node) {
+            if (_loopsInsts[node].count(_lastNode) == 0) {
+                if (reachDef->equals(*_loopsEntrances[node].first)) {
+                    reachDef = std::make_shared<ReachDefinition>(
+                        *_loopsEntrances[node].second);
+                } else {
+                    _loopsEntrances[node] = std::make_pair(
+                        std::make_shared<ReachDefinition>(*reachDef),
+                        std::make_shared<ReachDefinition>(*reachDef));
+                }
+            }
+            _loopsStack.push(node);
         }
+    } else {
+        _loopsEntrances[node] =
+            std::make_pair(std::make_shared<ReachDefinition>(*reachDef),
+                           std::make_shared<ReachDefinition>(*reachDef));
+        // logDefinition(node, reachDef);
     }
     // Save loop def
     _loops[node] = std::make_shared<ReachDefinition>(*reachDef);
@@ -606,6 +642,7 @@ void PDG::visitIfInst(IfInst* node) {
     }
     // ---------------------------------------
     auto reachDef = getReachDef(node);
+    // logDefinition(node, reachDef);
     assert(reachDef->stackSize() >= 1);
 
     auto condition = reachDef->pop();
@@ -617,13 +654,23 @@ void PDG::visitIfInst(IfInst* node) {
 inline bool PDG::waitPaths(Instruction* inst, bool isLoop) {
     Index inEdgesNum = inst->inEdges(EdgeType::CFG).size();
     if (isLoop) {
-        // We need to wait for those that enter the loop from outside. If a
-        // parent is a Br or a BrIf, then it comes from inside the loop.
-        auto filterQuery = Query::filter(
-            Query::parents({inst}, Query::CFG_EDGES), [](Node* node) {
-                return node->instType() != ExprType::Br &&
-                       node->instType() != ExprType::BrIf;
+        // There are 2 cases:
+        // 1) It comes from outside the loop - in this case we need to wait for
+        // all external.
+        // 2) It comes from inside the loop - in this case we need to wait for
+        // all internal
+        auto inEdges = inst->inEdges(EdgeType::CFG);
+        EdgeSet filterQuery;
+        // Case 1
+        if (_loopsInsts[inst].count(_lastNode) == 0) {
+            filterQuery = Query::filterEdges(inEdges, [&](Edge* e) {
+                return _loopsInsts[inst].count(e->src()) == 0;
             });
+        } else {  // Case 2
+            filterQuery = Query::filterEdges(inEdges, [&](Edge* e) {
+                return _loopsInsts[inst].count(e->src()) == 1;
+            });
+        }
         inEdgesNum = filterQuery.size();
     }
     if (!_loopsStack.empty()) {
@@ -696,8 +743,6 @@ inline void PDG::advance(Instruction* inst,
 
     if (outEdges.size() > 1) {
         loopsStack = _loopsStack;
-        loopEnd = _loopEnd;
-        loopAdvance = _loopAdvance;
         for (auto it = std::next(outEdges.begin()); it != outEdges.end();
              ++it) {
             auto newReachDef =
@@ -713,12 +758,22 @@ inline void PDG::advance(Instruction* inst,
     for (auto e : outEdges) {
         if (notFirst) {
             _loopsStack = loopsStack;
-            _loopEnd.insert(loopEnd.begin(), loopEnd.end());
-            _loopAdvance.insert(_loopAdvance.begin(), _loopAdvance.end());
         }
         e->accept(this);
         notFirst = true;
     }
+}
+
+void PDG::logDefinition(Node* inst, std::shared_ptr<ReachDefinition> def) {
+    if (!_options.verbose ||
+        (!_options.loopName.empty() && _verboseLoops.count(inst) == 0)) {
+        return;
+    }
+    json instLog;
+    instLog["id"] = inst->getId();
+    instLog["lastInstId"] = _lastNode->getId();
+    instLog["def"] = *def;
+    _verbose.push_back(instLog);
 }
 
 }  // namespace wasmati

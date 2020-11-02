@@ -83,6 +83,10 @@ public:
         assert(false);
         return false;
     }
+    virtual bool isExport() const {
+        assert(false);
+        return false;
+    }
     virtual Type varType() const {
         assert(false);
         return {};
@@ -176,15 +180,17 @@ class Function : public BaseNode<NodeType::Function> {
     const Index _nlocals;
     const Index _nresults;
     const bool _isImport;
+    const bool _isExport;
 
 public:
-    Function(Func* f, Index index, bool isImport)
+    Function(Func* f, Index index, bool isImport, bool isExport)
         : _f(f),
           _index(index),
           _nargs(f->GetNumParams()),
           _nlocals(f->GetNumLocals()),
           _nresults(f->GetNumResults()),
-          _isImport(isImport) {}
+          _isImport(isImport),
+          _isExport(isExport) {}
 
     const std::string& name() const override { return _f->name; }
     Index index() const override { return _index; }
@@ -192,6 +198,7 @@ public:
     Index nlocals() const override { return _nlocals; }
     Index nresults() const override { return _nresults; }
     bool isImport() const override { return _isImport; }
+    bool isExport() const override { return _isExport; }
     Func* getFunc() { return _f; }
 
     void accept(GraphVisitor* visitor);

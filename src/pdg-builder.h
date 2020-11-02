@@ -1,6 +1,7 @@
 #ifndef WASMATI_PDG_BUILDER_H_
 #define WASMATI_PDG_BUILDER_H_
 
+#include <fstream>
 #include <list>
 #include <map>
 #include <set>
@@ -22,13 +23,21 @@ private:
     Func* currentFunction = nullptr;
     std::map<Node*, std::set<std::shared_ptr<ReachDefinition>>> _reachDef;
     std::map<Node*, std::shared_ptr<ReachDefinition>> _loops;
+    std::map<Node*,
+             std::pair<std::shared_ptr<ReachDefinition>,
+                       std::shared_ptr<ReachDefinition>>>
+        _loopsEntrances;
     std::map<Node*, NodeSet> _loopsInsts;
     std::stack<LoopInst*> _loopsStack;
-    std::set<LoopInst*> _loopEnd;
-    std::set<LoopInst*> _loopAdvance;
+    Node* _lastNode;
+
+    GenerateCPGOptions _options;
+    json _verbose;
+    NodeSet _verboseLoops;
 
 public:
-    PDG(ModuleContext& mc, Graph& graph) : mc(mc), graph(graph) {}
+    PDG(ModuleContext& mc, Graph& graph)
+        : mc(mc), graph(graph), _verbose(json::array()) {}
 
     ~PDG() {}
 
@@ -86,6 +95,8 @@ private:
     inline std::shared_ptr<ReachDefinition> getReachDef(Instruction* inst);
     inline void advance(Instruction* inst,
                         std::shared_ptr<ReachDefinition> resultReachDef);
+
+    inline void logDefinition(Node* inst, std::shared_ptr<ReachDefinition> def);
 };
 
 struct Label {
@@ -99,6 +110,14 @@ struct Label {
     }
 
     bool operator==(const Label& o) const { return equals(o); }
+
+    friend void to_json(json& j, const Label& l) {
+        j.push_back({l.name, l.pointer});
+    }
+
+    friend void from_json(const json& j, Label& l) {
+        // Do not care.
+    }
 };
 
 // A set
@@ -128,10 +147,12 @@ public:
         }
 
         bool operator<(const Var& o) const {
-            std::ostringstream left, right;
+            static std::ostringstream left, right;
+            left.clear();
+            right.clear();
             left << name << static_cast<int>(type) << value;
             right << o.name << static_cast<int>(o.type) << o.value;
-            return left.str() < right.str();
+            return name < o.name;
         }
     };
 
@@ -219,6 +240,24 @@ public:
         }
         return true;
     }
+
+    friend void to_json(json& j, const Definition& d) {
+        for (auto const& kv : d._def) {
+            json def;
+            def["name"] = kv.first.name;
+            def["type"] = kv.first.type;
+            json nodes = json::array();
+            for (auto node : kv.second) {
+                nodes.push_back(node->getId());
+            }
+            def["nodes"] = nodes;
+            j.push_back(def);
+        }
+    }
+
+    friend void from_json(const json& j, Definition& d) {
+        // Do not care.
+    }
 };
 
 // A set of sets indexed by name
@@ -272,6 +311,16 @@ public:
             }
         }
         return true;
+    }
+
+    friend void to_json(json& j, const Definitions& d) {
+        for (auto const& kv : d._defs) {
+            j[kv.first] = *kv.second;
+        }
+    }
+
+    friend void from_json(const json& j, Definitions& v) {
+        // Do not care.
     }
 };
 
@@ -357,6 +406,12 @@ public:
         }
     }
 
+    inline void unionDef(std::shared_ptr<ReachDefinition> otherDef) {
+        if (this != otherDef.get()) {
+            unionDef(*otherDef);
+        }
+    }
+
     inline Index stackSize() const {
         if (_labels.size() > 0) {
             return _stack.size() - _labels.front().pointer;
@@ -420,6 +475,21 @@ public:
             }
         }
         return true;
+    }
+
+    friend void to_json(json& j, const ReachDefinition& v) {
+        j["globals"] = v._globals;
+        j["locals"] = v._locals;
+        j["labels"] = v._labels;
+        json stack = json::array();
+        for (auto def : v._stack) {
+            stack.push_back(*def);
+        }
+        j["stack"] = stack;
+    }
+
+    friend void from_json(const json& j, ReachDefinition& v) {
+        // Do not care.
     }
 };
 

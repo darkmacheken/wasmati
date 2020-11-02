@@ -273,11 +273,11 @@ bool CFG::construct(const ExprList& es) {
                 new CGEdge(inst, func);
 
                 // insert PG
-                auto funcParams = Query::parameters({ func });
-                auto callParams = Query::children({ inst }, Query::AST_EDGES);
+                auto funcParams = Query::parameters({func});
+                auto callParams = Query::children({inst}, Query::AST_EDGES);
 
                 for (auto itf = funcParams.begin(), itc = callParams.begin();
-                    itf != funcParams.end(); ++itf, ++itc) {
+                     itf != funcParams.end(); ++itf, ++itc) {
                     new PGEdge(*itc, *itf);
                 }
             }
@@ -321,6 +321,10 @@ void CFG::insertEdgeFromLastExpr(const wabt::ExprList& es,
         auto ifInst = ast.exprNodes.at(&lastExpr);
         if (ifExpr->false_.empty()) {
             new CFGEdge(ifInst, blockInst, "false");
+            auto& lastIfInst = ifExpr->true_.exprs.back();
+            if (lastIfInst.type() == ExprType::BrIf) {
+                new CFGEdge(ast.ifBlocks.at(&ifExpr->true_)->block(), blockInst);
+            }
         } else {
             auto innerBlock = ifInst->getOutEdge(1, EdgeType::AST)->dest();
             if (innerBlock->inEdges(EdgeType::CFG).size() > 0) {

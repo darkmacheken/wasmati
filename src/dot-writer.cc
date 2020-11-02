@@ -3,6 +3,11 @@
 namespace wasmati {
 
 void DotWriter::writeGraph() {
+    NodeSet loopsInsts;
+    if (!_options.loopName.empty()) {
+        loopsInsts = Queries::loopsInsts(_options.loopName);
+    }
+
     writePuts("digraph G {");
     writePuts("graph [rankdir=TD];");
     writePuts("node [shape=none];");
@@ -10,6 +15,9 @@ void DotWriter::writeGraph() {
         _options.printNoAST || _options.printNoCFG || _options.printNoPDG;
 
     for (auto const& node : _graph->getNodes()) {
+        if (!loopsInsts.empty() && loopsInsts.count(node) == 0) {
+            continue;
+        }
         node->acceptEdges(this);
 
         if (!justOneGraph) {
@@ -75,7 +83,8 @@ void DotWriter::visitCGEdge(CGEdge* e) {
         return;
     }
     writeStringln(std::to_string(e->src()->getId()) + " -> " +
-        std::to_string(e->dest()->getId()) + " [color=mediumpurple3]");
+                  std::to_string(e->dest()->getId()) +
+                  " [color=mediumpurple3]");
 }
 
 void DotWriter::visitPGEdge(PGEdge* e) {
@@ -83,7 +92,7 @@ void DotWriter::visitPGEdge(PGEdge* e) {
         return;
     }
     writeStringln(std::to_string(e->src()->getId()) + " -> " +
-        std::to_string(e->dest()->getId()) + " [color=orangered]");
+                  std::to_string(e->dest()->getId()) + " [color=orangered]");
 }
 
 void DotWriter::visitModule(Module* mod) {

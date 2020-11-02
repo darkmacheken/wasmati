@@ -4,12 +4,23 @@
 #include <list>
 #include <map>
 #include <sstream>
-#include "include/nlohmann/json.hpp"
 #include "query.h"
 
-using nlohmann::json;
+#define IMPORT_AS_SOURCES  "importAsSources"
+#define EXPORTED_AS_SINKS  "exportedAsSinks"
+#define BLACKLIST  "blackList"
+#define WHITELIST  "whiteList"
+#define SOURCES  "sources"
+#define SINKS  "sinks"
+#define TAINTED  "tainted"
+#define PARAMS  "params"
+#define BUFFER_OVERFLOW  "bufferOverflow"
+#define BUFFER  "buffer"
+#define SIZE  "size"
+#define FORMAT_STRING  "formatString"
 
 namespace wasmati {
+
 
 static const json defaultConfig = R"(
 {
@@ -17,6 +28,8 @@ static const json defaultConfig = R"(
 	"exportedAsSinks": true,
 	"blackList": [],
 	"whiteList": [],
+    "sources": [],
+    "sinks": [],
 	"tainted": {
 		"main": { "params": [ 0, 1 ] }
 	},
@@ -108,6 +121,8 @@ struct Vulnerability {
 };
 
 void checkVulnerabilities(json& config, std::list<Vulnerability>& vulns);
+void verifyConfig(json& config);
+
 void checkUnreachableCode(json& config, std::list<Vulnerability>& vulns);
 
 void checkBufferOverflow(json& config, std::list<Vulnerability>& vulns);
@@ -115,6 +130,7 @@ void checkBoBuffsStatic(json& config, std::list<Vulnerability>& vulns);
 void checkBoScanfLoops(json& config, std::list<Vulnerability>& vulns);
 
 void checkFormatString(json& config, std::list<Vulnerability>& vulns);
+void checkTainted(json& config, std::list<Vulnerability>& vulns);
 void checkIntegerOverflow(json& config);
 void checkUseAfterFree(json& config);
 std::map<int, int> checkBufferSizes(Node* func);

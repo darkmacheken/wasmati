@@ -87,6 +87,25 @@ bool Query::containsEdge(const EdgeSet& edges,
     return false;
 }
 
+NodeSet Query::map(const NodeSet& nodes,
+                   const std::function<Node*(Node*)> func) {
+    NodeSet result;
+    for (Node* node : nodes) {
+        result.insert(func(node));
+    }
+    return result;
+}
+
+NodeSet Query::map(const NodeSet& nodes,
+                   const std::function<NodeSet(Node*)> func) {
+    NodeSet result;
+    for (Node* node : nodes) {
+        auto mapping = func(node);
+        result.insert(mapping.begin(), mapping.end());
+    }
+    return result;
+}
+
 NodeSet Query::BFS(const NodeSet& nodes,
                    const NodeCondition& nodeCondition,
                    const EdgeCondition& edgeCondition,
@@ -120,8 +139,8 @@ NodeSet Query::BFS(const NodeSet& nodes,
     if (nextQuery.size() == 0) {
         return result;
     }
-    auto queryResult = BFS(nextQuery, nodeCondition, edgeCondition, limit,
-                           reverse, visited);
+    auto queryResult =
+        BFS(nextQuery, nodeCondition, edgeCondition, limit, reverse, visited);
     if (queryResult.size() == 0) {
         return result;
     }
@@ -134,35 +153,9 @@ NodeSet Query::BFSincludes(const NodeSet& nodes,
                            const EdgeCondition& edgeCondition,
                            Index limit,
                            bool reverse) {
-    NodeSet result;
-    NodeSet nextQuery;
-    if (nodes.size() == 0 || limit == 0) {
-        return result;
-    }
-
-    for (Node* node : nodes) {
-        if (nodeCondition(node)) {
-            if (limit == 0) {
-                return result;
-            }
-            result.insert(node);
-            limit--;
-        }
-        auto edges = reverse ? node->inEdges() : node->outEdges();
-        for (Edge* edge : filterEdges(edges, edgeCondition)) {
-            auto node = reverse ? edge->src() : edge->dest();
-            nextQuery.insert(node);
-        }
-    }
-    if (nextQuery.size() == 0) {
-        return result;
-    }
-    auto queryResult =
-        BFS(nextQuery, nodeCondition, edgeCondition, limit, reverse);
-    if (queryResult.size() == 0) {
-        return result;
-    }
-    result.insert(queryResult.begin(), queryResult.end());
+    auto filtering = filter(nodes, nodeCondition);
+    auto result = BFS(nodes, nodeCondition, edgeCondition, limit, reverse);
+    result.insert(filtering.begin(), filtering.end());
     return result;
 }
 
@@ -207,5 +200,24 @@ NodeSet Query::parameters(const NodeSet& nodes,
         }
     }
     return params;
+}
+NodeSet Queries::loopsInsts(std::string& loopName) {
+    NodeSet results;
+    auto loops = Query::instructions(Query::functions(), [&](Node* node) {
+        return node->instType() == ExprType::Loop && node->label() == loopName;
+    });
+    results = Query::BFSincludes(loops, Query::ALL_INSTS, Query::AST_EDGES);
+    auto beginBlocks = Query::BFS(
+        loops,
+        [&](Node* node) {
+            return node->instType() == ExprType::Block &&
+                   Query::contains(
+                       Query::parents({node}, Query::CFG_EDGES),
+                       [&](Node* n) { return results.count(n) == 1; });
+        },
+        Query::CFG_EDGES);
+
+    results.insert(beginBlocks.begin(), beginBlocks.end());
+    return results;
 }
 }  // namespace wasmati

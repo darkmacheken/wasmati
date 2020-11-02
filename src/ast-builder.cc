@@ -18,9 +18,19 @@ void AST::generateAST(GenerateCPGOptions& options) {
             func_index++;
             continue;
         }
-        auto isImport = mc.module.IsImport(ExternalKind::Func, Var(func_index));
+        auto test = f->name == "$bof";
+        bool isImport = mc.module.IsImport(ExternalKind::Func, Var(func_index));
+        bool isExport = false;
+        // check if isEXport
+        for (Export* exp : mc.module.exports) {
+            if (exp->kind == ExternalKind::Func && exp->var.is_name() &&
+                exp->var.name() == f->name) {
+                isExport = true;
+                break;
+            }
+        }
         // Function
-        Function* func = new Function(f, func_index, isImport);
+        Function* func = new Function(f, func_index, isImport, isExport);
         graph.insertNode(func);
         new ASTEdge(m, func);
         // Function Signature

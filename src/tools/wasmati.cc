@@ -98,6 +98,19 @@ static void ParseOptions(int argc, char** argv) {
                          cpgOptions.funcName = argument;
                          cpgOptions.funcName = "$" + cpgOptions.funcName;
                      });
+    parser.AddOption('v', "verbose", "OUTPUTLOG",
+                     "Print all information during generation of CPG.",
+                     [](const char* argument) {
+                         cpgOptions.logFile = argument;
+                         ConvertBackslashToSlash(&cpgOptions.logFile);
+                         cpgOptions.verbose = true;
+                     });
+    parser.AddOption('l', "loop", "LOOPNAME",
+                     "Print all information during generation of CPG.",
+                     [](const char* argument) {
+                         cpgOptions.loopName = argument;
+                         cpgOptions.loopName = "$" + cpgOptions.loopName;
+                     });
     s_features.AddOptions(&parser);
     parser.AddOption("ignore-custom-section-errors",
                      "Ignore errors in custom sections",
@@ -109,21 +122,16 @@ static void ParseOptions(int argc, char** argv) {
                            s_infile = argument;
                            ConvertBackslashToSlash(&s_infile);
                        });
-    parser.AddOption("ast", "Output the Abstract Syntax Tree", []() {
-        cpgOptions.printNoAST = false;
-    });
-    parser.AddOption("cfg", "Output the Control Flow Graph", []() {
-        cpgOptions.printNoCFG = false;
-    });
-    parser.AddOption("pdg", "Output the Program Dependence Graph", []() {
-        cpgOptions.printNoPDG = false;
-    });
-    parser.AddOption("cg", "Output the Call Graph", []() {
-        cpgOptions.printNoCG = false;
-    });
-    parser.AddOption("pg", "Output the Parameters Graph", []() {
-        cpgOptions.printNoPG = false;
-    });
+    parser.AddOption("ast", "Output the Abstract Syntax Tree",
+                     []() { cpgOptions.printNoAST = false; });
+    parser.AddOption("cfg", "Output the Control Flow Graph",
+                     []() { cpgOptions.printNoCFG = false; });
+    parser.AddOption("pdg", "Output the Program Dependence Graph",
+                     []() { cpgOptions.printNoPDG = false; });
+    parser.AddOption("cg", "Output the Call Graph",
+                     []() { cpgOptions.printNoCG = false; });
+    parser.AddOption("pg", "Output the Parameters Graph",
+                     []() { cpgOptions.printNoPG = false; });
     parser.Parse(argc, argv);
 }
 
@@ -158,12 +166,7 @@ int ProgramMain(int argc, char** argv) {
     std::list<Vulnerability> vulns;
     checkVulnerabilities(config, vulns);
 
-    json list = json::array();
-    for (auto const& vuln : vulns) {
-        json j;
-        to_json(j, vuln);
-        list.insert(list.end(), j);
-    }
+    json list = vulns;
 
     if (s_outfile.empty()) {
         std::cout << list.dump(4) << std::endl;

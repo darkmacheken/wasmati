@@ -8,6 +8,9 @@ struct GenerateCPGOptions {
     bool printNoPDG = true;
     bool printNoCG = true;
     bool printNoPG = true;
+    bool verbose = false;
+    std::string logFile;
+    std::string loopName;
 };
 
 }  // namespace wasmati

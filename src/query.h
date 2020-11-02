@@ -3,6 +3,9 @@
 
 #include <set>
 #include "graph.h"
+#include "include/nlohmann/json.hpp"
+
+using nlohmann::json;
 
 namespace wasmati {
 typedef std::function<bool(Node*)> NodeCondition;
@@ -84,6 +87,41 @@ public:
     static bool containsEdge(const EdgeSet& edges,
                              const EdgeCondition& edgeCondition);
 
+    /// @brief Creates a new NodeSet with the results of calling a function for
+    /// every node element.
+    /// @param nodes Set of nodes
+    /// @param func Function to call to each element.
+    /// @return A NodeSet with the results of calling a function for every node
+    /// element.
+    static NodeSet map(const NodeSet& nodes,
+                       const std::function<Node*(Node*)> func);
+
+    /// @brief  Creates a new NodeSet with the results of calling a function for
+    /// every node element
+    /// @param nodes Set of nodes
+    /// @param func Function to call to each element.
+    /// @return A NodeSet with the results of calling a function for every node
+    /// element.
+    static NodeSet map(const NodeSet& nodes,
+                       const std::function<NodeSet(Node*)> func);
+
+    /// @brief Creates a new NodeSet with the results of calling a function for
+    /// every node element.
+    /// @tparam T Type of return
+    /// @param nodes Set of nodes
+    /// @param func Function to call to each element.
+    /// @return A set of type T  with the results of calling a function for
+    /// every node element.
+    template <class T>
+    static std::set<T> map(const NodeSet& nodes,
+                           const std::function<T(Node*)> func) {
+        std::set<T> result;
+        for (Node* node : nodes) {
+            result.insert(func(node));
+        }
+        return result;
+    }
+
     /// @brief Makes a classic BFS alongside the edges that satisfies the
     /// condition edgeCondition, and returns the nodes that satisfies the
     /// condition nodeCondition
@@ -142,6 +180,11 @@ public:
     /// satisfies the condition.
     static NodeSet parameters(const NodeSet& nodes,
                               const NodeCondition& nodeCondition = ALL_NODES);
+};
+
+// This class is to store more complex queries.
+struct Queries {
+    static NodeSet loopsInsts(std::string& loopName);
 };
 }  // namespace wasmati
 #endif  // WABT_AST_BUILDER_H_
