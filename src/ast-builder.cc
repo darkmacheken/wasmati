@@ -18,7 +18,6 @@ void AST::generateAST(GenerateCPGOptions& options) {
             func_index++;
             continue;
         }
-        auto test = f->name == "$bof";
         bool isImport = mc.module.IsImport(ExternalKind::Func, Var(func_index));
         bool isExport = false;
         // check if isEXport
@@ -48,7 +47,7 @@ void AST::generateAST(GenerateCPGOptions& options) {
 
             for (Index i = 0; i < numParameters; i++) {
                 VarNode* tnode =
-                    new VarNode(f->GetParamType(i), localsNames[i]);
+                    new VarNode(f->GetParamType(i), i, localsNames[i]);
                 graph.insertNode(tnode);
                 new ASTEdge(parameters, tnode);
             }
@@ -62,7 +61,7 @@ void AST::generateAST(GenerateCPGOptions& options) {
 
             for (Index i = numParameters; i < f->GetNumParamsAndLocals(); i++) {
                 VarNode* tnode =
-                    new VarNode(f->GetLocalType(i), localsNames[i]);
+                    new VarNode(f->GetLocalType(i), i, localsNames[i]);
                 graph.insertNode(tnode);
                 new ASTEdge(locals, tnode);
             }
@@ -75,7 +74,7 @@ void AST::generateAST(GenerateCPGOptions& options) {
             new ASTEdge(fsign, results);
 
             for (Index i = 0; i < numResults; i++) {
-                VarNode* tnode = new VarNode(f->GetResultType(i));
+                VarNode* tnode = new VarNode(f->GetResultType(i), i);
                 graph.insertNode(tnode);
                 new ASTEdge(results, tnode);
             }

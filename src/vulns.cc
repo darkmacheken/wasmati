@@ -16,6 +16,9 @@ void wasmati::verifyConfig(json& config) {
     // importAsSources
     assert(config.contains(IMPORT_AS_SOURCES));
     assert(config.at(IMPORT_AS_SOURCES).is_boolean());
+    // importAsSinks
+    assert(config.contains(IMPORT_AS_SINKS));
+    assert(config.at(IMPORT_AS_SINKS).is_boolean());
     // exportedAsSinks
     assert(config.contains(EXPORTED_AS_SINKS));
     assert(config.at(EXPORTED_AS_SINKS).is_boolean());
@@ -79,7 +82,7 @@ void wasmati::verifyConfig(json& config) {
 
 void wasmati::checkUnreachableCode(json& config,
                                    std::list<Vulnerability>& vulns) {
-    for (auto func : Query::functions(Query::ALL_NODES)) {
+    NodeStream(Query::functions()).forEach([&](Node* func) {
         auto queryInsts = Query::instructions({func}, [](Node* node) {
             return node->instType() != ExprType::Return &&
                    node->instType() != ExprType::Block &&
@@ -90,7 +93,7 @@ void wasmati::checkUnreachableCode(json& config,
         if (queryInsts.size() > 0) {
             vulns.emplace_back(VulnType::Unreachable, func->name(), "", "");
         }
-    }
+    });
 }
 
 void wasmati::checkBufferOverflow(json& config,
@@ -109,115 +112,123 @@ void wasmati::checkBoBuffsStatic(json& config,
     }
 
     for (auto func : Query::functions()) {
-        auto buffers = checkBufferSizes(func);
-        if (buffers.empty()) {
-            continue;
-        }
+        auto buffersSizes = checkBufferSizes(func);
+        auto buffers = buffersSizes.second;
 
-        NodeSet queryCalls = Query::instructions({func}, [&](Node* node) {
-            return node->instType() == ExprType::Call &&
-                   funcSink.count(node->label()) == 1;
-        });
+        NodeStream({func})
+            .instructions([&](Node* node) {
+                return node->instType() == ExprType::Call &&
+                       funcSink.count(node->label()) == 1;
+            })
+            .forEach([&](Node* call) {
+                json callSink = boConfig.at(call->label());
+                // buffer
+                int indexBuffer;
+                indexBuffer = callSink.at(BUFFER);
+                Node* bufferArg =
+                    call->getOutEdge(indexBuffer, EdgeType::AST)->dest();
 
-        for (auto call : queryCalls) {
-            json callSink = boConfig.at(call->label());
-            if (!callSink.contains(BUFFER) ||
-                !callSink.at(BUFFER).is_number()) {
-                assert(false);
-            }
-            // buffer
-            int indexBuffer;
-            callSink.at(BUFFER).get_to(indexBuffer);
-            Node* bufferArg =
-                call->getOutEdge(indexBuffer, EdgeType::AST)->dest();
-
-            // limit
-            int indexLimit = -1;
-            if (callSink.contains(SIZE)) {
-                callSink.at(SIZE).get_to(indexLimit);
-            } else {
-                vulns.emplace_back(VulnType::BufferOverflow, func->name(),
-                                   call->label(), "");
-            }
-            Node* limitArg =
-                call->getOutEdge(indexLimit, EdgeType::AST)->dest();
-
-            // lookup buffer
-            int bufferPosition = 0;
-            NodeSet queryBuff = Query::BFSincludes(
-                {bufferArg},
-                [&](Node* node) {
-                    if (node->instType() == ExprType::Binary &&
-                        node->opcode() == Opcode::I32Add) {
-                        auto inEdges = node->inEdges(EdgeType::PDG);
-                        EdgeSet set(inEdges.begin(), inEdges.end());
-                        auto containsSP = Query::containsEdge(set, [](Edge* e) {
-                            return e->pdgType() == PDGType::Global &&
-                                   e->label() == "$g0";
-                        });
-                        auto containsConst =
-                            Query::containsEdge(set, [&](Edge* e) {
-                                return e->pdgType() == PDGType::Const &&
-                                       (bufferPosition = e->value().u32) > 0;
-                            });
-                        if (inEdges.size() >= 2 && containsSP &&
-                            containsConst) {
-                            return true;
-                        }
+                // limit
+                int indexLimit = -1;
+                if (callSink.contains(SIZE)) {
+                    indexLimit = callSink.at(SIZE);
+                    if (buffers.size() == 0) {
+                        return;
                     }
-                    if (node->instType() == ExprType::Binary &&
-                        node->opcode() == Opcode::I32Sub) {
-                        auto inEdges = node->inEdges(EdgeType::PDG);
-                        EdgeSet set(inEdges.begin(), inEdges.end());
-                        auto containsSP = Query::containsEdge(set, [](Edge* e) {
-                            return e->pdgType() == PDGType::Global &&
-                                   e->label() == "$g0";
-                        });
-                        auto containsConst =
-                            Query::containsEdge(set, [&](Edge* e) {
-                                return e->pdgType() == PDGType::Const;
-                            });
-                        if (inEdges.size() >= 2 && containsSP &&
-                            containsConst) {
-                            return true;
-                        }
-                    }
-                    return false;
-                },
-                Query::PDG_EDGES, 1, true);
-            if (queryBuff.size() != 1) {
-                continue;
-            }
+                } else {
+                    vulns.emplace_back(VulnType::BufferOverflow, func->name(),
+                                       call->label(), "");
+                    return;
+                }
+                Node* limitArg =
+                    call->getOutEdge(indexLimit, EdgeType::AST)->dest();
 
-            // lookup size
-            int sizeToWrite = 0;
-            auto outEdges = limitArg->outEdges(EdgeType::PDG);
-            if (outEdges.size() == 1 &&
-                (*outEdges.begin())->pdgType() == PDGType::Const) {
-                sizeToWrite = (*outEdges.begin())->value().u32;
-            } else {
-                continue;
-            }
+                // lookup buffer
+                int bufferPosition = 0;
+                auto addOrSubbNode =
+                    NodeStream({bufferArg})
+                        .BFSincludes(
+                            [&](Node* node) {
+                                if (node->instType() == ExprType::Binary &&
+                                    (node->opcode() == Opcode::I32Add ||
+                                     node->opcode() == Opcode::I32Sub)) {
+                                    auto inEdges = EdgeStream(
+                                        node->inEdges(EdgeType::PDG));
+                                    if (!inEdges.containsPDG(PDGType::Global,
+                                                             "$g0")) {
+                                        return false;
+                                    }
+                                    auto constEdge =
+                                        inEdges.filterPDG(PDGType::Const)
+                                            .findFirst();
 
-            int sizeAlloc = buffers.rbegin()->first + buffers.rbegin()->second;
-            if (bufferPosition < 32 &&
-                sizeToWrite > sizeAlloc - bufferPosition) {
-                std::string desc =
-                    "buffer @+" + std::to_string(bufferPosition) + " is " +
-                    std::to_string(sizeAlloc - bufferPosition) +
-                    " and is expecting " + std::to_string(sizeToWrite);
-                vulns.emplace_back(VulnType::BufferOverflow, func->name(),
-                                   call->label(), desc);
-            } else if (bufferPosition >= 32 &&
-                       sizeToWrite > buffers[bufferPosition]) {
-                std::string desc =
-                    "buffer @+" + std::to_string(bufferPosition) + " is " +
-                    std::to_string(buffers[bufferPosition]) +
-                    " and is expecting " + std::to_string(sizeToWrite);
-                vulns.emplace_back(VulnType::BufferOverflow, func->name(),
-                                   call->label(), desc);
-            }
-        }
+                                    if (constEdge.isPresent()) {
+                                        bufferPosition =
+                                            constEdge.get()->value().u32;
+                                        bool test =
+                                            (node->opcode() == Opcode::I32Add)
+                                                ? bufferPosition > 0
+                                                : bufferPosition < 0;
+                                        bufferPosition =
+                                            std::abs(bufferPosition);
+                                        // In case the buffer position is 0:
+                                        // points to the allocation
+                                        if (node->opcode() == Opcode::I32Sub &&
+                                            !test &&
+                                            static_cast<Index>(
+                                                bufferPosition) ==
+                                                buffersSizes.first) {
+                                            bufferPosition = 0;
+                                            return true;
+                                        }
+                                        return test;
+                                    }
+                                }
+                                return false;
+                            },
+                            [](Edge* e) {
+                                return e->type() == EdgeType::PDG &&
+                                       e->pdgType() == PDGType::Global &&
+                                       e->label() == "$g0";
+                            },
+                            1, true)
+                        .findFirst();
+
+                if (!addOrSubbNode.isPresent()) {
+                    return;
+                }
+
+                // lookup size
+                int sizeToWrite = 0;
+                auto outEdges = EdgeStream(limitArg->outEdges(EdgeType::PDG));
+                auto constEdge = outEdges.filterPDG(PDGType::Const).findFirst();
+
+                if (constEdge.isPresent()) {
+                    sizeToWrite = constEdge.get()->value().u32;
+                } else {
+                    return;
+                }
+
+                int sizeAlloc =
+                    buffers.rbegin()->first + buffers.rbegin()->second;
+                if (bufferPosition < 32 &&
+                    sizeToWrite > sizeAlloc - bufferPosition) {
+                    std::string desc =
+                        "buffer @+" + std::to_string(bufferPosition) + " is " +
+                        std::to_string(sizeAlloc - bufferPosition) +
+                        " and is expecting " + std::to_string(sizeToWrite);
+                    vulns.emplace_back(VulnType::BufferOverflow, func->name(),
+                                       call->label(), desc);
+                } else if (bufferPosition >= 32 &&
+                           sizeToWrite > buffers[bufferPosition]) {
+                    std::string desc =
+                        "buffer @+" + std::to_string(bufferPosition) + " is " +
+                        std::to_string(buffers[bufferPosition]) +
+                        " and is expecting " + std::to_string(sizeToWrite);
+                    vulns.emplace_back(VulnType::BufferOverflow, func->name(),
+                                       call->label(), desc);
+                }
+            });
     }
 }
 
@@ -332,7 +343,7 @@ void wasmati::checkFormatString(json& config, std::list<Vulnerability>& vulns) {
     }
 }
 
-std::map<int, int> wasmati::checkBufferSizes(Node* func) {
+std::pair<Index, std::map<int, int>> wasmati::checkBufferSizes(Node* func) {
     std::map<int, int> buffers;
     EdgeSet queryEdges;
     Index totalSizeAllocated;
@@ -358,7 +369,7 @@ std::map<int, int> wasmati::checkBufferSizes(Node* func) {
     }
 
     if (allocQuery.size() != 1 || queryEdges.size() != 2) {
-        return buffers;
+        return std::make_pair(totalSizeAllocated, buffers);
     }
 
     for (Edge* e : queryEdges) {
@@ -376,7 +387,7 @@ std::map<int, int> wasmati::checkBufferSizes(Node* func) {
             auto queryEdges = Query::filterEdges(inEdges, [&](Edge* e) {
                 return (e->pdgType() == PDGType::Const &&
                         static_cast<int>(e->value().u32) > 0 &&
-                        static_cast<int>(e->value().u32) <
+                        static_cast<Index>(e->value().u32) <
                             totalSizeAllocated) ||
                        (e->pdgType() == PDGType::Global &&
                         e->label().compare("$g0") == 0);
@@ -405,10 +416,15 @@ std::map<int, int> wasmati::checkBufferSizes(Node* func) {
         }
         buffers[*it] = size;
     }
-    return buffers;
+    return std::make_pair(totalSizeAllocated, buffers);
 }
 
 void wasmati::checkTainted(json& config, std::list<Vulnerability>& vulns) {
+    taintedFuncToFunc(config, vulns);
+    taintedLocalToFunc(config, vulns);
+}
+
+void wasmati::taintedFuncToFunc(json& config, std::list<Vulnerability>& vulns) {
     std::set<std::string> sources = config.at(SOURCES);
     std::set<std::string> sinks = config.at(SINKS);
 
@@ -419,14 +435,19 @@ void wasmati::checkTainted(json& config, std::list<Vulnerability>& vulns) {
         sources.insert(funcs.begin(), funcs.end());
     }
 
+    if (config.at(IMPORT_AS_SINKS)) {
+        auto funcs = Query::map<std::string>(
+            Query::functions([](Node* node) { return node->isImport(); }),
+            [](Node* node) { return node->name(); });
+        sinks.insert(funcs.begin(), funcs.end());
+    }
+
     if (config.at(EXPORTED_AS_SINKS)) {
         auto funcs = Query::map<std::string>(
             Query::functions([](Node* node) { return node->isExport(); }),
             [](Node* node) { return node->name(); });
         sinks.insert(funcs.begin(), funcs.end());
     }
-
-    auto tainted = config.at(TAINTED);
 
     for (auto func : Query::functions()) {
         auto query = Query::instructions({func}, [&](Node* node) {
@@ -439,8 +460,8 @@ void wasmati::checkTainted(json& config, std::list<Vulnerability>& vulns) {
                         std::stringstream desc;
                         desc << "Source " << e->label() << " reaches sink "
                              << node->label();
-                        vulns.emplace_back(VulnType::Tainted, func->name(), "",
-                                           desc.str());
+                        vulns.emplace_back(VulnType::Tainted, func->name(),
+                                           node->label(), desc.str());
                         return true;
                     }
                     return false;
@@ -449,6 +470,109 @@ void wasmati::checkTainted(json& config, std::list<Vulnerability>& vulns) {
             return false;
         });
     }
+}
+
+void wasmati::taintedLocalToFunc(json& config,
+                                 std::list<Vulnerability>& vulns) {
+    std::set<std::string> sinks = config.at(SINKS);
+
+    if (config.at(IMPORT_AS_SINKS)) {
+        auto funcs = Query::map<std::string>(
+            Query::functions([](Node* node) { return node->isImport(); }),
+            [](Node* node) { return node->name(); });
+        sinks.insert(funcs.begin(), funcs.end());
+    }
+
+    if (config.at(EXPORTED_AS_SINKS)) {
+        auto funcs = Query::map<std::string>(
+            Query::functions([](Node* node) { return node->isExport(); }),
+            [](Node* node) { return node->name(); });
+        sinks.insert(funcs.begin(), funcs.end());
+    }
+
+    for (auto func : Query::functions()) {
+        std::map<std::string, std::pair<std::string, std::string>>
+            taintedParams;
+        NodeStream(func).parameters().forEach([&](Node* param) {
+            std::set<std::string> visited;
+            taintedParams[param->name()] = isTainted(config, param, visited);
+        });
+
+        NodeStream(func)
+            .instructions([&](Node* node) {
+                return node->instType() == ExprType::Call &&
+                       sinks.count(node->label()) == 1;
+            })
+            .forEach([&](Node* call) {
+                auto localsDepends =
+                    EdgeStream(call->inEdges(EdgeType::PDG))
+                        .filterPDG(PDGType::Local)
+                        .map<std::string>([](Edge* e) { return e->label(); });
+
+                NodeStream(call)
+                    .children(Query::AST_EDGES)
+                    .forEach([&](Node* arg) {
+                        auto argsLocalsDepends =
+                            EdgeStream(arg->inEdges(EdgeType::PDG))
+                                .filterPDG(PDGType::Local)
+                                .map<std::string>(
+                                    [](Edge* e) { return e->label(); });
+
+                        localsDepends.insert(argsLocalsDepends.begin(),
+                                             argsLocalsDepends.end());
+                    });
+
+                for (std::string local : localsDepends) {
+                    if (taintedParams.count(local) == 0) {
+                        continue;
+                    } else if (taintedParams[local].first == "") {
+                        continue;
+                    } else {
+                        std::stringstream desc;
+                        desc << local << " tainted from param "
+                             << taintedParams[local].first << " in "
+                             << taintedParams[local].second;
+                        vulns.emplace_back(VulnType::Tainted, func->name(),
+                                           call->label(), desc.str());
+                    }
+                }
+            });
+    }
+}
+
+std::pair<std::string, std::string>
+wasmati::isTainted(json& config, Node* param, std::set<std::string>& visited) {
+    Node* func = Query::function(param);
+    if (visited.count(func->name()) == 1) {
+        return std::make_pair("", "");
+    }
+    visited.insert(func->name());
+
+    if (config[TAINTED].contains(func->name())) {
+        for (Index index : config[TAINTED][func->name()][PARAMS]) {
+            if (index == param->index()) {
+                return std::make_pair(param->name(), func->name());
+            }
+        }
+    }
+    for (auto arg : Query::parents({param}, Query::PG_EDGES)) {
+        auto pdgEdge = EdgeStream(arg->outEdges(EdgeType::PDG))
+                           .filterPDG(PDGType::Local)
+                           .findFirst();
+        if (!pdgEdge.isPresent()) {
+            continue;
+        }
+        auto newParam = NodeStream(Query::function(arg))
+                            .parameters([&](Node* node) {
+                                return node->name() == pdgEdge.get()->label();
+                            })
+                            .findFirst();
+        if (!newParam.isPresent()) {
+            continue;
+        }
+        return isTainted(config, newParam.get(), visited);
+    }
+    return std::make_pair("", "");
 }
 
 void wasmati::checkIntegerOverflow(json& config) {}

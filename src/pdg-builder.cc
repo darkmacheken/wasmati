@@ -375,7 +375,6 @@ void PDG::visitBrInst(BrInst* node) {
     advance(node, reachDef);
 }
 void PDG::visitBrIfInst(BrIfInst* node) {
-    auto test = node->label() == "$L6";
     if (waitPaths(node)) {
         return;
     }
@@ -582,7 +581,6 @@ void PDG::visitLoopInst(LoopInst* node) {
         _loopsInsts[node] =
             Query::BFSincludes({node}, Query::ALL_NODES, Query::AST_EDGES);
     }
-    auto test = node->label() == "$L68";
     int count = _loops.count(node);
     if (waitPaths(node, true)) {
         return;

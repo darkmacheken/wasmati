@@ -16,6 +16,9 @@ const EdgeCondition& Query::PDG_EDGES = [](Edge* e) {
 const EdgeCondition& Query::CG_EDGES = [](Edge* e) {
     return e->type() == EdgeType::CG;
 };
+const EdgeCondition& Query::PG_EDGES = [](Edge* e) {
+    return e->type() == EdgeType::PG;
+};
 const NodeCondition& Query::ALL_INSTS = [](Node* node) {
     return node->type() == NodeType::Instruction;
 };
@@ -154,7 +157,13 @@ NodeSet Query::BFSincludes(const NodeSet& nodes,
                            Index limit,
                            bool reverse) {
     auto filtering = filter(nodes, nodeCondition);
-    auto result = BFS(nodes, nodeCondition, edgeCondition, limit, reverse);
+    if (filtering.size() >= limit) {
+        auto end = filtering.cbegin();
+        std::advance(end, limit);
+        return NodeSet(filtering.cbegin(), end);
+    }
+    auto result = BFS(nodes, nodeCondition, edgeCondition,
+                      limit - filtering.size(), reverse);
     result.insert(filtering.begin(), filtering.end());
     return result;
 }
@@ -166,6 +175,15 @@ NodeSet Query::module() {
 
 NodeSet Query::functions(const NodeCondition& nodeCondition) {
     return filter(children(module(), AST_EDGES), nodeCondition);
+}
+Node* Query::function(Node* node) {
+    assert(node->type() != NodeType::Module);
+    return NodeStream(node)
+        .BFSincludes(
+            [](Node* node) { return node->type() == NodeType::Function; },
+            AST_EDGES, 1, true)
+        .findFirst()
+        .get();
 }
 NodeSet Query::instructions(const NodeSet& nodes,
                             const NodeCondition& nodeCondition) {
@@ -203,9 +221,12 @@ NodeSet Query::parameters(const NodeSet& nodes,
 }
 NodeSet Queries::loopsInsts(std::string& loopName) {
     NodeSet results;
-    auto loops = Query::instructions(Query::functions(), [&](Node* node) {
-        return node->instType() == ExprType::Loop && node->label() == loopName;
-    });
+    auto loops = NodeStream(Query::functions())
+                     .instructions([&](Node* node) {
+                         return node->instType() == ExprType::Loop &&
+                                node->label() == loopName;
+                     })
+                     .toNodeSet();
     results = Query::BFSincludes(loops, Query::ALL_INSTS, Query::AST_EDGES);
     auto beginBlocks = Query::BFS(
         loops,

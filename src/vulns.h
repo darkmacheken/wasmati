@@ -6,32 +6,34 @@
 #include <sstream>
 #include "query.h"
 
-#define IMPORT_AS_SOURCES  "importAsSources"
-#define EXPORTED_AS_SINKS  "exportedAsSinks"
-#define BLACKLIST  "blackList"
-#define WHITELIST  "whiteList"
-#define SOURCES  "sources"
-#define SINKS  "sinks"
-#define TAINTED  "tainted"
-#define PARAMS  "params"
-#define BUFFER_OVERFLOW  "bufferOverflow"
-#define BUFFER  "buffer"
-#define SIZE  "size"
-#define FORMAT_STRING  "formatString"
+#define IMPORT_AS_SOURCES "importAsSources"
+#define IMPORT_AS_SINKS "importAsSinks"
+#define EXPORTED_AS_SINKS "exportedAsSinks"
+#define BLACKLIST "blackList"
+#define WHITELIST "whiteList"
+#define SOURCES "sources"
+#define SINKS "sinks"
+#define TAINTED "tainted"
+#define PARAMS "params"
+#define BUFFER_OVERFLOW "bufferOverflow"
+#define BUFFER "buffer"
+#define SIZE "size"
+#define FORMAT_STRING "formatString"
 
 namespace wasmati {
-
 
 static const json defaultConfig = R"(
 {
 	"importAsSources": true,
+	"importAsSinks": true,
 	"exportedAsSinks": true,
 	"blackList": [],
 	"whiteList": [],
     "sources": [],
-    "sinks": [],
+    "sinks": [ "$strcpy", "$__stpcpy" ],
 	"tainted": {
-		"main": { "params": [ 0, 1 ] }
+		"$main": { "params": [ 0, 1 ] },
+        "$bof": { "params": [ 1 ] }
 	},
 	"bufferOverflow": {
 		"$read": {
@@ -130,10 +132,17 @@ void checkBoBuffsStatic(json& config, std::list<Vulnerability>& vulns);
 void checkBoScanfLoops(json& config, std::list<Vulnerability>& vulns);
 
 void checkFormatString(json& config, std::list<Vulnerability>& vulns);
+
 void checkTainted(json& config, std::list<Vulnerability>& vulns);
+void taintedFuncToFunc(json& config, std::list<Vulnerability>& vulns);
+void taintedLocalToFunc(json& config, std::list<Vulnerability>& vulns);
+std::pair<std::string, std::string> isTainted(json& config,
+                                              Node* param,
+                                              std::set<std::string>& visited);
+
 void checkIntegerOverflow(json& config);
 void checkUseAfterFree(json& config);
-std::map<int, int> checkBufferSizes(Node* func);
+std::pair<Index, std::map<int, int>> checkBufferSizes(Node* func);
 
 }  // namespace wasmati
 #endif  // WABT_AST_BUILDER_H_

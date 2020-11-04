@@ -58,7 +58,8 @@ public:
     const NodeType _type;
 
     // Properties
-    NodeType type() { return _type; }
+    NodeType type() const { return _type; }
+
     virtual const std::string& name() const {
         assert(false);
         return emptyString();
@@ -136,8 +137,8 @@ public:
     inline Index getNumOutEdges() const { return _outEdges.size(); }
     inline Index getNumInEdges() const { return _inEdges.size(); }
 
-    inline Edge* getOutEdge(Index i, EdgeType type);
-    inline Edge* getInEdge(Index i, EdgeType type);
+    Edge* getOutEdge(Index i, EdgeType type);
+    Edge* getInEdge(Index i, EdgeType type);
 
     Node* getChild(Index n, EdgeType type = EdgeType::AST);
     Node* getParent(Index n, EdgeType type = EdgeType::AST);
@@ -206,13 +207,16 @@ public:
 
 class VarNode : public BaseNode<NodeType::VarNode> {
     Type _varType;
+    Index _index;
     const std::string _name;
 
 public:
-    VarNode(Type type, std::string name = "") : _varType(type), _name(name) {}
+    VarNode(Type type, Index index, std::string name = "")
+        : _varType(type), _index(index), _name(name) {}
 
-    const std::string& name() const override { return _name; }
     Type varType() const override { return _varType; }
+    const std::string& name() const override { return _name; }
+    Index index() const override { return _index; }
 
     void accept(GraphVisitor* visitor);
 };
