@@ -126,7 +126,7 @@ public:
 
     template <class T>
     static std::set<T> map(const EdgeSet& edges,
-        const std::function<T(Edge*)> func) {
+                           const std::function<T(Edge*)> func) {
         std::set<T> result;
         for (Edge* e : edges) {
             result.insert(func(e));
@@ -164,6 +164,21 @@ public:
                                const EdgeCondition& edgeCondition = ALL_EDGES,
                                Index limit = UINT32_MAX,
                                bool reverse = false);
+
+    template <class T>
+    static void DFS(Node* source,
+                    const EdgeCondition& edgeCondition,
+                    T aux,
+                    const std::function<std::pair<bool,T>(Node*, T)> consumer) {
+        std::pair<bool, T> nextAux = consumer(source, aux);
+        if (!nextAux.first) {
+            return;
+        }
+
+        for (Edge* e : Query::filterEdges(source->outEdges(), edgeCondition)) {
+            DFS(e->dest(), edgeCondition, nextAux.second, consumer);
+        }
+    }
 
     /// @brief Returns the module of the graph
     /// @return A set cointaining the node module
@@ -253,6 +268,24 @@ public:
             return e->type() == EdgeType::PDG && e->pdgType() == type &&
                    e->label() == label;
         });
+        return *this;
+    }
+
+    EdgeStream& setUnion(EdgeSet b) {
+        edges.insert(b.begin(), b.end());
+        return *this;
+    }
+
+    EdgeStream& distincLabel() {
+        std::set<std::string> labels;
+        EdgeSet result;
+        for (Edge* e : edges) {
+            if (labels.count(e->label()) == 0) {
+                result.insert(e);
+                labels.insert(e->label());
+            }
+        }
+        edges = result;
         return *this;
     }
 

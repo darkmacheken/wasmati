@@ -9,6 +9,7 @@
 #include "src/binary-reader-ir.h"
 #include "src/binary-reader.h"
 #include "src/cfg-builder.h"
+#include "src/datalog-writer.h"
 #include "src/decompiler.h"
 #include "src/dot-writer.h"
 #include "src/error-formatter.h"
@@ -39,7 +40,9 @@ static std::string s_configfile;
 static std::string s_infile;
 static std::string s_outfile;
 static std::string s_doutfile;
+static std::string s_dlogfile;
 static bool generate_dot = false;
+static bool generate_datalog = false;
 static bool is_wat = false;
 static bool is_wasm = false;
 static GenerateCPGOptions cpgOptions;
@@ -81,6 +84,13 @@ static void ParseOptions(int argc, char** argv) {
                          s_doutfile = argument;
                          ConvertBackslashToSlash(&s_doutfile);
                          generate_dot = true;
+                     });
+    parser.AddOption('g', "datalog", "FILENAME",
+                     "Output file for vulnerability report.",
+                     [](const char* argument) {
+                         s_dlogfile = argument;
+                         ConvertBackslashToSlash(&s_dlogfile);
+                         generate_datalog = true;
                      });
     parser.AddOption('c', "config", "FILENAME",
                      "Output file for vulnerability report.",
@@ -132,6 +142,13 @@ static void ParseOptions(int argc, char** argv) {
                      []() { cpgOptions.printNoCG = false; });
     parser.AddOption("pg", "Output the Parameters Graph",
                      []() { cpgOptions.printNoPG = false; });
+    parser.AddOption("all", "Output the Parameters Graph", []() {
+        cpgOptions.printNoAST = false;
+        cpgOptions.printNoCFG = false;
+        cpgOptions.printNoPDG = false;
+        cpgOptions.printNoCG = false;
+        cpgOptions.printNoPG = false;
+    });
     parser.Parse(argc, argv);
 }
 
@@ -179,6 +196,12 @@ int ProgramMain(int argc, char** argv) {
         FileStream stream(!s_doutfile.empty() ? FileStream(s_doutfile)
                                               : FileStream(stdout));
         DotWriter writer(&stream, &graph, cpgOptions);
+        writer.writeGraph();
+    }
+    if (Succeeded(result) && generate_datalog) {
+        FileStream stream(!s_dlogfile.empty() ? FileStream(s_dlogfile)
+                                              : FileStream(stdout));
+        DatalogWriter writer(&stream, &graph, cpgOptions);
         writer.writeGraph();
     }
     return result != Result::Ok;

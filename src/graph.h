@@ -295,32 +295,44 @@ public:
 
     void accept(GraphVisitor* visitor);
 
-    static std::string writeConst(const Const& _const) {
+    static std::string writeConst(const Const& _const, bool prefix = true) {
         std::string s;
         switch (_const.type) {
         case Type::I32:
-            s += Opcode::I32Const_Opcode.GetName();
-            s += " " + std::to_string(static_cast<int32_t>(_const.u32));
+            if (prefix) {
+                s += Opcode::I32Const_Opcode.GetName();
+                s += " ";
+            }
+            s += std::to_string(static_cast<int32_t>(_const.u32));
             break;
 
         case Type::I64:
-            s += Opcode::I64Const_Opcode.GetName();
-            s += " " + std::to_string(static_cast<int64_t>(_const.u64));
+            if (prefix) {
+                s += Opcode::I64Const_Opcode.GetName();
+                s += " ";
+            }
+            s += std::to_string(static_cast<int64_t>(_const.u64));
             break;
 
         case Type::F32: {
-            s += Opcode::F32Const_Opcode.GetName();
+            if (prefix) {
+                s += Opcode::F32Const_Opcode.GetName();
+                s += " ";
+            }
             float f32;
             memcpy(&f32, &_const.f32_bits, sizeof(f32));
-            s += " " + std::to_string(f32);
+            s += std::to_string(f32);
             break;
         }
 
         case Type::F64: {
-            s += Opcode::F64Const_Opcode.GetName();
+            if (prefix) {
+                s += Opcode::F64Const_Opcode.GetName();
+                s += " ";
+            }
             double f64;
             memcpy(&f64, &_const.f64_bits, sizeof(f64));
-            s += " " + std::to_string(f64);
+            s += std::to_string(f64);
             break;
         }
 

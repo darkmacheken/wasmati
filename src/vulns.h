@@ -9,7 +9,7 @@
 #define IMPORT_AS_SOURCES "importAsSources"
 #define IMPORT_AS_SINKS "importAsSinks"
 #define EXPORTED_AS_SINKS "exportedAsSinks"
-#define BLACKLIST "blackList"
+#define IGNORE "ignore"
 #define WHITELIST "whiteList"
 #define SOURCES "sources"
 #define SINKS "sinks"
@@ -19,6 +19,9 @@
 #define BUFFER "buffer"
 #define SIZE "size"
 #define FORMAT_STRING "formatString"
+#define CONTROL_FLOW "controlFlow"
+#define SOURCE "source"
+#define DEST "dest"
 
 namespace wasmati {
 
@@ -27,13 +30,32 @@ static const json defaultConfig = R"(
 	"importAsSources": true,
 	"importAsSinks": true,
 	"exportedAsSinks": true,
-	"blackList": [],
+	"ignore": [
+		"$fgets",
+		"$__stdio_read",
+		"$__stdio_write",
+		"$__stdio_seek",
+		"$__fwritex",
+		"$exit",
+		"$dlmalloc",
+		"$dlfree",
+		"$dlrealloc",
+		"$setenv",
+		"$decfloat",
+		"$sn_write",
+		"$sbrk",
+		"$__strdup",
+		"$__expand_heap",
+		"$raise",
+		"$emscripten_memcpy_big",
+		"$emscripten_resize_heap"
+	],
 	"whiteList": [],
-    "sources": [],
-    "sinks": [ "$strcpy", "$__stpcpy" ],
+	"sources": [],
+	"sinks": [ "$strcpy", "$__stpcpy", "$memcpy" ],
 	"tainted": {
 		"$main": { "params": [ 0, 1 ] },
-        "$bof": { "params": [ 1 ] }
+		"$bof": { "params": [ 1 ] }
 	},
 	"bufferOverflow": {
 		"$read": {
@@ -60,7 +82,13 @@ static const json defaultConfig = R"(
 		"$vsnprintf": 2,
 		"$syslog": 1,
 		"$vsyslog": 1
-	}
+	},
+	"controlFlow": [
+		{
+			"source": "$malloc",
+			"dest": "$free"
+		}
+	]
 }
 )"_json;
 
@@ -130,6 +158,7 @@ void checkUnreachableCode(json& config, std::list<Vulnerability>& vulns);
 void checkBufferOverflow(json& config, std::list<Vulnerability>& vulns);
 void checkBoBuffsStatic(json& config, std::list<Vulnerability>& vulns);
 void checkBoScanfLoops(json& config, std::list<Vulnerability>& vulns);
+std::pair<Index, std::map<int, int>> checkBufferSizes(Node* func);
 
 void checkFormatString(json& config, std::list<Vulnerability>& vulns);
 
@@ -141,8 +170,7 @@ std::pair<std::string, std::string> isTainted(json& config,
                                               std::set<std::string>& visited);
 
 void checkIntegerOverflow(json& config);
-void checkUseAfterFree(json& config);
-std::pair<Index, std::map<int, int>> checkBufferSizes(Node* func);
+void checkUseAfterFree(json& config, std::list<Vulnerability>& vulns);
 
 }  // namespace wasmati
 #endif  // WABT_AST_BUILDER_H_

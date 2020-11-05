@@ -9,7 +9,7 @@ void wasmati::checkVulnerabilities(json& config,
     checkFormatString(config, vulns);
     checkTainted(config, vulns);
     // checkIntegerOverflow();
-    // checkUseAfterFree();
+    checkUseAfterFree(config, vulns);
 }
 
 void wasmati::verifyConfig(json& config) {
@@ -23,9 +23,9 @@ void wasmati::verifyConfig(json& config) {
     assert(config.contains(EXPORTED_AS_SINKS));
     assert(config.at(EXPORTED_AS_SINKS).is_boolean());
     // blackList
-    assert(config.contains(BLACKLIST));
-    assert(config.at(BLACKLIST).is_array());
-    for (auto const& item : config.at(BLACKLIST).items()) {
+    assert(config.contains(IGNORE));
+    assert(config.at(IGNORE).is_array());
+    for (auto const& item : config.at(IGNORE).items()) {
         assert(item.value().is_string());
     }
     // whiteList
@@ -78,6 +78,14 @@ void wasmati::verifyConfig(json& config) {
         assert(item.value().is_number_integer());
         assert(item.value() >= 0);
     }
+    // constrolFlow
+    assert(config.contains(CONTROL_FLOW));
+    assert(config.at(CONTROL_FLOW).is_array());
+    for (auto const& item : config.at(CONTROL_FLOW)) {
+        assert(item.is_object());
+        assert(item.contains(SOURCE));
+        assert(item.contains(DEST));
+    }
 }
 
 void wasmati::checkUnreachableCode(json& config,
@@ -111,7 +119,12 @@ void wasmati::checkBoBuffsStatic(json& config,
         funcSink.insert(kv.key());
     }
 
+    std::set<std::string> ignore = config[IGNORE];
+
     for (auto func : Query::functions()) {
+        if (ignore.count(func->name())) {
+            continue;
+        }
         auto buffersSizes = checkBufferSizes(func);
         auto buffers = buffersSizes.second;
 
@@ -233,7 +246,12 @@ void wasmati::checkBoBuffsStatic(json& config,
 }
 
 void wasmati::checkBoScanfLoops(json& config, std::list<Vulnerability>& vulns) {
+    std::set<std::string> ignore = config[IGNORE];
+
     for (auto func : Query::functions()) {
+        if (ignore.count(func->name())) {
+            continue;
+        }
         // find all loops
         auto loops = Query::instructions({func}, [](Node* node) {
             return node->instType() == ExprType::Loop;
@@ -319,7 +337,12 @@ void wasmati::checkBoScanfLoops(json& config, std::list<Vulnerability>& vulns) {
 void wasmati::checkFormatString(json& config, std::list<Vulnerability>& vulns) {
     json fsConfig = config.at(FORMAT_STRING);
 
+    std::set<std::string> ignore = config[IGNORE];
+
     for (auto func : Query::functions()) {
+        if (ignore.count(func->name())) {
+            continue;
+        }
         if (fsConfig.contains(func->name())) {
             continue;
         }
@@ -442,14 +465,21 @@ void wasmati::taintedFuncToFunc(json& config, std::list<Vulnerability>& vulns) {
         sinks.insert(funcs.begin(), funcs.end());
     }
 
-    if (config.at(EXPORTED_AS_SINKS)) {
-        auto funcs = Query::map<std::string>(
-            Query::functions([](Node* node) { return node->isExport(); }),
-            [](Node* node) { return node->name(); });
-        sinks.insert(funcs.begin(), funcs.end());
+    std::set<std::string> whitelist = config.at(WHITELIST);
+    for (std::string funcName : whitelist) {
+        sinks.erase(funcName);
     }
 
+    std::set<std::string> ignore = config[IGNORE];
+
     for (auto func : Query::functions()) {
+        if (ignore.count(func->name())) {
+            continue;
+        }
+        if (sinks.count(func->name()) == 1) {
+            // if it is already a sink, no use check
+            continue;
+        }
         auto query = Query::instructions({func}, [&](Node* node) {
             if (node->instType() == ExprType::Call &&
                 sinks.count(node->label()) == 1) {
@@ -483,14 +513,21 @@ void wasmati::taintedLocalToFunc(json& config,
         sinks.insert(funcs.begin(), funcs.end());
     }
 
-    if (config.at(EXPORTED_AS_SINKS)) {
-        auto funcs = Query::map<std::string>(
-            Query::functions([](Node* node) { return node->isExport(); }),
-            [](Node* node) { return node->name(); });
-        sinks.insert(funcs.begin(), funcs.end());
+    std::set<std::string> whitelist = config.at(WHITELIST);
+    for (std::string funcName : whitelist) {
+        sinks.erase(funcName);
     }
 
+    std::set<std::string> ignore = config[IGNORE];
+
     for (auto func : Query::functions()) {
+        if (ignore.count(func->name())) {
+            continue;
+        }
+        if (sinks.count(func->name()) == 1) {
+            // if it is already a sink, no use check
+            continue;
+        }
         std::map<std::string, std::pair<std::string, std::string>>
             taintedParams;
         NodeStream(func).parameters().forEach([&](Node* param) {
@@ -554,27 +591,85 @@ wasmati::isTainted(json& config, Node* param, std::set<std::string>& visited) {
                 return std::make_pair(param->name(), func->name());
             }
         }
+    } else if (config[EXPORTED_AS_SINKS] && func->isExport()) {
+        std::set<std::string> whitelist = config[WHITELIST];
+        if (whitelist.count(func->name()) == 0) {
+            return std::make_pair(param->name(), func->name());
+        }
     }
     for (auto arg : Query::parents({param}, Query::PG_EDGES)) {
-        auto pdgEdge = EdgeStream(arg->outEdges(EdgeType::PDG))
-                           .filterPDG(PDGType::Local)
-                           .findFirst();
-        if (!pdgEdge.isPresent()) {
-            continue;
+        auto localVars =
+            EdgeStream(arg->outEdges(EdgeType::PDG))
+                .setUnion(arg->inEdges(EdgeType::PDG))
+                .filterPDG(PDGType::Local)
+                .distincLabel()
+                .map<std::string>([](Edge* e) { return e->label(); });
+
+        auto newParams = NodeStream(Query::function(arg))
+                             .parameters([&](Node* node) {
+                                 return localVars.count(node->name()) == 1;
+                             })
+                             .toNodeSet();
+        for (Node* param : newParams) {
+            auto tainted = isTainted(config, param, visited);
+            if (tainted.first != "") {
+                return tainted;
+            }
         }
-        auto newParam = NodeStream(Query::function(arg))
-                            .parameters([&](Node* node) {
-                                return node->name() == pdgEdge.get()->label();
-                            })
-                            .findFirst();
-        if (!newParam.isPresent()) {
-            continue;
-        }
-        return isTainted(config, newParam.get(), visited);
     }
     return std::make_pair("", "");
 }
 
 void wasmati::checkIntegerOverflow(json& config) {}
 
-void wasmati::checkUseAfterFree(json& config) {}
+void wasmati::checkUseAfterFree(json& config, std::list<Vulnerability>& vulns) {
+    std::set<std::string> ignore = config[IGNORE];
+
+    for (auto func : Query::functions()) {
+        if (ignore.count(func->name())) {
+            continue;
+        }
+        for (auto const& item : config[CONTROL_FLOW]) {
+            std::string source = item[SOURCE];
+            std::string dest = item[DEST];
+
+            NodeStream(func)
+                .instructions([&](Node* node) {
+                    return node->instType() == ExprType::Call &&
+                           node->label() == source;
+                })
+                .forEach([&](Node* callSource) {
+                    Query::DFS<bool>(
+                        callSource, Query::CFG_EDGES, false,
+                        [&](Node* node, bool seenDest) {
+                            auto edges =
+                                EdgeStream(node->inEdges(EdgeType::PDG))
+                                    .setUnion(node->outEdges(EdgeType::PDG))
+                                    .filterPDG(PDGType::Function,
+                                               callSource->label())
+                                    .findFirst();
+                            if (node->instType() == ExprType::Call &&
+                                node->label() == dest) {
+                                if (seenDest && edges.isPresent()) {
+                                    std::stringstream desc;
+                                    desc << node->label() << " called again.";
+                                    vulns.emplace_back(
+                                        VulnType::DoubleFree, func->name(),
+                                        node->label(), desc.str());
+                                }
+                                return std::make_pair(true, edges.isPresent());
+                            } else if (seenDest && edges.isPresent()) {
+                                std::stringstream desc;
+                                desc << "Value from call "
+                                     << callSource->label()
+                                     << " used after call to " << dest;
+                                vulns.emplace_back(VulnType::UaF, func->name(),
+                                                   node->label(), desc.str());
+                                return std::make_pair(false, seenDest);
+                            }
+                            return std::make_pair(true, seenDest);
+                        });
+                });
+        }
+    }
+}
