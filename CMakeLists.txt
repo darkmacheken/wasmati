@@ -216,6 +216,7 @@ add_library(wasmatilib STATIC
   src/config/config.h
   src/config/config.cc
   src/options.h
+  src/options.cc
   src/graph.h
   src/graph.cc
   src/ast-builder.h

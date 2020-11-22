@@ -25,7 +25,7 @@ struct AST {
 
     ~AST() {}
 
-    void generateAST(GenerateCPGOptions& options);
+    void generateAST();
     void getLocalsNames(Func* f, std::vector<std::string>& names) const;
 
     void construct(const Expr& e,

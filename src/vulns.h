@@ -110,7 +110,8 @@ NLOHMANN_JSON_SERIALIZE_ENUM(VulnType,
                                  {VulnType::Tainted, "Tainted Variable"},
                                  {VulnType::UaF, "Use After Free"},
                                  {VulnType::DoubleFree, "Double Free"},
-                                 {VulnType::IntegerOverflow, "IntegerOverflow"},
+                                 {VulnType::IntegerOverflow,
+                                  "Integer Overflow"},
                              });
 
 struct Vulnerability {

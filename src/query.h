@@ -124,6 +124,13 @@ public:
         return result;
     }
 
+    /// @brief Creates a new set of type T with the results of calling a
+    /// function for every edge element
+    /// @tparam T Type of return
+    /// @param edges Set of edges
+    /// @param func Function to call to each element
+    /// @return A set of Type T with the results of calling a function for every
+    /// edge element
     template <class T>
     static std::set<T> map(const EdgeSet& edges,
                            const std::function<T(Edge*)> func) {
@@ -165,11 +172,18 @@ public:
                                Index limit = UINT32_MAX,
                                bool reverse = false);
 
+    /// @brief Performs a DFS start at node source
+    /// @tparam T return type of the consumer
+    /// @param source Source node
+    /// @param edgeCondition Edge condition to be taken
+    /// @param aux Auxiliary type for the consumer
+    /// @param consumer Function to consume
     template <class T>
-    static void DFS(Node* source,
-                    const EdgeCondition& edgeCondition,
-                    T aux,
-                    const std::function<std::pair<bool,T>(Node*, T)> consumer) {
+    static void DFS(
+        Node* source,
+        const EdgeCondition& edgeCondition,
+        T aux,
+        const std::function<std::pair<bool, T>(Node*, T)> consumer) {
         std::pair<bool, T> nextAux = consumer(source, aux);
         if (!nextAux.first) {
             return;

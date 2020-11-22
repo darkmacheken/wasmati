@@ -1,6 +1,6 @@
 #include "ast-builder.h"
 namespace wasmati {
-void AST::generateAST(GenerateCPGOptions& options) {
+void AST::generateAST() {
     Module* m;
     if (mc.module.name.empty()) {
         m = new Module();
@@ -13,8 +13,10 @@ void AST::generateAST(GenerateCPGOptions& options) {
     // Code
     Index func_index = 0;
     for (auto f : mc.module.funcs) {
-        if (!options.funcName.empty() &&
-            options.funcName.compare(f->name) != 0) {
+        debug("[DEBUG][AST][%u/%lu] Function %s\n", func_index,
+              mc.module.funcs.size(), f->name.c_str());
+        if (!cpgOptions.funcName.empty() &&
+            cpgOptions.funcName.compare(f->name) != 0) {
             func_index++;
             continue;
         }
@@ -317,7 +319,7 @@ void AST::construct(const ExprList& es,
         }
         return;
     }
-    assert(expStack.size() >= nresults);
+    warning(expStack.size() >= nresults);
     if (function != nullptr) {
         auto ret = returnFunc[function];
         if (nresults == 1) {

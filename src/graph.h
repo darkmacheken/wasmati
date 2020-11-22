@@ -451,9 +451,7 @@ public:
           _nresults(block.decl.GetNumResults()) {}
 
     Index nresults() const override { return _nresults; }
-    void setResults(Index nresults) {
-        _nresults = nresults;
-    }
+    void setResults(Index nresults) { _nresults = nresults; }
 
     virtual void accept(GraphVisitor* visitor);
 };
@@ -699,7 +697,6 @@ class GraphWriter : public GraphVisitor {
 protected:
     wabt::Stream* _stream;
     Graph* _graph;
-    GenerateCPGOptions _options;
 
     void writePuts(const char* s) {
         size_t len = strlen(s);
@@ -715,8 +712,8 @@ protected:
     void writeStringln(const std::string& str) { writePutsln(str.c_str()); }
 
 public:
-    GraphWriter(wabt::Stream* stream, Graph* graph, GenerateCPGOptions options)
-        : _stream(stream), _graph(graph), _options(options) {}
+    GraphWriter(wabt::Stream* stream, Graph* graph)
+        : _stream(stream), _graph(graph) {}
 
     virtual void writeGraph() = 0;
 };

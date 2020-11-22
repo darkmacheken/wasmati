@@ -9,8 +9,8 @@ class DotWriter : public GraphWriter {
     std::vector<std::vector<int>> _depth;
 
 public:
-    DotWriter(wabt::Stream* stream, Graph* graph, GenerateCPGOptions options)
-        : GraphWriter(stream, graph, options) {}
+    DotWriter(wabt::Stream* stream, Graph* graph)
+        : GraphWriter(stream, graph) {}
     void writeGraph() override;
 
     // Edges
@@ -19,7 +19,6 @@ public:
     void visitPDGEdge(PDGEdge*) override;
     void visitCGEdge(CGEdge*) override;
     void visitPGEdge(PGEdge*) override;
-
 
 private:
     void visitSimpleNode(int nodeId, const std::string& nodeName);

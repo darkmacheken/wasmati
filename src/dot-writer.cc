@@ -4,15 +4,15 @@ namespace wasmati {
 
 void DotWriter::writeGraph() {
     NodeSet loopsInsts;
-    if (!_options.loopName.empty()) {
-        loopsInsts = Queries::loopsInsts(_options.loopName);
+    if (!cpgOptions.loopName.empty()) {
+        loopsInsts = Queries::loopsInsts(cpgOptions.loopName);
     }
 
     writePuts("digraph G {");
     writePuts("graph [rankdir=TD];");
     writePuts("node [shape=none];");
     bool justOneGraph =
-        _options.printNoAST || _options.printNoCFG || _options.printNoPDG;
+        cpgOptions.printNoAST || cpgOptions.printNoCFG || cpgOptions.printNoPDG;
 
     for (auto const& node : _graph->getNodes()) {
         if (!loopsInsts.empty() && loopsInsts.count(node) == 0) {
@@ -22,13 +22,13 @@ void DotWriter::writeGraph() {
 
         if (!justOneGraph) {
             node->accept(this);
-        } else if (!_options.printNoAST &&
+        } else if (!cpgOptions.printNoAST &&
                    node->hasEdgesOf(EdgeType::AST)) {  // AST
             node->accept(this);
-        } else if (!_options.printNoCFG &&
+        } else if (!cpgOptions.printNoCFG &&
                    node->hasEdgesOf(EdgeType::CFG)) {  // CFG
             node->accept(this);
-        } else if (!_options.printNoPDG &&
+        } else if (!cpgOptions.printNoPDG &&
                    node->hasEdgesOf(EdgeType::PDG)) {  // PDG
             node->accept(this);
         }
@@ -42,7 +42,7 @@ void DotWriter::writeGraph() {
 }
 
 void DotWriter::visitASTEdge(ASTEdge* e) {
-    if (_options.printNoAST) {
+    if (cpgOptions.printNoAST) {
         return;
     }
     writeStringln(std::to_string(e->src()->getId()) + " -> " +
@@ -50,7 +50,7 @@ void DotWriter::visitASTEdge(ASTEdge* e) {
 }
 
 void DotWriter::visitCFGEdge(CFGEdge* e) {
-    if (_options.printNoCFG) {
+    if (cpgOptions.printNoCFG) {
         return;
     }
     if (e->_label.empty()) {
@@ -64,7 +64,7 @@ void DotWriter::visitCFGEdge(CFGEdge* e) {
 }
 
 void DotWriter::visitPDGEdge(PDGEdge* e) {
-    if (_options.printNoPDG) {
+    if (cpgOptions.printNoPDG) {
         return;
     }
     if (e->_label.empty()) {
@@ -79,7 +79,7 @@ void DotWriter::visitPDGEdge(PDGEdge* e) {
 }
 
 void DotWriter::visitCGEdge(CGEdge* e) {
-    if (_options.printNoCG) {
+    if (cpgOptions.printNoCG) {
         return;
     }
     writeStringln(std::to_string(e->src()->getId()) + " -> " +
@@ -88,7 +88,7 @@ void DotWriter::visitCGEdge(CGEdge* e) {
 }
 
 void DotWriter::visitPGEdge(PGEdge* e) {
-    if (_options.printNoPG) {
+    if (cpgOptions.printNoPG) {
         return;
     }
     writeStringln(std::to_string(e->src()->getId()) + " -> " +

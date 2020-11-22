@@ -4,8 +4,8 @@ namespace wasmati {
 
 void DatalogWriter::writeGraph() {
     NodeSet loopsInsts;
-    if (!_options.loopName.empty()) {
-        loopsInsts = Queries::loopsInsts(_options.loopName);
+    if (!cpgOptions.loopName.empty()) {
+        loopsInsts = Queries::loopsInsts(cpgOptions.loopName);
     }
 
     writePuts(R"(
@@ -60,7 +60,7 @@ pdgEdge(X, Y, LABEL, PDG_TYPE) :- pdgConstEdge(X, Y, LABEL, PDG_TYPE, VALUE).
 )");
 
     bool justOneGraph =
-        _options.printNoAST || _options.printNoCFG || _options.printNoPDG;
+        cpgOptions.printNoAST || cpgOptions.printNoCFG || cpgOptions.printNoPDG;
 
     for (auto const& node : _graph->getNodes()) {
         if (!loopsInsts.empty() && loopsInsts.count(node) == 0) {
@@ -70,13 +70,13 @@ pdgEdge(X, Y, LABEL, PDG_TYPE) :- pdgConstEdge(X, Y, LABEL, PDG_TYPE, VALUE).
 
         if (!justOneGraph) {
             node->accept(this);
-        } else if (!_options.printNoAST &&
+        } else if (!cpgOptions.printNoAST &&
                    node->hasEdgesOf(EdgeType::AST)) {  // AST
             node->accept(this);
-        } else if (!_options.printNoCFG &&
+        } else if (!cpgOptions.printNoCFG &&
                    node->hasEdgesOf(EdgeType::CFG)) {  // CFG
             node->accept(this);
-        } else if (!_options.printNoPDG &&
+        } else if (!cpgOptions.printNoPDG &&
                    node->hasEdgesOf(EdgeType::PDG)) {  // PDG
             node->accept(this);
         }
@@ -84,7 +84,7 @@ pdgEdge(X, Y, LABEL, PDG_TYPE) :- pdgConstEdge(X, Y, LABEL, PDG_TYPE, VALUE).
 }
 
 void DatalogWriter::visitASTEdge(ASTEdge* e) {
-    if (_options.printNoAST) {
+    if (cpgOptions.printNoAST) {
         return;
     }
     std::stringstream res;
@@ -94,7 +94,7 @@ void DatalogWriter::visitASTEdge(ASTEdge* e) {
 }
 
 void DatalogWriter::visitCFGEdge(CFGEdge* e) {
-    if (_options.printNoCFG) {
+    if (cpgOptions.printNoCFG) {
         return;
     }
     if (e->_label.empty()) {
@@ -111,7 +111,7 @@ void DatalogWriter::visitCFGEdge(CFGEdge* e) {
 }
 
 void DatalogWriter::visitPDGEdge(PDGEdge* e) {
-    if (_options.printNoPDG) {
+    if (cpgOptions.printNoPDG) {
         return;
     }
     if (e->pdgType() == PDGType::Const) {
@@ -131,7 +131,7 @@ void DatalogWriter::visitPDGEdge(PDGEdge* e) {
 }
 
 void DatalogWriter::visitCGEdge(CGEdge* e) {
-    if (_options.printNoCG) {
+    if (cpgOptions.printNoCG) {
         return;
     }
     std::stringstream res;
@@ -140,7 +140,7 @@ void DatalogWriter::visitCGEdge(CGEdge* e) {
 }
 
 void DatalogWriter::visitPGEdge(PGEdge* e) {
-    if (_options.printNoPG) {
+    if (cpgOptions.printNoPG) {
         return;
     }
     std::stringstream res;

@@ -2,10 +2,9 @@
 #include <iostream>
 
 namespace wasmati {
-void PDG::generatePDG(GenerateCPGOptions& options) {
-    _options = options;
-    if (!options.loopName.empty()) {
-        _verboseLoops = Queries::loopsInsts(options.loopName);
+void PDG::generatePDG() {
+    if (!cpgOptions.loopName.empty()) {
+        _verboseLoops = Queries::loopsInsts(cpgOptions.loopName);
     }
     graph.getModule()->accept(this);
 }
@@ -51,6 +50,9 @@ void PDG::visitFunction(Function* node) {
     if (node->isImport()) {
         return;
     }
+    static Index counter = 0;
+    debug("[DEBUG][PDG][%u/%lu] Function %s\n", counter++,
+          mc.module.funcs.size(), node->name().c_str());
     currentFunction = node->getFunc();
     auto filterInsts = Query::filter(
         Query::children({node}, Query::AST_EDGES),
@@ -584,7 +586,7 @@ void PDG::visitLoopInst(LoopInst* node) {
         _loopsStack.push(node);
     }
     // ---------------------------------------
-    //std::cout << "loop " + node->label() << std::endl;
+    // std::cout << "loop " + node->label() << std::endl;
     auto reachDef = getReachDef(node);
     if (count == 1) {
         reachDef->unionDef(_loops[node]);
@@ -682,9 +684,15 @@ inline std::shared_ptr<ReachDefinition> PDG::getReachDef(Instruction* inst) {
 
     if (inst->instType() == ExprType::Loop) {
         for (auto reachDef : reachDefs) {
-            assert(reachDef->stackSize() >= inst->nresults());
+            Index nresults = inst->nresults();
+            warning(reachDef->stackSize() >= inst->nresults());
+
+            if (reachDef->stackSize() < inst->nresults()) {
+                nresults = reachDef->stackSize();
+            }
+
             // gets results
-            auto results = reachDef->pop(inst->nresults());
+            auto results = reachDef->pop(nresults);
             if (_loops.count(inst) == 1 &&
                 reachDef->containsLabel(inst->label())) {
                 // pop label
@@ -732,8 +740,6 @@ inline void PDG::advance(Instruction* inst,
     }
 
     std::stack<LoopInst*> loopsStack;
-    std::set<LoopInst*> loopEnd;
-    std::set<LoopInst*> loopAdvance;
 
     if (outEdges.size() > 1) {
         loopsStack = _loopsStack;

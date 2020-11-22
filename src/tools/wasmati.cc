@@ -1,10 +1,4 @@
-#include <cassert>
 #include <chrono>
-#include <cinttypes>
-#include <cstdio>
-#include <cstdlib>
-#include <fstream>
-#include <iostream>
 #include "src/apply-names.h"
 #include "src/ast-builder.h"
 #include "src/binary-reader-ir.h"
@@ -31,12 +25,11 @@
 using namespace wabt;
 using namespace wasmati;
 
-void generateCPG(Graph&, GenerateCPGOptions);
+void generateCPG(Graph&);
 bool hasEnding(std::string const& fullString, std::string const& ending);
 Result watFile(std::unique_ptr<wabt::Module>* mod);
 Result wasmFile(std::unique_ptr<wabt::Module>* mod);
 
-static int s_verbose;
 static std::string s_configfile;
 static std::string s_infile;
 static std::string s_outfile;
@@ -46,13 +39,13 @@ static bool generate_dot = false;
 static bool generate_datalog = false;
 static bool is_wat = false;
 static bool is_wasm = false;
-static GenerateCPGOptions cpgOptions;
 static Features s_features;
 static bool s_read_debug_names = true;
 static bool s_fail_on_custom_section_error = true;
 static std::unique_ptr<FileStream> s_log_stream;
+static std::unique_ptr<FileStream> s_info_stream;
 static bool s_validate = true;
-json verbose;
+json info;
 
 static const char s_description[] =
     R"(  Read a file in the WebAssembly binary format or text format, and produces its
@@ -69,10 +62,10 @@ examples:
 static void ParseOptions(int argc, char** argv) {
     OptionParser parser("wasmati", s_description);
 
-    parser.AddOption('v', "verbose", "Use multiple times for more info", []() {
-        s_verbose++;
-        s_log_stream = FileStream::CreateStdout();
-    });
+    parser.AddOption(
+        'v', "verbose",
+        "Output information about the generation of Code Property Graph",
+        []() { cpgOptions.verbose = true; });
     parser.AddOption(
         'o', "output", "FILENAME",
         "Output file for vulnerability report, by default use stdout",
@@ -111,8 +104,8 @@ static void ParseOptions(int argc, char** argv) {
                          cpgOptions.funcName = "$" + cpgOptions.funcName;
                      });
     parser.AddOption('i', "info",
-                     "Print all information during generation of CPG.",
-                     []() { cpgOptions.verbose = true; });
+                     "Print time information of the generation of CPG.",
+                     []() { cpgOptions.info = true; });
     parser.AddOption('l', "loop", "LOOPNAME",
                      "Print all information during generation of CPG.",
                      [](const char* argument) {
@@ -157,7 +150,7 @@ int ProgramMain(int argc, char** argv) {
     std::unique_ptr<wabt::Module> module;
     Result result;
     auto start = std::chrono::high_resolution_clock::now();
-    s_features.set_bulk_memory_enabled(true);
+    //s_features.set_bulk_memory_enabled(true);
     if (is_wat || hasEnding(s_infile, ".wat") || hasEnding(s_infile, ".wast")) {
         result = watFile(&module);
     } else if (is_wasm || hasEnding(s_infile, ".wasm")) {
@@ -165,12 +158,15 @@ int ProgramMain(int argc, char** argv) {
     } else {
         WABT_FATAL("Unable to verify file type: %s\n", s_infile.c_str());
     }
-    if (cpgOptions.verbose) {
+    if (Failed(result)) {
+        return result != Result::Ok;
+    }
+    if (cpgOptions.info) {
         auto parsing = std::chrono::high_resolution_clock::now();
         auto parsingDuration =
             std::chrono::duration_cast<std::chrono::milliseconds>(parsing -
                                                                   start);
-        verbose["parsing"] = parsingDuration.count();
+        info["parsing"] = parsingDuration.count();
     }
     // Config file
     json config;
@@ -183,24 +179,24 @@ int ProgramMain(int argc, char** argv) {
 
     Graph graph(*module.get());
     Query::setGraph(&graph);
-    generateCPG(graph, cpgOptions);
+    generateCPG(graph);
 
     auto startVulns = std::chrono::high_resolution_clock::now();
     std::list<Vulnerability> vulns;
     checkVulnerabilities(config, vulns);
 
-    if (cpgOptions.verbose) {
+    if (cpgOptions.info) {
         auto endVulns = std::chrono::high_resolution_clock::now();
         auto queryDuration =
             std::chrono::duration_cast<std::chrono::milliseconds>(endVulns -
                                                                   startVulns);
-        verbose["query"] = queryDuration.count();
+        info["query"] = queryDuration.count();
     }
 
     json list = vulns;
 
     if (s_outfile.empty()) {
-        std::cout << list.dump(4) << std::endl;
+        FileStream(stdout).Writef("%s\n", list.dump(4).c_str());
     } else {
         std::ofstream o(s_outfile);
         o << list.dump(4) << std::endl;
@@ -209,25 +205,25 @@ int ProgramMain(int argc, char** argv) {
     if (Succeeded(result) && generate_dot) {
         FileStream stream(!s_doutfile.empty() ? FileStream(s_doutfile)
                                               : FileStream(stdout));
-        DotWriter writer(&stream, &graph, cpgOptions);
+        DotWriter writer(&stream, &graph);
         writer.writeGraph();
     }
     if (Succeeded(result) && generate_datalog) {
         FileStream stream(!s_dlogfile.empty() ? FileStream(s_dlogfile)
                                               : FileStream(stdout));
-        DatalogWriter writer(&stream, &graph, cpgOptions);
+        DatalogWriter writer(&stream, &graph);
         writer.writeGraph();
     }
-    if (cpgOptions.verbose) {
+    if (cpgOptions.info) {
         auto total = std::chrono::high_resolution_clock::now();
         auto totalDuration =
             std::chrono::duration_cast<std::chrono::milliseconds>(total -
                                                                   start);
-        verbose["total"] = totalDuration.count();
-        verbose["nodes"] = graph.getNumberNodes();
-        verbose["edges"] = graph.getNumberEdges();
-        verbose["memory"] = graph.getMemoryUsage();
-        std::cout << verbose.dump(2) << std::endl;
+        info["total"] = totalDuration.count();
+        info["nodes"] = graph.getNumberNodes();
+        info["edges"] = graph.getNumberEdges();
+        info["memory"] = graph.getMemoryUsage();
+        FileStream(stdout).Writef("%s\n", info.dump(2).c_str());
     }
 
     return result != Result::Ok;
@@ -304,22 +300,22 @@ Result wasmFile(std::unique_ptr<wabt::Module>* mod) {
     return result;
 }
 
-void generateCPG(Graph& graph, GenerateCPGOptions options) {
+void generateCPG(Graph& graph) {
     auto start = std::chrono::high_resolution_clock::now();
 
     AST ast(graph.getModuleContext(), graph);
-    ast.generateAST(cpgOptions);
+    ast.generateAST();
     auto astTime = std::chrono::high_resolution_clock::now();
 
     CFG cfg(graph.getModuleContext(), graph, ast);
-    cfg.generateCFG(cpgOptions);
+    cfg.generateCFG();
     auto cfgTime = std::chrono::high_resolution_clock::now();
 
     PDG pdg(graph.getModuleContext(), graph);
-    pdg.generatePDG(cpgOptions);
+    pdg.generatePDG();
     auto pdgTime = std::chrono::high_resolution_clock::now();
 
-    if (cpgOptions.verbose) {
+    if (cpgOptions.info) {
         auto astDuration =
             std::chrono::duration_cast<std::chrono::milliseconds>(astTime -
                                                                   start);
@@ -329,9 +325,9 @@ void generateCPG(Graph& graph, GenerateCPGOptions options) {
         auto pdgDuration =
             std::chrono::duration_cast<std::chrono::milliseconds>(pdgTime -
                                                                   cfgTime);
-        verbose["ast"] = astDuration.count();
-        verbose["cfg"] = cfgDuration.count();
-        verbose["pdg"] = pdgDuration.count();
+        info["ast"] = astDuration.count();
+        info["cfg"] = cfgDuration.count();
+        info["pdg"] = pdgDuration.count();
     }
 }
 

@@ -41,7 +41,7 @@ public:
 
     ~PDG() {}
 
-    void generatePDG(GenerateCPGOptions& options);
+    void generatePDG();
 
 private:
     // Inherited via GraphVisitor
@@ -162,11 +162,7 @@ private:
 public:
     Definition() {}
 
-    Definition(const Definition& def) {
-        for (auto const& kv : def._def) {
-            _def[kv.first] = kv.second;
-        }
-    }
+    Definition(const Definition& def) : _def(def._def) {}
 
     inline void insert(const std::string& name, PDGType type, Node* node) {
         _def[Var(name, type)].insert(node);

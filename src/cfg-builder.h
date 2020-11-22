@@ -20,7 +20,7 @@ struct CFG {
 
     ~CFG() {}
 
-    void generateCFG(GenerateCPGOptions& options);
+    void generateCFG();
 
     /// @brief Constructs the CFG in the given expression list
     /// @param es Expression list

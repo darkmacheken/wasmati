@@ -1,7 +1,7 @@
 #ifndef WASMATI_DATALOG_H
 #define WASMATI_DATALOG_H
-#include <sstream>
 #include <map>
+#include <sstream>
 #include "graph.h"
 #include "query.h"
 
@@ -13,11 +13,11 @@ class DatalogWriter : public GraphWriter {
         {PDGType::Control, "Control"},
         {PDGType::Function, "Function"},
         {PDGType::Global, "Global"},
-        {PDGType::Local, "Local"}
-    };
+        {PDGType::Local, "Local"}};
+
 public:
-    DatalogWriter(wabt::Stream* stream, Graph* graph, GenerateCPGOptions options)
-        : GraphWriter(stream, graph, options) {}
+    DatalogWriter(wabt::Stream* stream, Graph* graph)
+        : GraphWriter(stream, graph) {}
     void writeGraph() override;
 
     // Edges
@@ -26,7 +26,6 @@ public:
     void visitPDGEdge(PDGEdge*) override;
     void visitCGEdge(CGEdge*) override;
     void visitPGEdge(PGEdge*) override;
-
 
 private:
     std::string typeToString(Type type);

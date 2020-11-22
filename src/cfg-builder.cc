@@ -1,11 +1,13 @@
 #include "cfg-builder.h"
 
 namespace wasmati {
-void CFG::generateCFG(GenerateCPGOptions& options) {
+void CFG::generateCFG() {
     Index func_index = 0;
     for (auto f : mc.module.funcs) {
-        if (!options.funcName.empty() &&
-            options.funcName.compare(f->name) != 0) {
+        debug("[DEBUG][CFG][%u/%lu] Function %s\n", func_index,
+              mc.module.funcs.size(), f->name.c_str());
+        if (!cpgOptions.funcName.empty() &&
+            cpgOptions.funcName.compare(f->name) != 0) {
             func_index++;
             continue;
         }
@@ -307,10 +309,12 @@ void CFG::insertEdgeFromLastExpr(const wabt::ExprList& es,
     auto& lastExpr = es.back();
     if (lastExpr.type() == ExprType::Br ||
         lastExpr.type() == ExprType::BrTable ||
-        lastExpr.type() == ExprType::Loop ||
         lastExpr.type() == ExprType::Return ||
         lastExpr.type() == ExprType::Unreachable) {
         // do nothing
+    } else if (lastExpr.type() == ExprType::Loop) {
+        auto loop = cast<LoopExpr>(&lastExpr);
+        insertEdgeFromLastExpr(loop->block.exprs, blockInst);
     } else if (lastExpr.type() == ExprType::BrIf) {
         new CFGEdge(ast.exprNodes.at(&lastExpr), blockInst, "false");
     } else if (lastExpr.type() == ExprType::Block) {
@@ -323,7 +327,8 @@ void CFG::insertEdgeFromLastExpr(const wabt::ExprList& es,
             new CFGEdge(ifInst, blockInst, "false");
             auto& lastIfInst = ifExpr->true_.exprs.back();
             if (lastIfInst.type() == ExprType::BrIf) {
-                new CFGEdge(ast.ifBlocks.at(&ifExpr->true_)->block(), blockInst);
+                new CFGEdge(ast.ifBlocks.at(&ifExpr->true_)->block(),
+                            blockInst);
             }
         } else {
             auto innerBlock = ifInst->getOutEdge(1, EdgeType::AST)->dest();
