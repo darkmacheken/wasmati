@@ -436,18 +436,24 @@ typedef CallBase<ExprType::CallIndirect> CallIndirectInst;
 
 template <ExprType T>
 class BlockBase : public LabeledInst<T> {
-    const Index _nresults;
+    Index _nresults;
 
 public:
     BlockBase(const BlockExprBase<T>* expr)
         : LabeledInst<T>(expr->block.label, expr->loc),
           _nresults(expr->block.decl.GetNumResults()) {}
 
+    BlockBase(const BlockExprBase<T>* expr, Index nresults)
+        : LabeledInst<T>(expr->block.label, expr->loc), _nresults(nresults) {}
+
     BlockBase(const Block& block)
         : LabeledInst<T>(block.label, block.end_loc),
           _nresults(block.decl.GetNumResults()) {}
 
     Index nresults() const override { return _nresults; }
+    void setResults(Index nresults) {
+        _nresults = nresults;
+    }
 
     virtual void accept(GraphVisitor* visitor);
 };
@@ -613,6 +619,28 @@ public:
     inline Module* getModule() const {
         assert(_module != nullptr);
         return _module;
+    }
+
+    inline size_t getNumberNodes() { return _nodes.size(); }
+
+    inline size_t getNumberEdges() {
+        size_t edges = 0;
+        for (Node* node : _nodes) {
+            edges += node->outEdges().size();
+        }
+        return edges;
+    }
+
+    inline size_t getMemoryUsage() {
+        size_t result = 0;
+        result += sizeof(*this);
+        for (Node* node : _nodes) {
+            result += sizeof(*node);
+            for (Edge* e : node->outEdges()) {
+                result += sizeof(*e);
+            }
+        }
+        return result;
     }
 };
 

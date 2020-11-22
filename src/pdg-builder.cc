@@ -8,10 +8,6 @@ void PDG::generatePDG(GenerateCPGOptions& options) {
         _verboseLoops = Queries::loopsInsts(options.loopName);
     }
     graph.getModule()->accept(this);
-    if (options.verbose) {
-        std::ofstream o(options.logFile);
-        o << _verbose.dump(4) << std::endl;
-    }
 }
 
 void PDG::visitASTEdge(ASTEdge* e) {

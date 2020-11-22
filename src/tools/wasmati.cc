@@ -1,4 +1,5 @@
 #include <cassert>
+#include <chrono>
 #include <cinttypes>
 #include <cstdio>
 #include <cstdlib>
@@ -51,6 +52,7 @@ static bool s_read_debug_names = true;
 static bool s_fail_on_custom_section_error = true;
 static std::unique_ptr<FileStream> s_log_stream;
 static bool s_validate = true;
+json verbose;
 
 static const char s_description[] =
     R"(  Read a file in the WebAssembly binary format or text format, and produces its
@@ -108,13 +110,9 @@ static void ParseOptions(int argc, char** argv) {
                          cpgOptions.funcName = argument;
                          cpgOptions.funcName = "$" + cpgOptions.funcName;
                      });
-    parser.AddOption('v', "verbose", "OUTPUTLOG",
+    parser.AddOption('i', "info",
                      "Print all information during generation of CPG.",
-                     [](const char* argument) {
-                         cpgOptions.logFile = argument;
-                         ConvertBackslashToSlash(&cpgOptions.logFile);
-                         cpgOptions.verbose = true;
-                     });
+                     []() { cpgOptions.verbose = true; });
     parser.AddOption('l', "loop", "LOOPNAME",
                      "Print all information during generation of CPG.",
                      [](const char* argument) {
@@ -158,7 +156,8 @@ int ProgramMain(int argc, char** argv) {
 
     std::unique_ptr<wabt::Module> module;
     Result result;
-
+    auto start = std::chrono::high_resolution_clock::now();
+    s_features.set_bulk_memory_enabled(true);
     if (is_wat || hasEnding(s_infile, ".wat") || hasEnding(s_infile, ".wast")) {
         result = watFile(&module);
     } else if (is_wasm || hasEnding(s_infile, ".wasm")) {
@@ -166,7 +165,13 @@ int ProgramMain(int argc, char** argv) {
     } else {
         WABT_FATAL("Unable to verify file type: %s\n", s_infile.c_str());
     }
-
+    if (cpgOptions.verbose) {
+        auto parsing = std::chrono::high_resolution_clock::now();
+        auto parsingDuration =
+            std::chrono::duration_cast<std::chrono::milliseconds>(parsing -
+                                                                  start);
+        verbose["parsing"] = parsingDuration.count();
+    }
     // Config file
     json config;
     if (s_configfile.empty()) {
@@ -180,8 +185,17 @@ int ProgramMain(int argc, char** argv) {
     Query::setGraph(&graph);
     generateCPG(graph, cpgOptions);
 
+    auto startVulns = std::chrono::high_resolution_clock::now();
     std::list<Vulnerability> vulns;
     checkVulnerabilities(config, vulns);
+
+    if (cpgOptions.verbose) {
+        auto endVulns = std::chrono::high_resolution_clock::now();
+        auto queryDuration =
+            std::chrono::duration_cast<std::chrono::milliseconds>(endVulns -
+                                                                  startVulns);
+        verbose["query"] = queryDuration.count();
+    }
 
     json list = vulns;
 
@@ -204,6 +218,18 @@ int ProgramMain(int argc, char** argv) {
         DatalogWriter writer(&stream, &graph, cpgOptions);
         writer.writeGraph();
     }
+    if (cpgOptions.verbose) {
+        auto total = std::chrono::high_resolution_clock::now();
+        auto totalDuration =
+            std::chrono::duration_cast<std::chrono::milliseconds>(total -
+                                                                  start);
+        verbose["total"] = totalDuration.count();
+        verbose["nodes"] = graph.getNumberNodes();
+        verbose["edges"] = graph.getNumberEdges();
+        verbose["memory"] = graph.getMemoryUsage();
+        std::cout << verbose.dump(2) << std::endl;
+    }
+
     return result != Result::Ok;
 }
 
@@ -279,12 +305,34 @@ Result wasmFile(std::unique_ptr<wabt::Module>* mod) {
 }
 
 void generateCPG(Graph& graph, GenerateCPGOptions options) {
+    auto start = std::chrono::high_resolution_clock::now();
+
     AST ast(graph.getModuleContext(), graph);
     ast.generateAST(cpgOptions);
+    auto astTime = std::chrono::high_resolution_clock::now();
+
     CFG cfg(graph.getModuleContext(), graph, ast);
     cfg.generateCFG(cpgOptions);
+    auto cfgTime = std::chrono::high_resolution_clock::now();
+
     PDG pdg(graph.getModuleContext(), graph);
     pdg.generatePDG(cpgOptions);
+    auto pdgTime = std::chrono::high_resolution_clock::now();
+
+    if (cpgOptions.verbose) {
+        auto astDuration =
+            std::chrono::duration_cast<std::chrono::milliseconds>(astTime -
+                                                                  start);
+        auto cfgDuration =
+            std::chrono::duration_cast<std::chrono::milliseconds>(cfgTime -
+                                                                  astTime);
+        auto pdgDuration =
+            std::chrono::duration_cast<std::chrono::milliseconds>(pdgTime -
+                                                                  cfgTime);
+        verbose["ast"] = astDuration.count();
+        verbose["cfg"] = cfgDuration.count();
+        verbose["pdg"] = pdgDuration.count();
+    }
 }
 
 bool hasEnding(std::string const& fullString, std::string const& ending) {

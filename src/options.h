@@ -9,9 +9,9 @@ struct GenerateCPGOptions {
     bool printNoCG = true;
     bool printNoPG = true;
     bool verbose = false;
-    std::string logFile;
     std::string loopName;
 };
 
+GenerateCPGOptions options = {};
 }  // namespace wasmati
 #endif  // WABT_OPTIONS_H_
