@@ -124,6 +124,13 @@ public:
         assert(false);
         return nullptr;
     }
+    virtual Func* getFunc() {
+        assert(false);
+        return nullptr;
+    }
+    virtual bool isBeginBlock() {
+        return false;
+    }
 
     explicit Node(NodeType type) : _id(idCount++), _type(type) {}
     virtual ~Node();
@@ -200,7 +207,7 @@ public:
     Index nresults() const override { return _nresults; }
     bool isImport() const override { return _isImport; }
     bool isExport() const override { return _isExport; }
-    Func* getFunc() { return _f; }
+    Func* getFunc() override { return _f; }
 
     void accept(GraphVisitor* visitor);
 };
@@ -471,6 +478,8 @@ public:
         : LabeledInst<ExprType::Block>(label, loc), _block(block) {}
 
     Node* block() override { return _block; }
+
+    virtual bool isBeginBlock() override { return true; }
 
     virtual void accept(GraphVisitor* visitor);
 };

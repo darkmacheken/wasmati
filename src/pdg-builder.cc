@@ -1,80 +1,174 @@
 #include "pdg-builder.h"
-#include <iostream>
 
 namespace wasmati {
 void PDG::generatePDG() {
     if (!cpgOptions.loopName.empty()) {
         _verboseLoops = Queries::loopsInsts(cpgOptions.loopName);
     }
-    graph.getModule()->accept(this);
+    Index counter = 0;
+    for (Node* func : Query::functions()) {
+        if (func->isImport()) {
+            continue;
+        }
+        debug("[DEBUG][PDG][%u/%lu] Function %s\n", counter++,
+              mc.module.funcs.size(), func->name().c_str());
+
+        currentFunction = func->getFunc();
+
+        auto filterInsts =
+            NodeStream(func).children(Query::AST_EDGES).filter([](Node* n) {
+                return n->type() == NodeType::Instructions;
+            });
+        assert(filterInsts.size() == 1);
+
+        // clear
+        _reachDef.clear();
+        _loops.clear();
+        _loopsInsts.clear();
+        _loopsStack = {};
+
+        visitInstructions(
+            dynamic_cast<Instructions*>(filterInsts.findFirst().get()));
+
+        while (_dfsList.size() != 0) {
+            auto firstInst = _dfsList.front();
+            _dfsList.pop_front();
+
+            // set loopsStack
+            _loopsStack = *(std::get<1>(firstInst));
+            // set last node
+            _lastNode = std::get<2>(firstInst);
+
+            switch (std::get<0>(firstInst)->instType()) {
+            case ExprType::Nop:
+                visitNopInst(dynamic_cast<NopInst*>(std::get<0>(firstInst)));
+                break;
+            case ExprType::Unreachable:
+                visitUnreachableInst(
+                    dynamic_cast<UnreachableInst*>(std::get<0>(firstInst)));
+                break;
+            case ExprType::Return:
+                visitReturnInst(
+                    dynamic_cast<ReturnInst*>(std::get<0>(firstInst)));
+                break;
+            case ExprType::BrTable:
+                visitBrTableInst(
+                    dynamic_cast<BrTableInst*>(std::get<0>(firstInst)));
+                break;
+            case ExprType::CallIndirect:
+                visitCallIndirectInst(
+                    dynamic_cast<CallIndirectInst*>(std::get<0>(firstInst)));
+                break;
+            case ExprType::Drop:
+                visitDropInst(dynamic_cast<DropInst*>(std::get<0>(firstInst)));
+                break;
+            case ExprType::Select:
+                visitSelectInst(
+                    dynamic_cast<SelectInst*>(std::get<0>(firstInst)));
+                break;
+            case ExprType::MemorySize:
+                visitMemorySizeInst(
+                    dynamic_cast<MemorySizeInst*>(std::get<0>(firstInst)));
+                break;
+            case ExprType::MemoryGrow:
+                visitMemoryGrowInst(
+                    dynamic_cast<MemoryGrowInst*>(std::get<0>(firstInst)));
+                break;
+            case ExprType::Const:
+                visitConstInst(
+                    dynamic_cast<ConstInst*>(std::get<0>(firstInst)));
+                break;
+            case ExprType::Binary:
+                visitBinaryInst(
+                    dynamic_cast<BinaryInst*>(std::get<0>(firstInst)));
+                break;
+            case ExprType::Compare:
+                visitCompareInst(
+                    dynamic_cast<CompareInst*>(std::get<0>(firstInst)));
+                break;
+            case ExprType::Convert:
+                visitConvertInst(
+                    dynamic_cast<ConvertInst*>(std::get<0>(firstInst)));
+                break;
+            case ExprType::Unary:
+                visitUnaryInst(
+                    dynamic_cast<UnaryInst*>(std::get<0>(firstInst)));
+                break;
+            case ExprType::Load:
+                visitLoadInst(dynamic_cast<LoadInst*>(std::get<0>(firstInst)));
+                break;
+            case ExprType::Store:
+                visitStoreInst(
+                    dynamic_cast<StoreInst*>(std::get<0>(firstInst)));
+                break;
+            case ExprType::Br:
+                visitBrInst(dynamic_cast<BrInst*>(std::get<0>(firstInst)));
+                break;
+            case ExprType::BrIf:
+                visitBrIfInst(dynamic_cast<BrIfInst*>(std::get<0>(firstInst)));
+                break;
+            case ExprType::Call:
+                visitCallInst(dynamic_cast<CallInst*>(std::get<0>(firstInst)));
+                break;
+            case ExprType::GlobalGet:
+                visitGlobalGetInst(
+                    dynamic_cast<GlobalGetInst*>(std::get<0>(firstInst)));
+                break;
+            case ExprType::GlobalSet:
+                visitGlobalSetInst(
+                    dynamic_cast<GlobalSetInst*>(std::get<0>(firstInst)));
+                break;
+            case ExprType::LocalGet:
+                visitLocalGetInst(
+                    dynamic_cast<LocalGetInst*>(std::get<0>(firstInst)));
+                break;
+            case ExprType::LocalSet:
+                visitLocalSetInst(
+                    dynamic_cast<LocalSetInst*>(std::get<0>(firstInst)));
+                break;
+            case ExprType::LocalTee:
+                visitLocalTeeInst(
+                    dynamic_cast<LocalTeeInst*>(std::get<0>(firstInst)));
+                break;
+            case ExprType::Block:
+                if (std::get<0>(firstInst)->isBeginBlock()) {
+                    visitBeginBlockInst(
+                        dynamic_cast<BeginBlockInst*>(std::get<0>(firstInst)));
+                } else {
+                    visitBlockInst(
+                        dynamic_cast<BlockInst*>(std::get<0>(firstInst)));
+                }
+                break;
+            case ExprType::Loop:
+                visitLoopInst(dynamic_cast<LoopInst*>(std::get<0>(firstInst)));
+                break;
+            case ExprType::If:
+                visitIfInst(dynamic_cast<IfInst*>(std::get<0>(firstInst)));
+                break;
+            default:
+                assert(false);
+                break;
+            }
+        }
+    }
 }
 
-void PDG::visitASTEdge(ASTEdge* e) {
-    assert(false);
-}
-
-void PDG::visitCFGEdge(CFGEdge* e) {
-    if (!e->_label.empty()) {
+void PDG::visitCFGEdge(Edge* e, std::shared_ptr<std::stack<LoopInst*>> stack) {
+    assert(e->type() == EdgeType::CFG);
+    if (!e->label().empty()) {
         // it is true or false label or (br_table)
         auto outEdges = e->src()->outEdges(EdgeType::PDG);
         auto filterQuery = Query::filterEdges(outEdges, [&](Edge* edge) {
             return e->label().compare(edge->label()) == 0;
         });
         if (filterQuery.size() == 0) {
-            new PDGEdge(e);
+            new PDGEdge(dynamic_cast<CFGEdge*>(e));
         }
     }
-    _lastNode = e->src();
-    e->dest()->accept(this);
+
+    _dfsList.emplace_front(e->dest(), stack, e->src());
 }
 
-void PDG::visitPDGEdge(PDGEdge* e) {
-    assert(false);
-}
-
-void PDG::visitCGEdge(CGEdge* e) {
-    assert(false);
-}
-
-void PDG::visitPGEdge(PGEdge* e) {
-    assert(false);
-}
-
-void PDG::visitModule(Module* node) {
-    for (auto e : node->outEdges(EdgeType::AST)) {
-        e->dest()->accept(this);
-    }
-}
-
-void PDG::visitFunction(Function* node) {
-    if (node->isImport()) {
-        return;
-    }
-    static Index counter = 0;
-    debug("[DEBUG][PDG][%u/%lu] Function %s\n", counter++,
-          mc.module.funcs.size(), node->name().c_str());
-    currentFunction = node->getFunc();
-    auto filterInsts = Query::filter(
-        Query::children({node}, Query::AST_EDGES),
-        [](Node* n) { return n->type() == NodeType::Instructions; });
-    assert(filterInsts.size() == 1);
-
-    // clear
-    _reachDef.clear();
-    _loops.clear();
-    _loopsInsts.clear();
-    _loopsStack = {};
-
-    // Visit instructions
-    (*filterInsts.begin())->accept(this);
-}
-
-void PDG::visitFunctionSignature(FunctionSignature* node) {
-    assert(false);
-}
-void PDG::visitParameters(Parameters* node) {
-    assert(false);
-}
 void PDG::visitInstructions(Instructions* node) {
     auto reachDefs = std::make_shared<ReachDefinition>();
     // globals
@@ -86,34 +180,14 @@ void PDG::visitInstructions(Instructions* node) {
         reachDefs->insertLocal(local.first);
     }
 
-    EdgeSet outEdges = node->outEdges(EdgeType::CFG);
+    auto outEdges = EdgeStream(node->outEdges(EdgeType::CFG));
     assert(outEdges.size() == 1);
-    _reachDef[(*outEdges.begin())->dest()].insert(reachDefs);
+    auto first = outEdges.findFirst();
 
-    (*outEdges.begin())->accept(this);
-}
-void PDG::visitLocals(Locals* node) {
-    assert(false);
-}
+    _reachDef[first.get()->dest()].insert(reachDefs);
 
-void PDG::visitResults(Results* node) {
-    assert(false);
-}
-
-void PDG::visitElse(Else* node) {
-    assert(false);
-}
-
-void PDG::visitStart(Start* node) {
-    assert(false);
-}
-
-void PDG::visitTrap(Trap* node) {
-    assert(false);
-}
-
-void PDG::visitVarNode(VarNode* node) {
-    assert(false);
+    visitCFGEdge(first.get(),
+                 std::make_shared<std::stack<LoopInst*>>(_loopsStack));
 }
 
 void PDG::visitNopInst(NopInst* node) {
@@ -127,6 +201,7 @@ void PDG::visitNopInst(NopInst* node) {
     // logDefinition(node, reachDef);
     advance(node, reachDef);
 }
+
 void PDG::visitUnreachableInst(UnreachableInst* node) {
     if (waitPaths(node)) {
         return;
@@ -739,10 +814,9 @@ inline void PDG::advance(Instruction* inst,
         _reachDef[(*outEdges.begin())->dest()].insert(resultReachDef);
     }
 
-    std::stack<LoopInst*> loopsStack;
+    auto loopsStack = std::make_shared<std::stack<LoopInst*>>(_loopsStack);
 
     if (outEdges.size() > 1) {
-        loopsStack = _loopsStack;
         for (auto it = std::next(outEdges.begin()); it != outEdges.end();
              ++it) {
             auto newReachDef =
@@ -753,20 +827,15 @@ inline void PDG::advance(Instruction* inst,
 
     _reachDef.erase(inst);
 
-    bool notFirst = false;
     // visit edges
     for (auto e : outEdges) {
-        if (notFirst) {
-            _loopsStack = loopsStack;
-        }
-        e->accept(this);
-        notFirst = true;
+        visitCFGEdge(e, loopsStack);
     }
 }
 
 void PDG::logDefinition(Node* inst, std::shared_ptr<ReachDefinition> def) {
-    if (!_options.verbose ||
-        (!_options.loopName.empty() && _verboseLoops.count(inst) == 0)) {
+    if (!cpgOptions.verbose ||
+        (!cpgOptions.loopName.empty() && _verboseLoops.count(inst) == 0)) {
         return;
     }
     json instLog;

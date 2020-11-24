@@ -1,6 +1,7 @@
 #ifndef WASMATI_VULNS_BUILDER_H_
 #define WASMATI_VULNS_BUILDER_H_
 
+#include <fstream>
 #include <list>
 #include <map>
 #include <sstream>
@@ -150,6 +151,8 @@ struct Vulnerability {
         }
     }
 };
+
+static Index numFuncs;
 
 void checkVulnerabilities(json& config, std::list<Vulnerability>& vulns);
 void verifyConfig(json& config);

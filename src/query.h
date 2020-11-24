@@ -1,7 +1,8 @@
 #ifndef WASMATI_QUERY_BUILDER_H_
 #define WASMATI_QUERY_BUILDER_H_
 
-#include <set>
+#include <list>
+#include <stack>
 #include "graph.h"
 #include "include/nlohmann/json.hpp"
 
@@ -184,13 +185,30 @@ public:
         const EdgeCondition& edgeCondition,
         T aux,
         const std::function<std::pair<bool, T>(Node*, T)> consumer) {
-        std::pair<bool, T> nextAux = consumer(source, aux);
-        if (!nextAux.first) {
-            return;
-        }
+        std::list<std::pair<Node*, T>> dfsNodes;
+        std::set<Node*> visited;
 
-        for (Edge* e : Query::filterEdges(source->outEdges(), edgeCondition)) {
-            DFS(e->dest(), edgeCondition, nextAux.second, consumer);
+        dfsNodes.emplace_front(source, aux);
+        while (!dfsNodes.empty()) {
+            auto firstNode = dfsNodes.front();
+            dfsNodes.pop_front();
+
+            std::pair<bool, T> nextAux =
+                consumer(firstNode.first, firstNode.second);
+
+            if (!nextAux.first) {
+                continue;
+            }
+
+            visited.insert(firstNode.first);
+            std::list<std::pair<Node*, T>> nodesToInsert;
+            for (Edge* e :
+                 Query::filterEdges(firstNode.first->outEdges(), edgeCondition)) {
+                if (visited.count(e->dest()) == 0) {
+                    nodesToInsert.emplace_back(e->dest(), nextAux.second);
+                }
+            }
+            dfsNodes.splice(dfsNodes.begin(), nodesToInsert);
         }
     }
 
@@ -268,6 +286,8 @@ class EdgeStream {
 
 public:
     EdgeStream(EdgeSet edges) : edges(edges) {}
+
+    size_t size() { return edges.size(); }
 
     EdgeStream& filter(const EdgeCondition& edgeCondition = Query::ALL_EDGES) {
         edges = Query::filterEdges(edges, edgeCondition);

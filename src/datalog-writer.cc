@@ -47,7 +47,7 @@ instruction(X, "Call") :- call(X, LABEL, N_ARGS, N_RESULTS).
 instruction(X, "CallIndirect") :- callIndirect(X, LABEL, N_ARGS, N_RESULTS).
 instruction(X, "Block") :- block(X, LABEL, N_RESULTS).
 instruction(X, "Loop") :- loop(X, LABEL, N_RESULTS).
-instruction(X, "BeginBlock") :- loop(X, LABEL).
+instruction(X, "BeginBlock") :- beginBlock(X, LABEL).
 instruction(X, "If") :- if(X, N_RESULTS, HAS_ELSE).
 edge(X, Y, "AST") :- astEdge(X, Y).
 edge(X, Y, "CFG") :- cfgEdge(X, Y).

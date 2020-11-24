@@ -1,7 +1,6 @@
 #ifndef WASMATI_PDG_BUILDER_H_
 #define WASMATI_PDG_BUILDER_H_
 
-#include <fstream>
 #include <list>
 #include <map>
 #include <set>
@@ -9,16 +8,20 @@
 #include <stack>
 #include "graph.h"
 #include "query.h"
+#include "src/cast.h"
 
 using namespace wabt;
 
 namespace wasmati {
 class ReachDefinition;
 
-class PDG : GraphVisitor {
+class PDG {
 private:
     ModuleContext& mc;
     Graph& graph;
+
+    std::list<std::tuple<Node*, std::shared_ptr<std::stack<LoopInst*>>, Node*>>
+        _dfsList;
 
     Func* currentFunction = nullptr;
     std::map<Node*, std::set<std::shared_ptr<ReachDefinition>>> _reachDef;
@@ -31,7 +34,6 @@ private:
     std::stack<LoopInst*> _loopsStack;
     Node* _lastNode;
 
-    GenerateCPGOptions _options;
     json _verbose;
     NodeSet _verboseLoops;
 
@@ -44,51 +46,36 @@ public:
     void generatePDG();
 
 private:
-    // Inherited via GraphVisitor
-    virtual void visitASTEdge(ASTEdge* e) override;
-    virtual void visitCFGEdge(CFGEdge* e) override;
-    virtual void visitPDGEdge(PDGEdge* e) override;
-    virtual void visitCGEdge(CGEdge* e) override;
-    virtual void visitPGEdge(PGEdge* e) override;
-    virtual void visitModule(Module* node) override;
-    virtual void visitFunction(Function* node) override;
-    virtual void visitFunctionSignature(FunctionSignature* node) override;
-    virtual void visitParameters(Parameters* node) override;
-    virtual void visitInstructions(Instructions* node) override;
-    virtual void visitLocals(Locals* node) override;
-    virtual void visitResults(Results* node) override;
-    virtual void visitElse(Else* node) override;
-    virtual void visitStart(Start* node) override;
-    virtual void visitTrap(Trap* node) override;
-    virtual void visitVarNode(VarNode* node) override;
-    virtual void visitNopInst(NopInst* node) override;
-    virtual void visitUnreachableInst(UnreachableInst* node) override;
-    virtual void visitReturnInst(ReturnInst* node) override;
-    virtual void visitBrTableInst(BrTableInst* node) override;
-    virtual void visitCallIndirectInst(CallIndirectInst* node) override;
-    virtual void visitDropInst(DropInst* node) override;
-    virtual void visitSelectInst(SelectInst* node) override;
-    virtual void visitMemorySizeInst(MemorySizeInst* node) override;
-    virtual void visitMemoryGrowInst(MemoryGrowInst* node) override;
-    virtual void visitConstInst(ConstInst* node) override;
-    virtual void visitBinaryInst(BinaryInst* node) override;
-    virtual void visitCompareInst(CompareInst* node) override;
-    virtual void visitConvertInst(ConvertInst* node) override;
-    virtual void visitUnaryInst(UnaryInst* node) override;
-    virtual void visitLoadInst(LoadInst* node) override;
-    virtual void visitStoreInst(StoreInst* node) override;
-    virtual void visitBrInst(BrInst* node) override;
-    virtual void visitBrIfInst(BrIfInst* node) override;
-    virtual void visitCallInst(CallInst* node) override;
-    virtual void visitGlobalGetInst(GlobalGetInst* node) override;
-    virtual void visitGlobalSetInst(GlobalSetInst* node) override;
-    virtual void visitLocalGetInst(LocalGetInst* node) override;
-    virtual void visitLocalSetInst(LocalSetInst* node) override;
-    virtual void visitLocalTeeInst(LocalTeeInst* node) override;
-    virtual void visitBeginBlockInst(BeginBlockInst* node) override;
-    virtual void visitBlockInst(BlockInst* node) override;
-    virtual void visitLoopInst(LoopInst* node) override;
-    virtual void visitIfInst(IfInst* node) override;
+    void visitCFGEdge(Edge* e, std::shared_ptr<std::stack<LoopInst*>> stack);
+    void visitInstructions(Instructions* e);
+    void visitNopInst(NopInst* node);
+    void visitUnreachableInst(UnreachableInst* node);
+    void visitReturnInst(ReturnInst* node);
+    void visitBrTableInst(BrTableInst* node);
+    void visitCallIndirectInst(CallIndirectInst* node);
+    void visitDropInst(DropInst* node);
+    void visitSelectInst(SelectInst* node);
+    void visitMemorySizeInst(MemorySizeInst* node);
+    void visitMemoryGrowInst(MemoryGrowInst* node);
+    void visitConstInst(ConstInst* node);
+    void visitBinaryInst(BinaryInst* node);
+    void visitCompareInst(CompareInst* node);
+    void visitConvertInst(ConvertInst* node);
+    void visitUnaryInst(UnaryInst* node);
+    void visitLoadInst(LoadInst* node);
+    void visitStoreInst(StoreInst* node);
+    void visitBrInst(BrInst* node);
+    void visitBrIfInst(BrIfInst* node);
+    void visitCallInst(CallInst* node);
+    void visitGlobalGetInst(GlobalGetInst* node);
+    void visitGlobalSetInst(GlobalSetInst* node);
+    void visitLocalGetInst(LocalGetInst* node);
+    void visitLocalSetInst(LocalSetInst* node);
+    void visitLocalTeeInst(LocalTeeInst* node);
+    void visitBeginBlockInst(BeginBlockInst* node);
+    void visitBlockInst(BlockInst* node);
+    void visitLoopInst(LoopInst* node);
+    void visitIfInst(IfInst* node);
 
     // Auxiliars
     inline bool waitPaths(Instruction* inst, bool isLoop = false);

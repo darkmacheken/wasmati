@@ -4,6 +4,7 @@ using namespace wasmati;
 void wasmati::checkVulnerabilities(json& config,
                                    std::list<Vulnerability>& vulns) {
     verifyConfig(config);
+    numFuncs = Query::functions().size();
     checkUnreachableCode(config, vulns);
     checkBufferOverflow(config, vulns);
     checkFormatString(config, vulns);
@@ -90,7 +91,10 @@ void wasmati::verifyConfig(json& config) {
 
 void wasmati::checkUnreachableCode(json& config,
                                    std::list<Vulnerability>& vulns) {
+    Index counter = 0;
     NodeStream(Query::functions()).forEach([&](Node* func) {
+        debug("[DEBUG][Query::UnreachableCode][%u/%u] Function %s\n",
+              counter++, numFuncs, func->name().c_str());
         auto queryInsts = Query::instructions({func}, [](Node* node) {
             return node->instType() != ExprType::Return &&
                    node->instType() != ExprType::Block &&
@@ -121,7 +125,10 @@ void wasmati::checkBoBuffsStatic(json& config,
 
     std::set<std::string> ignore = config[IGNORE];
 
+    Index counter = 0;
     for (auto func : Query::functions()) {
+        debug("[DEBUG][Query::BoBuffsStatic][%u/%u] Function %s\n",
+            counter++, numFuncs, func->name().c_str());
         if (ignore.count(func->name())) {
             continue;
         }
@@ -248,7 +255,10 @@ void wasmati::checkBoBuffsStatic(json& config,
 void wasmati::checkBoScanfLoops(json& config, std::list<Vulnerability>& vulns) {
     std::set<std::string> ignore = config[IGNORE];
 
+    Index counter = 0;
     for (auto func : Query::functions()) {
+        debug("[DEBUG][Query::BoScanfLoops][%u/%u] Function %s\n",
+            counter++, numFuncs, func->name().c_str());
         if (ignore.count(func->name())) {
             continue;
         }
@@ -339,7 +349,10 @@ void wasmati::checkFormatString(json& config, std::list<Vulnerability>& vulns) {
 
     std::set<std::string> ignore = config[IGNORE];
 
+    Index counter = 0;
     for (auto func : Query::functions()) {
+        debug("[DEBUG][Query::FormatString][%u/%u] Function %s\n",
+            counter++, numFuncs, func->name().c_str());
         if (ignore.count(func->name())) {
             continue;
         }
@@ -472,7 +485,10 @@ void wasmati::taintedFuncToFunc(json& config, std::list<Vulnerability>& vulns) {
 
     std::set<std::string> ignore = config[IGNORE];
 
+    Index counter = 0;
     for (auto func : Query::functions()) {
+        debug("[DEBUG][Query::TaintedFuncToFunc][%u/%u] Function %s\n",
+            counter++, numFuncs, func->name().c_str());
         if (ignore.count(func->name())) {
             continue;
         }
@@ -520,7 +536,10 @@ void wasmati::taintedLocalToFunc(json& config,
 
     std::set<std::string> ignore = config[IGNORE];
 
+    Index counter = 0;
     for (auto func : Query::functions()) {
+        debug("[DEBUG][Query::TaintedLocalToFunc][%u/%u] Function %s\n",
+            counter++, numFuncs, func->name().c_str());
         if (ignore.count(func->name())) {
             continue;
         }
@@ -625,7 +644,10 @@ void wasmati::checkIntegerOverflow(json& config) {}
 void wasmati::checkUseAfterFree(json& config, std::list<Vulnerability>& vulns) {
     std::set<std::string> ignore = config[IGNORE];
 
+    Index counter = 0;
     for (auto func : Query::functions()) {
+        debug("[DEBUG][Query::UseAfterFree][%u/%u] Function %s\n",
+            counter++, numFuncs, func->name().c_str());
         if (ignore.count(func->name())) {
             continue;
         }
@@ -648,8 +670,10 @@ void wasmati::checkUseAfterFree(json& config, std::list<Vulnerability>& vulns) {
                                     .filterPDG(PDGType::Function,
                                                callSource->label())
                                     .findFirst();
-                            if (node->instType() == ExprType::Call &&
-                                node->label() == dest) {
+                            if (node->type() != NodeType::Instruction) {
+                                return std::make_pair(false, seenDest);
+                            } else if (node->instType() == ExprType::Call &&
+                                       node->label() == dest) {
                                 if (seenDest && edges.isPresent()) {
                                     std::stringstream desc;
                                     desc << node->label() << " called again.";
