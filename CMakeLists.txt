@@ -231,6 +231,8 @@ add_library(wasmatilib STATIC
   src/dot-writer.cc
   src/datalog-writer.h
   src/datalog-writer.cc
+  src/datalog-facts-writer.h
+  src/datalog-facts-writer.cc
   src/vulns.h
   src/vulns.cc
 )

@@ -9,53 +9,124 @@ void DatalogWriter::writeGraph() {
     }
 
     writePuts(R"(
-node(X) :- module(X, NAME).
-node(X) :- function(X, NAME, INDEX, N_ARGS, N_LOCALS, N_RESULTS, IS_IMPORT, IS_EXPORT).
-node(X) :- varNode(X, TYPE, INDEX, NAME).
-node(X) :- functionSignature(X).
-node(X) :- instructions(X).     
-node(X) :- parameters(X).     
-node(X) :- locals(X).     
-node(X) :- results(X).     
-node(X) :- else(X).     
-node(X) :- trap(X).     
-node(X) :- start(X). 
-node(X) :- instruction(X, INST_TYPE).
-instruction(X, "Nop") :- nop(X).
-instruction(X, "Unreachable") :- unreachable(X).
-instruction(X, "Return") :- return(X).
-instruction(X, "BrTable") :- brTable(X).
-instruction(X, "Drop") :- drop(X).
-instruction(X, "Select") :- select(X).
-instruction(X, "MemorySize") :- memorySize(X).
-instruction(X, "MemoryGrow") :- memoryGrow(X).
-instruction(X, "Const") :- const(X, CONST_TYPE, VALUE).
-instruction(X, "Binary") :- binary(X, OPCODE).
-instruction(X, "Compare") :- compare(X, OPCODE).
-instruction(X, "Convert") :- convert(X, OPCODE).
-instruction(X, "Unary") :- unary(X, OPCODE).
-instruction(X, "Load") :- load(X, OFFSET).
-instruction(X, "Store") :- store(X, OFFSET).
-instruction(X, "Br") :- br(X, LABEL).
-instruction(X, "BrIf") :- brIf(X, LABEL).
-instruction(X, "GlobalGet") :- globalGet(X, LABEL).
-instruction(X, "GlobalSet") :- globalSet(X, LABEL).
-instruction(X, "LocalGet") :- localGet(X, LABEL).
-instruction(X, "LocalSet") :- localSet(X, LABEL).
-instruction(X, "LocalTee") :- localTee(X, LABEL).
-instruction(X, "Call") :- call(X, LABEL, N_ARGS, N_RESULTS).
-instruction(X, "CallIndirect") :- callIndirect(X, LABEL, N_ARGS, N_RESULTS).
-instruction(X, "Block") :- block(X, LABEL, N_RESULTS).
-instruction(X, "Loop") :- loop(X, LABEL, N_RESULTS).
-instruction(X, "BeginBlock") :- beginBlock(X, LABEL).
-instruction(X, "If") :- if(X, N_RESULTS, HAS_ELSE).
-edge(X, Y, "AST") :- astEdge(X, Y).
-edge(X, Y, "CFG") :- cfgEdge(X, Y).
-cfgEdge(X, Y, "CFG") :- cfgEdge(X, Y, LABEL).
-edge(X, Y, "PDG") :- pdgEdge(X, Y, LABEL, PDG_TYPE).
-edge(X, Y, "CG") :- cgEdge(X, Y).
-edge(X, Y, "PG") :- pgEdge(X, Y).
-pdgEdge(X, Y, LABEL, PDG_TYPE) :- pdgConstEdge(X, Y, LABEL, PDG_TYPE, VALUE).
+#ifndef WASMATI_DATALOG
+#define WASMATI_DATALOG
+
+#define false 0
+#define true 1
+.type bool <: unsigned
+
+.type Id <: unsigned
+.type NodeType <: symbol
+.type InstType <: symbol
+.type EdgeType <: symbol
+.type PDGType <: symbol
+.type VarType <: symbol
+.type Label <: symbol
+
+.type Const = [
+	type:VarType,
+	i:number,
+	f:float
+]
+.type Opcode <: symbol
+.type Name = Label | symbol
+
+// Declarations
+// -- Edges
+.decl edge(x:Id, y:Id, type:EdgeType, label:Label, pdgType:PDGType, value:Const)
+.decl astEdge(x:Id, y:Id)
+.decl cpgEdge(x:Id, y:Id, label:Label)
+.decl pdgEdge(x:Id, y:Id, label:Label, type:PDGType, value:Const)
+.decl cgEdge(x:Id, y:Id)
+.decl pgEdge(x:Id, y:Id)
+
+// -- Nodes
+.decl module(x:Id, name:Name)
+.decl function(x:Id, name:Name, index:unsigned, narg:unsigned, nlocals:unsigned, nresults:unsigned, isImport:bool, isExport:bool)
+.decl varNode(x:Id, type:VarType, index:unsigned, name:Name)
+.decl functionSignature(x:Id)
+.decl instructions(x:Id)
+.decl parameters(x:Id)
+.decl locals(x:Id)
+.decl results(x:Id)
+.decl else(x:Id)
+.decl trap(x:Id)
+.decl start(x:Id)
+.decl instruction(x:Id, type:InstType)
+.decl nop(x:Id)
+.decl unreachable(x:Id)
+.decl return(x:Id)
+.decl brTable(x:Id)
+.decl drop(x:Id)
+.decl select(x:Id)
+.decl memorySize(x:Id)
+.decl memoryGrow(x:Id)
+.decl const(x:Id, value:Const)
+.decl binary(x:Id, opcode:Opcode)
+.decl compare(x:Id, opcode:Opcode)
+.decl convert(x:Id, opcode:Opcode)
+.decl unary(x:Id, opcode:Opcode)
+.decl load(x:Id, offset:unsigned)
+.decl store(x:Id, offset:unsigned)
+.decl br(x:Id, label:Label)
+.decl brIf(x:Id, label:Label)
+.decl globalGet(x:Id, label:Label)
+.decl globalSet(x:Id, label:Label)
+.decl localGet(x:Id, label:Label)
+.decl localSet(x:Id, label:Label)
+.decl localTee(x:Id, label:Label)
+.decl call(x:Id, label:Label, nargs:unsigned, nresults:unsigned)
+.decl callIndirect(x:Id, label:Label, nargs:unsigned, nresults:unsigned)
+.decl block(x:Id, label:Label, nresults:unsigned)
+.decl loop(x:Id, label:Label, nresults:unsigned)
+.decl beginBlock(x:Id, label:Label)
+.decl if(x:Id, nresults:unsigned, hasElse:bool)
+
+// -- Basic Queries
+.decl reaches(x:Id, y:Id, type:EdgeType)
+
+// Rules
+// -- Edges
+astEdge(x, y) :- edge(x, y, "AST", _, _, _).
+cpgEdge(x, y, label) :- edge(x, y, "CFG", label, _, _).
+pdgEdge(x, y, label, type, value) :- edge(x , y, "PDG", label, type,value).
+cgEdge(x,y) :- edge(x, y, "CG", _, _, _).
+pgEdge(x,y) :- edge(x, y, "CG", _, _, _).
+
+// -- Nodes
+instruction(x, "Nop") :- nop(x).
+instruction(x, "Unreachable") :- unreachable(x).
+instruction(x, "Return") :- return(x).
+instruction(x, "BrTable") :- brTable(x).
+instruction(x, "Drop") :- drop(x).
+instruction(x, "Select") :- select(x).
+instruction(x, "MemorySize") :- memorySize(x).
+instruction(x, "MemoryGrow") :- memoryGrow(x).
+instruction(x, "Const") :- const(x, _).
+instruction(x, "Binary") :- binary(x, _).
+instruction(x, "Compare") :- compare(x, _).
+instruction(x, "Convert") :- convert(x, _).
+instruction(x, "Unary") :- unary(x, _).
+instruction(x, "Load") :- load(x, _).
+instruction(x, "Store") :- store(x, _).
+instruction(x, "Br") :- br(x, _).
+instruction(x, "BrIf") :- brIf(x, _).
+instruction(x, "GlobalGet") :- globalGet(x, _).
+instruction(x, "GlobalSet") :- globalSet(x, _).
+instruction(x, "LocalGet") :- localGet(x, _).
+instruction(x, "LocalSet") :- localSet(x, _).
+instruction(x, "LocalTee") :- localTee(x, _).
+instruction(x, "Call") :- call(x, _, _, _).
+instruction(x, "CallIndirect") :- callIndirect(x, _, _, _).
+instruction(x, "Block") :- block(x, _, _).
+instruction(x, "Loop") :- loop(x, _, _).
+instruction(x, "BeginBlock") :- beginBlock(x, _).
+instruction(x, "If") :- if(x, _, _).
+
+// -- Basic Queries
+reaches(X, Y, type) :- edge(X, Y, type, _, _, _).
+reaches(X, Y, type) :- edge(X, Z, type, _, _, _), reaches(Z, Y, _type).
 
 )");
 
@@ -81,33 +152,24 @@ pdgEdge(X, Y, LABEL, PDG_TYPE) :- pdgConstEdge(X, Y, LABEL, PDG_TYPE, VALUE).
             node->accept(this);
         }
     }
+    writePuts("#endif\n");
 }
 
 void DatalogWriter::visitASTEdge(ASTEdge* e) {
     if (cpgOptions.printNoAST) {
         return;
     }
-    std::stringstream res;
-    res << "astEdge(" << e->src()->getId() << ", " << e->dest()->getId()
-        << ").";
-    writeStringln(res.str());
+    _stream->Writef("edge(%u, %u, \"AST\", \"\", \"\", nil).\n",
+                    e->src()->getId(), e->dest()->getId());
 }
 
 void DatalogWriter::visitCFGEdge(CFGEdge* e) {
     if (cpgOptions.printNoCFG) {
         return;
     }
-    if (e->_label.empty()) {
-        std::stringstream res;
-        res << "cfgEdge(" << e->src()->getId() << ", " << e->dest()->getId()
-            << ").";
-        writeStringln(res.str());
-    } else {
-        std::stringstream res;
-        res << "cfgEdge(" << e->src()->getId() << ", " << e->dest()->getId()
-            << ", " << '"' << e->label() << '"' << ").";
-        writeStringln(res.str());
-    }
+
+    _stream->Writef("edge(%u, %u, \"CFG\", \"%s\", \"\", nil).\n",
+                    e->src()->getId(), e->dest()->getId(), e->label().c_str());
 }
 
 void DatalogWriter::visitPDGEdge(PDGEdge* e) {
@@ -115,18 +177,25 @@ void DatalogWriter::visitPDGEdge(PDGEdge* e) {
         return;
     }
     if (e->pdgType() == PDGType::Const) {
-        std::stringstream res;
-        res << "pdgConstEdge(" << e->src()->getId() << ", "
-            << e->dest()->getId() << ", " << '"' << e->label() << '"' << ", "
-            << '"' << pdgTypeMap[e->pdgType()] << '"' << ", "
-            << ConstInst::writeConst(e->value(), false) << ").";
-        writeStringln(res.str());
+        if (e->value().type == Type::I32 || e->value().type == Type::I64) {
+            _stream->Writef(
+                "edge(%u, %u, \"PDG\", \"%s\", \"%s\", [\"%s\", %s, %f]).\n",
+                e->src()->getId(), e->dest()->getId(), e->label().c_str(),
+                pdgTypeMap[e->pdgType()].c_str(),
+                ConstInst::writeConstType(e->value()).c_str(),
+                ConstInst::writeConst(e->value(), false).c_str(), 0.0);
+        } else {
+            _stream->Writef(
+                "edge(%u, %u, \"PDG\", \"%s\", \"%s\", [\"%s\", %u, %s]).\n",
+                e->src()->getId(), e->dest()->getId(), e->label().c_str(),
+                pdgTypeMap[e->pdgType()].c_str(),
+                ConstInst::writeConstType(e->value()).c_str(), 0,
+                ConstInst::writeConst(e->value(), false).c_str());
+        }
     } else {
-        std::stringstream res;
-        res << "pdgEdge(" << e->src()->getId() << ", " << e->dest()->getId()
-            << ", " << '"' << e->label() << '"' << ", " << '"'
-            << pdgTypeMap[e->pdgType()] << '"' << ").";
-        writeStringln(res.str());
+        _stream->Writef("edge(%u, %u, \"PDG\", \"%s\", \"%s\", nil).\n",
+                        e->src()->getId(), e->dest()->getId(),
+                        e->label().c_str(), pdgTypeMap[e->pdgType()].c_str());
     }
 }
 
@@ -134,291 +203,200 @@ void DatalogWriter::visitCGEdge(CGEdge* e) {
     if (cpgOptions.printNoCG) {
         return;
     }
-    std::stringstream res;
-    res << "cgEdge(" << e->src()->getId() << ", " << e->dest()->getId() << ").";
-    writeStringln(res.str());
+    _stream->Writef("edge(%u, %u, \"AST\", \"\", \"\", nil).\n",
+                    e->src()->getId(), e->dest()->getId());
 }
 
 void DatalogWriter::visitPGEdge(PGEdge* e) {
     if (cpgOptions.printNoPG) {
         return;
     }
-    std::stringstream res;
-    res << "pgEdge(" << e->src()->getId() << ", " << e->dest()->getId() << ").";
-    writeStringln(res.str());
+    _stream->Writef("edge(%u, %u, \"AST\", \"\", \"\", nil).\n",
+                    e->src()->getId(), e->dest()->getId());
 }
 
 void DatalogWriter::visitModule(Module* mod) {
-    std::stringstream res;
-    res << "module(" << mod->getId() << ", " << '"' << mod->name() << '"'
-        << ").";
-    writeStringln(res.str());
+    _stream->Writef("module(%u, \"%s\").\n", mod->getId(), mod->name().c_str());
 }
 
 void DatalogWriter::visitFunction(Function* func) {
-    std::stringstream res;
-    res << "function(" << func->getId() << ", " << '"' << func->name() << '"'
-        << ", " << func->index() << "," << func->nargs() << ", "
-        << func->nlocals() << ", " << func->nresults() << ", "
-        << func->isImport() << ", " << func->isExport() << ").";
-    writeStringln(res.str());
+    _stream->Writef("function(%u, \"%s\", %u, %u, %u, %u, %u, %u).\n",
+                    func->getId(), func->name().c_str(), func->index(),
+                    func->nargs(), func->nlocals(), func->nresults(),
+                    func->isImport(), func->isExport());
 }
 
 void DatalogWriter::visitFunctionSignature(FunctionSignature* node) {
-    std::stringstream res;
-    res << "functionSignature(" << node->getId() << ").";
-    writeStringln(res.str());
+    _stream->Writef("functionSignature(%u).\n", node->getId());
 }
 
 void DatalogWriter::visitParameters(Parameters* node) {
-    std::stringstream res;
-    res << "parameters(" << node->getId() << ").";
-    writeStringln(res.str());
+    _stream->Writef("parameters(%u).\n", node->getId());
 }
 
 void DatalogWriter::visitInstructions(Instructions* node) {
-    std::stringstream res;
-    res << "instructions(" << node->getId() << ").";
-    writeStringln(res.str());
+    _stream->Writef("instructions(%u).\n", node->getId());
 }
 
 void DatalogWriter::visitLocals(Locals* node) {
-    std::stringstream res;
-    res << "locals(" << node->getId() << ").";
-    writeStringln(res.str());
+    _stream->Writef("locals(%u).\n", node->getId());
 }
 
 void DatalogWriter::visitResults(Results* node) {
-    std::stringstream res;
-    res << "results(" << node->getId() << ").";
-    writeStringln(res.str());
+    _stream->Writef("results(%u).\n", node->getId());
 }
 
 void DatalogWriter::visitElse(Else* node) {
-    std::stringstream res;
-    res << "else(" << node->getId() << ").";
-    writeStringln(res.str());
+    _stream->Writef("else(%u).\n", node->getId());
 }
 
 void DatalogWriter::visitStart(Start* node) {
-    std::stringstream res;
-    res << "start(" << node->getId() << ").";
-    writeStringln(res.str());
+    _stream->Writef("start(%u).\n", node->getId());
 }
 void DatalogWriter::visitTrap(Trap* node) {
-    std::stringstream res;
-    res << "trap(" << node->getId() << ").";
-    writeStringln(res.str());
+    _stream->Writef("trap(%u).\n", node->getId());
 }
 
 void DatalogWriter::visitVarNode(VarNode* node) {
-    std::stringstream res;
-    res << "varNode(" << node->getId() << ", " << '"'
-        << typeToString(node->varType()) << '"' << ", " << node->index() << ", "
-        << '"' << node->name() << '"' << ").";
-    writeStringln(res.str());
+    _stream->Writef("varNode(%u, \"%s\", %u, \"%s\").\n", node->getId(),
+                    node->writeVarType().c_str(), node->index(),
+                    node->name().c_str());
 }
 
 void DatalogWriter::visitNopInst(NopInst* node) {
-    std::stringstream res;
-    res << "nop(" << node->getId() << ").";
-    writeStringln(res.str());
+    _stream->Writef("nop(%u).\n", node->getId());
 }
 
 void DatalogWriter::visitUnreachableInst(UnreachableInst* node) {
-    std::stringstream res;
-    res << "unreachable(" << node->getId() << ").";
-    writeStringln(res.str());
+    _stream->Writef("unreachable(%u).\n", node->getId());
 }
 
 void DatalogWriter::visitReturnInst(ReturnInst* node) {
-    std::stringstream res;
-    res << "return(" << node->getId() << ").";
-    writeStringln(res.str());
+    _stream->Writef("return(%u).\n", node->getId());
 }
 
 void DatalogWriter::visitBrTableInst(BrTableInst* node) {
-    std::stringstream res;
-    res << "brTable(" << node->getId() << ").";
-    writeStringln(res.str());
+    _stream->Writef("brTable(%u).\n", node->getId());
 }
 
 void DatalogWriter::visitDropInst(DropInst* node) {
-    std::stringstream res;
-    res << "drop(" << node->getId() << ").";
-    writeStringln(res.str());
+    _stream->Writef("drop(%u).\n", node->getId());
 }
 
 void DatalogWriter::visitSelectInst(SelectInst* node) {
-    std::stringstream res;
-    res << "select(" << node->getId() << ").";
-    writeStringln(res.str());
+    _stream->Writef("select(%u).\n", node->getId());
 }
 
 void DatalogWriter::visitMemorySizeInst(MemorySizeInst* node) {
-    std::stringstream res;
-    res << "memorySize(" << node->getId() << ").";
-    writeStringln(res.str());
+    _stream->Writef("memorySize(%u).\n", node->getId());
 }
 
 void DatalogWriter::visitMemoryGrowInst(MemoryGrowInst* node) {
-    std::stringstream res;
-    res << "memoryGrow(" << node->getId() << ").";
-    writeStringln(res.str());
+    _stream->Writef("memoryGrow(%u).\n", node->getId());
 }
 
 void DatalogWriter::visitConstInst(ConstInst* node) {
-    std::stringstream res;
-    res << "const(" << node->getId() << ", " << '"'
-        << typeToString(node->value().type) << '"' << ", "
-        << ConstInst::writeConst(node->value(), false) << ").";
-    writeStringln(res.str());
+    if (node->value().type == Type::I32 || node->value().type == Type::I64) {
+        _stream->Writef("const(%u, [\"%s\", %s, %f]).\n", node->getId(),
+                        ConstInst::writeConstType(node->value()).c_str(),
+                        ConstInst::writeConst(node->value(), false).c_str(), 0.0);
+    } else {
+        _stream->Writef("const(%u, [\"%s\", %d, %s]).\n", node->getId(),
+                        ConstInst::writeConstType(node->value()).c_str(), 0,
+                        ConstInst::writeConst(node->value(), false).c_str());
+    }
 }
 
 void DatalogWriter::visitBinaryInst(BinaryInst* node) {
-    std::stringstream res;
-    res << "binary(" << node->getId() << ", " << '"' << node->opcode().GetName()
-        << '"' << ").";
-    writeStringln(res.str());
+    _stream->Writef("binary(%u, \"%s\").\n", node->getId(),
+                    node->opcode().GetName());
 }
 
 void DatalogWriter::visitCompareInst(CompareInst* node) {
-    std::stringstream res;
-    res << "compare(" << node->getId() << ", " << '"'
-        << node->opcode().GetName() << '"' << ").";
-    writeStringln(res.str());
+    _stream->Writef("compare(%u, \"%s\").\n", node->getId(),
+                    node->opcode().GetName());
 }
 
 void DatalogWriter::visitConvertInst(ConvertInst* node) {
-    std::stringstream res;
-    res << "convert(" << node->getId() << ", " << '"'
-        << node->opcode().GetName() << '"' << ").";
-    writeStringln(res.str());
+    _stream->Writef("convert(%u, \"%s\").\n", node->getId(),
+                    node->opcode().GetName());
 }
 
 void DatalogWriter::visitUnaryInst(UnaryInst* node) {
-    std::stringstream res;
-    res << "unary(" << node->getId() << ", " << '"' << node->opcode().GetName()
-        << '"' << ").";
-    writeStringln(res.str());
+    _stream->Writef("unary(%u, \"%s\").\n", node->getId(),
+                    node->opcode().GetName());
 }
 
 void DatalogWriter::visitLoadInst(LoadInst* node) {
-    std::stringstream res;
-    res << "load(" << node->getId() << ", " << node->offset() << ").";
-    writeStringln(res.str());
+    _stream->Writef("load(%u, %u).\n", node->getId(), node->offset());
 }
 
 void DatalogWriter::visitStoreInst(StoreInst* node) {
-    std::stringstream res;
-    res << "store(" << node->getId() << ", " << node->offset() << ").";
-    writeStringln(res.str());
+    _stream->Writef("store(%u, %u).\n", node->getId(), node->offset());
 }
 
 void DatalogWriter::visitBrInst(BrInst* node) {
-    std::stringstream res;
-    res << "br(" << node->getId() << ", " << '"' << node->label() << '"'
-        << ").";
-    writeStringln(res.str());
+    _stream->Writef("br(%u, \"%s\").\n", node->getId(), node->label().c_str());
 }
 
 void DatalogWriter::visitBrIfInst(BrIfInst* node) {
-    std::stringstream res;
-    res << "brIf(" << node->getId() << ", " << '"' << node->label() << '"'
-        << ").";
-    writeStringln(res.str());
+    _stream->Writef("brIf(%u, \"%s\").\n", node->getId(),
+                    node->label().c_str());
 }
 
 void DatalogWriter::visitGlobalGetInst(GlobalGetInst* node) {
-    std::stringstream res;
-    res << "globalGet(" << node->getId() << ", " << '"' << node->label() << '"'
-        << ").";
-    writeStringln(res.str());
+    _stream->Writef("globalGet(%u, \"%s\").\n", node->getId(),
+                    node->label().c_str());
 }
 
 void DatalogWriter::visitGlobalSetInst(GlobalSetInst* node) {
-    std::stringstream res;
-    res << "globalSet(" << node->getId() << ", " << '"' << node->label() << '"'
-        << ").";
-    writeStringln(res.str());
+    _stream->Writef("globalSet(%u, \"%s\").\n", node->getId(),
+                    node->label().c_str());
 }
 
 void DatalogWriter::visitLocalGetInst(LocalGetInst* node) {
-    std::stringstream res;
-    res << "localGet(" << node->getId() << ", " << '"' << node->label() << '"'
-        << ").";
-    writeStringln(res.str());
+    _stream->Writef("localGet(%u, \"%s\").\n", node->getId(),
+                    node->label().c_str());
 }
 
 void DatalogWriter::visitLocalSetInst(LocalSetInst* node) {
-    std::stringstream res;
-    res << "localSet(" << node->getId() << ", " << '"' << node->label() << '"'
-        << ").";
-    writeStringln(res.str());
+    _stream->Writef("localSet(%u, \"%s\").\n", node->getId(),
+                    node->label().c_str());
 }
 
 void DatalogWriter::visitLocalTeeInst(LocalTeeInst* node) {
-    std::stringstream res;
-    res << "localTee(" << node->getId() << ", " << '"' << node->label() << '"'
-        << ").";
-    writeStringln(res.str());
+    _stream->Writef("localTee(%u, \"%s\").\n", node->getId(),
+                    node->label().c_str());
 }
 
 void DatalogWriter::visitCallInst(CallInst* node) {
-    std::stringstream res;
-    res << "call(" << node->getId() << ", " << '"' << node->label() << '"'
-        << ", " << node->nargs() << ", " << node->nresults() << ").";
-    writeStringln(res.str());
+    _stream->Writef("call(%u, \"%s\", %u, %u).\n", node->getId(),
+                    node->label().c_str(), node->nargs(), node->nresults());
 }
 
 void DatalogWriter::visitCallIndirectInst(CallIndirectInst* node) {
-    std::stringstream res;
-    res << "callIndirect(" << node->getId() << ", " << '"' << node->label()
-        << '"' << ", " << node->nargs() << ", " << node->nresults() << ").";
-    writeStringln(res.str());
+    _stream->Writef("callIndirect(%u, \"%s\", %u, %u).\n", node->getId(),
+                    node->label().c_str(), node->nargs(), node->nresults());
 }
 
 void DatalogWriter::visitBlockInst(BlockInst* node) {
-    std::stringstream res;
-    res << "block(" << node->getId() << ", " << '"' << node->label() << '"'
-        << ", " << node->nresults() << ").";
-    writeStringln(res.str());
+    _stream->Writef("block(%u, \"%s\", %u).\n", node->getId(),
+                    node->label().c_str(), node->nresults());
 }
 
 void DatalogWriter::visitLoopInst(LoopInst* node) {
-    std::stringstream res;
-    res << "loop(" << node->getId() << ", " << '"' << node->label() << '"'
-        << ", " << node->nresults() << ").";
-    writeStringln(res.str());
+    _stream->Writef("loop(%u, \"%s\", %u).\n", node->getId(),
+                    node->label().c_str(), node->nresults());
 }
 
 void DatalogWriter::visitBeginBlockInst(BeginBlockInst* node) {
-    std::stringstream res;
-    res << "beginBlock(" << node->getId() << ", " << '"' << node->label() << '"'
-        << ").";
-    writeStringln(res.str());
+    _stream->Writef("beginBlock(%u, \"%s\").\n", node->getId(),
+                    node->label().c_str());
 }
 
 void DatalogWriter::visitIfInst(IfInst* node) {
-    std::stringstream res;
-    res << "if(" << node->getId() << ", " << node->nresults() << ", "
-        << node->hasElse() << ").";
-    writeStringln(res.str());
-}
-
-std::string DatalogWriter::typeToString(Type type) {
-    switch (type) {
-    case wabt::Type::I32:
-        return "i32";
-    case wabt::Type::I64:
-        return "i64";
-    case wabt::Type::F32:
-        return "f32";
-    case wabt::Type::F64:
-        return "f64";
-    default:
-        return "unknown";
-    }
+    _stream->Writef("if(%u, %u, %u).\n", node->getId(), node->nresults(),
+                    node->hasElse());
 }
 
 }  // namespace wasmati

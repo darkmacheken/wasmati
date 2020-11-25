@@ -128,9 +128,7 @@ public:
         assert(false);
         return nullptr;
     }
-    virtual bool isBeginBlock() {
-        return false;
-    }
+    virtual bool isBeginBlock() { return false; }
 
     explicit Node(NodeType type) : _id(idCount++), _type(type) {}
     virtual ~Node();
@@ -224,6 +222,30 @@ public:
     Type varType() const override { return _varType; }
     const std::string& name() const override { return _name; }
     Index index() const override { return _index; }
+    std::string writeVarType() {
+        switch (_varType) {
+        case Type::I32:
+            return "i32";
+
+        case Type::I64:
+            return "i64";
+
+        case Type::F32:
+            return "f32";
+
+        case Type::F64:
+            return "f64";
+
+        case Type::V128: {
+            assert(false);
+            break;
+        }
+
+        default:
+            assert(false);
+            break;
+        }
+    }
 
     void accept(GraphVisitor* visitor);
 };
@@ -301,6 +323,31 @@ public:
     const Const& value() const override { return _value; }
 
     void accept(GraphVisitor* visitor);
+
+    static std::string writeConstType(const Const& _const) {
+        switch (_const.type) {
+        case Type::I32:
+            return "i32";
+
+        case Type::I64:
+            return "i64";
+
+        case Type::F32:
+            return "f32";
+
+        case Type::F64:
+            return "f64";
+
+        case Type::V128: {
+            assert(false);
+            break;
+        }
+
+        default:
+            assert(false);
+            break;
+        }
+    }
 
     static std::string writeConst(const Const& _const, bool prefix = true) {
         std::string s;
@@ -716,6 +763,13 @@ protected:
         size_t len = strlen(s);
         _stream->WriteData(s, len);
         _stream->WriteChar('\n');
+    }
+
+    void writef(const char* format, ...) {
+        va_list args;
+        va_start(args, format);
+        _stream->Writef(format, args);
+        va_end(args);
     }
 
     void writeStringln(const std::string& str) { writePutsln(str.c_str()); }

@@ -4,6 +4,7 @@
 #include "src/binary-reader-ir.h"
 #include "src/binary-reader.h"
 #include "src/cfg-builder.h"
+#include "src/datalog-facts-writer.h"
 #include "src/datalog-writer.h"
 #include "src/decompiler.h"
 #include "src/dot-writer.h"
@@ -35,8 +36,10 @@ static std::string s_infile;
 static std::string s_outfile;
 static std::string s_doutfile;
 static std::string s_dlogfile;
+static std::string s_dlogdir;
 static bool generate_dot = false;
 static bool generate_datalog = false;
+static bool generate_datalog_dir = false;
 static bool is_wat = false;
 static bool is_wasm = false;
 static Features s_features;
@@ -73,22 +76,28 @@ static void ParseOptions(int argc, char** argv) {
             s_outfile = argument;
             ConvertBackslashToSlash(&s_outfile);
         });
-    parser.AddOption('d', "dot-output", "FILENAME",
-                     "Output file for vulnerability report.",
-                     [](const char* argument) {
+    parser.AddOption('g', "dot-output", "FILENAME",
+                     "Serialize the graph as dot.", [](const char* argument) {
                          s_doutfile = argument;
                          ConvertBackslashToSlash(&s_doutfile);
                          generate_dot = true;
                      });
-    parser.AddOption('g', "datalog", "FILENAME",
-                     "Output file for vulnerability report.",
+    parser.AddOption('d', "datalog", "FILENAME",
+                     "Serialize the graph as a soufflé datalog program.",
                      [](const char* argument) {
                          s_dlogfile = argument;
                          ConvertBackslashToSlash(&s_dlogfile);
                          generate_datalog = true;
                      });
-    parser.AddOption('c', "config", "FILENAME",
-                     "Output file for vulnerability report.",
+    parser.AddOption(
+        's', "datalog-csv", "DIRECTORY",
+        "Serialize the graph as soufflé facts in csv (.facts file).",
+        [](const char* argument) {
+            s_dlogdir = argument;
+            ConvertBackslashToSlash(&s_dlogdir);
+            generate_datalog_dir = true;
+        });
+    parser.AddOption('c', "config", "FILENAME", "JSON configuration file.",
                      [](const char* argument) {
                          s_configfile = argument;
                          ConvertBackslashToSlash(&s_configfile);
@@ -133,7 +142,7 @@ static void ParseOptions(int argc, char** argv) {
                      []() { cpgOptions.printNoCG = false; });
     parser.AddOption("pg", "Output the Parameters Graph",
                      []() { cpgOptions.printNoPG = false; });
-    parser.AddOption("all", "Output the Parameters Graph", []() {
+    parser.AddOption("all", "Output the complete Graph", []() {
         cpgOptions.printNoAST = false;
         cpgOptions.printNoCFG = false;
         cpgOptions.printNoPDG = false;
@@ -150,7 +159,7 @@ int ProgramMain(int argc, char** argv) {
     std::unique_ptr<wabt::Module> module;
     Result result;
     auto start = std::chrono::high_resolution_clock::now();
-    //s_features.set_bulk_memory_enabled(true);
+    // s_features.set_bulk_memory_enabled(true);
     if (is_wat || hasEnding(s_infile, ".wat") || hasEnding(s_infile, ".wast")) {
         result = watFile(&module);
     } else if (is_wasm || hasEnding(s_infile, ".wasm")) {
@@ -202,16 +211,27 @@ int ProgramMain(int argc, char** argv) {
         o << list.dump(4) << std::endl;
     }
 
+    // generate dot
     if (Succeeded(result) && generate_dot) {
         FileStream stream(!s_doutfile.empty() ? FileStream(s_doutfile)
                                               : FileStream(stdout));
         DotWriter writer(&stream, &graph);
         writer.writeGraph();
     }
+    // generate datalog program
     if (Succeeded(result) && generate_datalog) {
         FileStream stream(!s_dlogfile.empty() ? FileStream(s_dlogfile)
                                               : FileStream(stdout));
         DatalogWriter writer(&stream, &graph);
+        writer.writeGraph();
+    }
+    // generate datalog facts
+    if (Succeeded(result) && generate_datalog_dir) {
+        assert(!s_dlogdir.empty());
+        auto stream = FileStream(s_dlogdir + "/base.dl");
+        auto edges = FileStream(s_dlogdir + "/edge.facts");
+        auto nodes = FileStream(s_dlogdir + "/node.facts");
+        DatalogFactsWriter writer(&stream, &edges, &nodes, &graph);
         writer.writeGraph();
     }
     if (cpgOptions.info) {
