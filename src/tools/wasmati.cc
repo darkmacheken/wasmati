@@ -4,7 +4,6 @@
 #include "src/binary-reader-ir.h"
 #include "src/binary-reader.h"
 #include "src/cfg-builder.h"
-#include "src/datalog-facts-writer.h"
 #include "src/datalog-writer.h"
 #include "src/decompiler.h"
 #include "src/dot-writer.h"
@@ -35,10 +34,8 @@ static std::string s_configfile;
 static std::string s_infile;
 static std::string s_outfile;
 static std::string s_doutfile;
-static std::string s_dlogfile;
 static std::string s_dlogdir;
 static bool generate_dot = false;
-static bool generate_datalog = false;
 static bool generate_datalog_dir = false;
 static bool is_wat = false;
 static bool is_wasm = false;
@@ -82,21 +79,14 @@ static void ParseOptions(int argc, char** argv) {
                          ConvertBackslashToSlash(&s_doutfile);
                          generate_dot = true;
                      });
-    parser.AddOption('d', "datalog", "FILENAME",
-                     "Serialize the graph as a soufflé datalog program.",
+    parser.AddOption('d', "datalog", "DIRECTORY",
+                     "Serialize the graph as a soufflé datalog program, facts "
+                     "are csv files (node.facts and edge.facts files).",
                      [](const char* argument) {
-                         s_dlogfile = argument;
-                         ConvertBackslashToSlash(&s_dlogfile);
-                         generate_datalog = true;
+                         s_dlogdir = argument;
+                         ConvertBackslashToSlash(&s_dlogdir);
+                         generate_datalog_dir = true;
                      });
-    parser.AddOption(
-        's', "datalog-csv", "DIRECTORY",
-        "Serialize the graph as soufflé facts in csv (.facts file).",
-        [](const char* argument) {
-            s_dlogdir = argument;
-            ConvertBackslashToSlash(&s_dlogdir);
-            generate_datalog_dir = true;
-        });
     parser.AddOption('c', "config", "FILENAME", "JSON configuration file.",
                      [](const char* argument) {
                          s_configfile = argument;
@@ -218,20 +208,13 @@ int ProgramMain(int argc, char** argv) {
         DotWriter writer(&stream, &graph);
         writer.writeGraph();
     }
-    // generate datalog program
-    if (Succeeded(result) && generate_datalog) {
-        FileStream stream(!s_dlogfile.empty() ? FileStream(s_dlogfile)
-                                              : FileStream(stdout));
-        DatalogWriter writer(&stream, &graph);
-        writer.writeGraph();
-    }
     // generate datalog facts
     if (Succeeded(result) && generate_datalog_dir) {
         assert(!s_dlogdir.empty());
         auto stream = FileStream(s_dlogdir + "/base.dl");
         auto edges = FileStream(s_dlogdir + "/edge.facts");
         auto nodes = FileStream(s_dlogdir + "/node.facts");
-        DatalogFactsWriter writer(&stream, &edges, &nodes, &graph);
+        DatalogWriter writer(&stream, &edges, &nodes, &graph);
         writer.writeGraph();
     }
     if (cpgOptions.info) {
