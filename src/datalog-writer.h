@@ -1,5 +1,5 @@
-#ifndef WASMATI_DATALOG_FACTS_H
-#define WASMATI_DATALOG_FACTS_H
+#ifndef WASMATI_DATALOG_H
+#define WASMATI_DATALOG_H
 #include <map>
 #include <sstream>
 #include "graph.h"
@@ -149,9 +149,9 @@ class DatalogWriter : public GraphWriter {
 
 public:
     DatalogWriter(wabt::Stream* stream,
-                  wabt::Stream* edges,
-                  wabt::Stream* nodes,
-                  Graph* graph)
+              wabt::Stream* edges,
+              wabt::Stream* nodes,
+              Graph* graph)
         : GraphWriter(stream, graph), _edges(edges), _nodes(nodes) {}
 
     void writeGraph() override {
@@ -160,10 +160,7 @@ public:
             loopsInsts = Queries::loopsInsts(cpgOptions.loopName);
         }
 
-        writePuts(BASE_DL);
-
-        bool justOneGraph = cpgOptions.printNoAST || cpgOptions.printNoCFG ||
-                            cpgOptions.printNoPDG;
+        writePutsln(BASE_DL);
 
         for (auto const& node : _graph->getNodes()) {
             if (!loopsInsts.empty() && loopsInsts.count(node) == 0) {
@@ -171,16 +168,22 @@ public:
             }
             node->acceptEdges(this);
 
-            if (!justOneGraph) {
+            if (cpgOptions.printAll) {
                 node->accept(this);
-            } else if (!cpgOptions.printNoAST &&
+            } else if (cpgOptions.printAST &&
                        node->hasEdgesOf(EdgeType::AST)) {  // AST
                 node->accept(this);
-            } else if (!cpgOptions.printNoCFG &&
+            } else if (cpgOptions.printCFG &&
                        node->hasEdgesOf(EdgeType::CFG)) {  // CFG
                 node->accept(this);
-            } else if (!cpgOptions.printNoPDG &&
+            } else if (cpgOptions.printPDG &&
                        node->hasEdgesOf(EdgeType::PDG)) {  // PDG
+                node->accept(this);
+            } else if (cpgOptions.printCG &&
+                       node->hasEdgesOf(EdgeType::CG)) {  // CG
+                node->accept(this);
+            } else if (cpgOptions.printPG &&
+                       node->hasEdgesOf(EdgeType::PG)) {  // PDG
                 node->accept(this);
             }
         }
@@ -188,14 +191,14 @@ public:
 
     // Edges
     void visitASTEdge(ASTEdge* e) override {
-        if (cpgOptions.printNoAST) {
+        if (!(cpgOptions.printAll || cpgOptions.printAST)) {
             return;
         }
         _edges->Writef("%u,%u,AST,,,nil\n", e->src()->getId(),
                        e->dest()->getId());
     }
     void visitCFGEdge(CFGEdge* e) override {
-        if (cpgOptions.printNoCFG) {
+        if (!(cpgOptions.printAll || cpgOptions.printCFG)) {
             return;
         }
 
@@ -203,7 +206,7 @@ public:
                        e->dest()->getId(), e->label().c_str());
     }
     void visitPDGEdge(PDGEdge* e) override {
-        if (cpgOptions.printNoPDG) {
+        if (!(cpgOptions.printAll || cpgOptions.printPDG)) {
             return;
         }
         if (e->pdgType() == PDGType::Const) {
@@ -229,14 +232,14 @@ public:
         }
     }
     void visitCGEdge(CGEdge* e) override {
-        if (cpgOptions.printNoCG) {
+        if (!(cpgOptions.printAll || cpgOptions.printCG)) {
             return;
         }
         _edges->Writef("%u,%u,CG,,,nil\n", e->src()->getId(),
                        e->dest()->getId());
     }
     void visitPGEdge(PGEdge* e) override {
-        if (cpgOptions.printNoPG) {
+        if (!(cpgOptions.printAll || cpgOptions.printPG)) {
             return;
         }
         _edges->Writef("%u,%u,PG,,,nil\n", e->src()->getId(),

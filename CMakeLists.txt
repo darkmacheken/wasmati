@@ -58,7 +58,7 @@ configure_file(
   ${WASMATI_BINARY_DIR}/config.h
 )
 
-include_directories(${WASMATI_SOURCE_DIR} ${WASMATI_BINARY_DIR})
+include_directories(${WASMATI_SOURCE_DIR} ${WASMATI_BINARY_DIR} ${WASMATI_SOURCE_DIR}/config)
 
 if (COMPILER_IS_MSVC)
   # disable warning C4018: signed/unsigned mismatch
@@ -91,9 +91,9 @@ else ()
     add_definitions(-Werror)
   endif ()
 
-  if (NOT WITH_EXCEPTIONS)
-    add_definitions(-fno-exceptions)
-  endif ()
+# if (NOT WITH_EXCEPTIONS)
+#   add_definitions(-fno-exceptions)
+# endif ()
 
   # Need to define __STDC_*_MACROS because C99 specifies that C++ shouldn't
   # define format (e.g. PRIu64) or limit (e.g. UINT32_MAX) macros without the
@@ -193,18 +193,23 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${WASMATI_SOURCE_DIR}/cmake)
 add_custom_target(everything_wasm)
 
 FetchContent_Declare(
-        wabt
-        GIT_REPOSITORY "https://github.com/WebAssembly/wabt"
-        GIT_TAG "4ba97c116d1417b2fb516299a37965820b93ced3"
+  wabt
+  GIT_REPOSITORY "https://github.com/WebAssembly/wabt"
+  GIT_TAG "4ba97c116d1417b2fb516299a37965820b93ced3"
 )
-
 
 FetchContent_Declare(json
   GIT_REPOSITORY https://github.com/ArthurSonzogni/nlohmann_json_cmake_fetchcontent
-  GIT_TAG v3.9.1)
+  GIT_TAG v3.9.1
+)
 
-FetchContent_MakeAvailable(wabt json)
-include_directories(${wabt_SOURCE_DIR} ${json_SOURCE_DIR})
+FetchContent_Declare(csv
+  GIT_REPOSITORY https://github.com/p-ranav/csv2
+  GIT_TAG "a20992f7a1b75215609037c4cc66f690e8691aab"
+  )
+
+FetchContent_MakeAvailable(wabt json csv)
+include_directories(${wabt_SOURCE_DIR} ${json_SOURCE_DIR} ${csv_SOURCE_DIR})
 
 #FetchContent_GetProperties(json)
 #if(NOT json_POPULATED)
@@ -227,9 +232,9 @@ add_library(wasmatilib STATIC
   src/pdg-builder.cc
   src/query.h
   src/query.cc
-  src/dot-writer.h
-  src/dot-writer.cc
+  src/csv-writer.h
   src/datalog-writer.h
+  src/dot-writer.h
   src/vulns.h
   src/vulns.cc
 )
@@ -257,7 +262,7 @@ if (NOT EMSCRIPTEN)
 
     add_executable(${EXE_NAME} ${EXE_SOURCES})
     add_dependencies(everything_wasm ${EXE_NAME})
-    target_link_libraries(${EXE_NAME} PRIVATE ${EXE_LIBS} wabt nlohmann_json::nlohmann_json)
+    target_link_libraries(${EXE_NAME} PRIVATE ${EXE_LIBS} wabt nlohmann_json::nlohmann_json csv2::csv2)
     set_property(TARGET ${EXE_NAME} PROPERTY CXX_STANDARD 11)
     set_property(TARGET ${EXE_NAME} PROPERTY CXX_STANDARD_REQUIRED ON)
 
@@ -274,20 +279,6 @@ if (NOT EMSCRIPTEN)
   endfunction()
 
   if (BUILD_TOOLS)
-    # wasm2cpg
-    wasmati_executable(
-      NAME wasm2cpg
-      SOURCES src/tools/wasm2cpg.cc
-      INSTALL
-    )
-
-    # wat2cpg
-    wasmati_executable(
-      NAME wat2cpg
-      SOURCES src/tools/wat2cpg.cc
-      INSTALL
-    )
-
     # wasmati
     wasmati_executable(
       NAME wasmati

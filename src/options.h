@@ -19,11 +19,12 @@
 namespace wasmati {
 struct GenerateCPGOptions {
     std::string funcName;
-    bool printNoAST = true;
-    bool printNoCFG = true;
-    bool printNoPDG = true;
-    bool printNoCG = true;
-    bool printNoPG = true;
+    bool printAST = false;
+    bool printCFG = false;
+    bool printPDG = false;
+    bool printCG = false;
+    bool printPG = false;
+    bool printAll = true;
     bool verbose = false;
     bool info = false;
     std::string loopName;
@@ -31,5 +32,6 @@ struct GenerateCPGOptions {
 
 extern GenerateCPGOptions cpgOptions;
 extern std::unique_ptr<wabt::FileStream> s_verbose_stream;
+
 }  // namespace wasmati
 #endif  // WABT_OPTIONS_H_

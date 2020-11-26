@@ -22,7 +22,10 @@ public:
         return emptyNodeSet;
     }
 
-    static void setGraph(const Graph* graph) { _graph = graph; }
+    static void setGraph(const Graph* graph) {
+        assert(graph != nullptr);
+        _graph = graph;
+    }
 
 public:
     /// @brief Condition to return all edges
@@ -202,8 +205,8 @@ public:
 
             visited.insert(firstNode.first);
             std::list<std::pair<Node*, T>> nodesToInsert;
-            for (Edge* e :
-                 Query::filterEdges(firstNode.first->outEdges(), edgeCondition)) {
+            for (Edge* e : Query::filterEdges(firstNode.first->outEdges(),
+                                              edgeCondition)) {
                 if (visited.count(e->dest()) == 0) {
                     nodesToInsert.emplace_back(e->dest(), nextAux.second);
                 }

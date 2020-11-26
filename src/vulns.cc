@@ -1,19 +1,8 @@
 #include "vulns.h"
 using namespace wasmati;
 
-void wasmati::checkVulnerabilities(json& config,
-                                   std::list<Vulnerability>& vulns) {
-    verifyConfig(config);
-    numFuncs = Query::functions().size();
-    checkUnreachableCode(config, vulns);
-    checkBufferOverflow(config, vulns);
-    checkFormatString(config, vulns);
-    checkTainted(config, vulns);
-    // checkIntegerOverflow();
-    checkUseAfterFree(config, vulns);
-}
 
-void wasmati::verifyConfig(json& config) {
+void VulnerabilityChecker::verifyConfig(const json& config) {
     // importAsSources
     assert(config.contains(IMPORT_AS_SOURCES));
     assert(config.at(IMPORT_AS_SOURCES).is_boolean());
@@ -89,12 +78,20 @@ void wasmati::verifyConfig(json& config) {
     }
 }
 
-void wasmati::checkUnreachableCode(json& config,
-                                   std::list<Vulnerability>& vulns) {
+void VulnerabilityChecker::checkVulnerabilities() {
+    numFuncs = Query::functions().size();
+    checkUnreachableCode();
+    checkBufferOverflow();
+    checkFormatString();
+    checkTainted();
+    checkUseAfterFree();
+}
+
+void VulnerabilityChecker::checkUnreachableCode() {
     Index counter = 0;
     NodeStream(Query::functions()).forEach([&](Node* func) {
-        debug("[DEBUG][Query::UnreachableCode][%u/%u] Function %s\n",
-              counter++, numFuncs, func->name().c_str());
+        debug("[DEBUG][Query::UnreachableCode][%u/%u] Function %s\n", counter++,
+              numFuncs, func->name().c_str());
         auto queryInsts = Query::instructions({func}, [](Node* node) {
             return node->instType() != ExprType::Return &&
                    node->instType() != ExprType::Block &&
@@ -108,14 +105,12 @@ void wasmati::checkUnreachableCode(json& config,
     });
 }
 
-void wasmati::checkBufferOverflow(json& config,
-                                  std::list<Vulnerability>& vulns) {
-    checkBoBuffsStatic(config, vulns);
-    checkBoScanfLoops(config, vulns);
+void VulnerabilityChecker::checkBufferOverflow() {
+    checkBoBuffsStatic();
+    checkBoScanfLoops();
 }
 
-void wasmati::checkBoBuffsStatic(json& config,
-                                 std::list<Vulnerability>& vulns) {
+void VulnerabilityChecker::checkBoBuffsStatic() {
     json boConfig = config.at(BUFFER_OVERFLOW);
     std::set<std::string> funcSink;
 
@@ -127,8 +122,8 @@ void wasmati::checkBoBuffsStatic(json& config,
 
     Index counter = 0;
     for (auto func : Query::functions()) {
-        debug("[DEBUG][Query::BoBuffsStatic][%u/%u] Function %s\n",
-            counter++, numFuncs, func->name().c_str());
+        debug("[DEBUG][Query::BoBuffsStatic][%u/%u] Function %s\n", counter++,
+              numFuncs, func->name().c_str());
         if (ignore.count(func->name())) {
             continue;
         }
@@ -252,13 +247,13 @@ void wasmati::checkBoBuffsStatic(json& config,
     }
 }
 
-void wasmati::checkBoScanfLoops(json& config, std::list<Vulnerability>& vulns) {
+void VulnerabilityChecker::checkBoScanfLoops() {
     std::set<std::string> ignore = config[IGNORE];
 
     Index counter = 0;
     for (auto func : Query::functions()) {
-        debug("[DEBUG][Query::BoScanfLoops][%u/%u] Function %s\n",
-            counter++, numFuncs, func->name().c_str());
+        debug("[DEBUG][Query::BoScanfLoops][%u/%u] Function %s\n", counter++,
+              numFuncs, func->name().c_str());
         if (ignore.count(func->name())) {
             continue;
         }
@@ -344,15 +339,15 @@ void wasmati::checkBoScanfLoops(json& config, std::list<Vulnerability>& vulns) {
     }
 }
 
-void wasmati::checkFormatString(json& config, std::list<Vulnerability>& vulns) {
+void VulnerabilityChecker::checkFormatString() {
     json fsConfig = config.at(FORMAT_STRING);
 
     std::set<std::string> ignore = config[IGNORE];
 
     Index counter = 0;
     for (auto func : Query::functions()) {
-        debug("[DEBUG][Query::FormatString][%u/%u] Function %s\n",
-            counter++, numFuncs, func->name().c_str());
+        debug("[DEBUG][Query::FormatString][%u/%u] Function %s\n", counter++,
+              numFuncs, func->name().c_str());
         if (ignore.count(func->name())) {
             continue;
         }
@@ -379,7 +374,8 @@ void wasmati::checkFormatString(json& config, std::list<Vulnerability>& vulns) {
     }
 }
 
-std::pair<Index, std::map<int, int>> wasmati::checkBufferSizes(Node* func) {
+std::pair<Index, std::map<int, int>> VulnerabilityChecker::checkBufferSizes(
+    Node* func) {
     std::map<int, int> buffers;
     EdgeSet queryEdges;
     Index totalSizeAllocated;
@@ -455,12 +451,12 @@ std::pair<Index, std::map<int, int>> wasmati::checkBufferSizes(Node* func) {
     return std::make_pair(totalSizeAllocated, buffers);
 }
 
-void wasmati::checkTainted(json& config, std::list<Vulnerability>& vulns) {
-    taintedFuncToFunc(config, vulns);
-    taintedLocalToFunc(config, vulns);
+void VulnerabilityChecker::checkTainted() {
+    taintedFuncToFunc();
+    taintedLocalToFunc();
 }
 
-void wasmati::taintedFuncToFunc(json& config, std::list<Vulnerability>& vulns) {
+void VulnerabilityChecker::taintedFuncToFunc() {
     std::set<std::string> sources = config.at(SOURCES);
     std::set<std::string> sinks = config.at(SINKS);
 
@@ -488,7 +484,7 @@ void wasmati::taintedFuncToFunc(json& config, std::list<Vulnerability>& vulns) {
     Index counter = 0;
     for (auto func : Query::functions()) {
         debug("[DEBUG][Query::TaintedFuncToFunc][%u/%u] Function %s\n",
-            counter++, numFuncs, func->name().c_str());
+              counter++, numFuncs, func->name().c_str());
         if (ignore.count(func->name())) {
             continue;
         }
@@ -518,8 +514,7 @@ void wasmati::taintedFuncToFunc(json& config, std::list<Vulnerability>& vulns) {
     }
 }
 
-void wasmati::taintedLocalToFunc(json& config,
-                                 std::list<Vulnerability>& vulns) {
+void VulnerabilityChecker::taintedLocalToFunc() {
     std::set<std::string> sinks = config.at(SINKS);
 
     if (config.at(IMPORT_AS_SINKS)) {
@@ -539,7 +534,7 @@ void wasmati::taintedLocalToFunc(json& config,
     Index counter = 0;
     for (auto func : Query::functions()) {
         debug("[DEBUG][Query::TaintedLocalToFunc][%u/%u] Function %s\n",
-            counter++, numFuncs, func->name().c_str());
+              counter++, numFuncs, func->name().c_str());
         if (ignore.count(func->name())) {
             continue;
         }
@@ -551,7 +546,7 @@ void wasmati::taintedLocalToFunc(json& config,
             taintedParams;
         NodeStream(func).parameters().forEach([&](Node* param) {
             std::set<std::string> visited;
-            taintedParams[param->name()] = isTainted(config, param, visited);
+            taintedParams[param->name()] = isTainted(param, visited);
         });
 
         NodeStream(func)
@@ -596,8 +591,9 @@ void wasmati::taintedLocalToFunc(json& config,
     }
 }
 
-std::pair<std::string, std::string>
-wasmati::isTainted(json& config, Node* param, std::set<std::string>& visited) {
+std::pair<std::string, std::string> VulnerabilityChecker::isTainted(
+    Node* param,
+    std::set<std::string>& visited) {
     Node* func = Query::function(param);
     if (visited.count(func->name()) == 1) {
         return std::make_pair("", "");
@@ -630,7 +626,7 @@ wasmati::isTainted(json& config, Node* param, std::set<std::string>& visited) {
                              })
                              .toNodeSet();
         for (Node* param : newParams) {
-            auto tainted = isTainted(config, param, visited);
+            auto tainted = isTainted(param, visited);
             if (tainted.first != "") {
                 return tainted;
             }
@@ -639,15 +635,13 @@ wasmati::isTainted(json& config, Node* param, std::set<std::string>& visited) {
     return std::make_pair("", "");
 }
 
-void wasmati::checkIntegerOverflow(json& config) {}
-
-void wasmati::checkUseAfterFree(json& config, std::list<Vulnerability>& vulns) {
+void VulnerabilityChecker::checkUseAfterFree() {
     std::set<std::string> ignore = config[IGNORE];
 
     Index counter = 0;
     for (auto func : Query::functions()) {
-        debug("[DEBUG][Query::UseAfterFree][%u/%u] Function %s\n",
-            counter++, numFuncs, func->name().c_str());
+        debug("[DEBUG][Query::UseAfterFree][%u/%u] Function %s\n", counter++,
+              numFuncs, func->name().c_str());
         if (ignore.count(func->name())) {
             continue;
         }

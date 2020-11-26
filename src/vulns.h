@@ -152,29 +152,41 @@ struct Vulnerability {
     }
 };
 
-static Index numFuncs;
+struct VulnerabilityChecker {
+    Index numFuncs;
+    const json& config;
+    std::list<Vulnerability>& vulns;
 
-void checkVulnerabilities(json& config, std::list<Vulnerability>& vulns);
-void verifyConfig(json& config);
+    VulnerabilityChecker(json& config, std::list<Vulnerability>& vulns)
+        : config(config), vulns(vulns) {
+        verifyConfig(config);
+    }
 
-void checkUnreachableCode(json& config, std::list<Vulnerability>& vulns);
+    static void verifyConfig(const json& config);
+    void checkVulnerabilities();
 
-void checkBufferOverflow(json& config, std::list<Vulnerability>& vulns);
-void checkBoBuffsStatic(json& config, std::list<Vulnerability>& vulns);
-void checkBoScanfLoops(json& config, std::list<Vulnerability>& vulns);
-std::pair<Index, std::map<int, int>> checkBufferSizes(Node* func);
+    // Unreachable
+    void checkUnreachableCode();
 
-void checkFormatString(json& config, std::list<Vulnerability>& vulns);
+    // Buffer Overflows
+    void checkBufferOverflow();
+    void checkBoBuffsStatic();
+    void checkBoScanfLoops();
+    std::pair<Index, std::map<int, int>> checkBufferSizes(Node* func);
 
-void checkTainted(json& config, std::list<Vulnerability>& vulns);
-void taintedFuncToFunc(json& config, std::list<Vulnerability>& vulns);
-void taintedLocalToFunc(json& config, std::list<Vulnerability>& vulns);
-std::pair<std::string, std::string> isTainted(json& config,
-                                              Node* param,
-                                              std::set<std::string>& visited);
+    // Format Strings
+    void checkFormatString();
 
-void checkIntegerOverflow(json& config);
-void checkUseAfterFree(json& config, std::list<Vulnerability>& vulns);
+    // Tainted
+    void checkTainted();
+    void taintedFuncToFunc();
+    void taintedLocalToFunc();
+    std::pair<std::string, std::string> isTainted(
+        Node* param,
+        std::set<std::string>& visited);
 
+    // UseAfterFree
+    void checkUseAfterFree();
+};
 }  // namespace wasmati
 #endif  // WABT_AST_BUILDER_H_

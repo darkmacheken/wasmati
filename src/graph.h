@@ -1,6 +1,8 @@
 #ifndef WASMATI_GRAPH_H
 #define WASMATI_GRAPH_H
+#include <map>
 #include <set>
+#include "single_include/csv2/csv2.hpp"
 #include "src/cast.h"
 #include "src/common.h"
 #include "src/ir-util.h"
@@ -173,6 +175,7 @@ class Module : public BaseNode<NodeType::Module> {
 public:
     Module() {}
     Module(std::string name) : _name(name) {}
+    Module(Index id, std::string name) : _name(name) { assert(id == getId()); }
 
     const std::string& name() const override { return _name; }
 
@@ -181,6 +184,7 @@ public:
 
 class Function : public BaseNode<NodeType::Function> {
     Func* const _f;
+    const std::string _name;
     const Index _index;
     const Index _nargs;
     const Index _nlocals;
@@ -191,6 +195,7 @@ class Function : public BaseNode<NodeType::Function> {
 public:
     Function(Func* f, Index index, bool isImport, bool isExport)
         : _f(f),
+          _name(f->name),
           _index(index),
           _nargs(f->GetNumParams()),
           _nlocals(f->GetNumLocals()),
@@ -198,7 +203,26 @@ public:
           _isImport(isImport),
           _isExport(isExport) {}
 
-    const std::string& name() const override { return _f->name; }
+    Function(Index id,
+             std::string name,
+             Index index,
+             Index nargs,
+             Index nlocals,
+             Index nresults,
+             bool isImport,
+             bool isExport)
+        : _f(nullptr),
+          _name(name),
+          _index(index),
+          _nargs(nargs),
+          _nlocals(nlocals),
+          _nresults(nresults),
+          _isImport(isImport),
+          _isExport(isExport) {
+        assert(id == getId());
+    }
+
+    const std::string& name() const override { return _name; }
     Index index() const override { return _index; }
     Index nargs() const override { return _nargs; }
     Index nlocals() const override { return _nlocals; }
@@ -212,12 +236,17 @@ public:
 
 class VarNode : public BaseNode<NodeType::VarNode> {
     Type _varType;
-    Index _index;
+    const Index _index;
     const std::string _name;
 
 public:
     VarNode(Type type, Index index, std::string name = "")
         : _varType(type), _index(index), _name(name) {}
+
+    VarNode(Index id, std::string type, Index index, std::string name)
+        : _varType(readVarType(type)), _index(index), _name(name) {
+        assert(id == getId());
+    }
 
     Type varType() const override { return _varType; }
     const std::string& name() const override { return _name; }
@@ -226,25 +255,34 @@ public:
         switch (_varType) {
         case Type::I32:
             return "i32";
-
         case Type::I64:
             return "i64";
-
         case Type::F32:
             return "f32";
-
         case Type::F64:
             return "f64";
-
         case Type::V128: {
             assert(false);
             break;
         }
-
         default:
             assert(false);
             break;
         }
+    }
+    static Type readVarType(std::string type) {
+        if (type == "i32") {
+            return Type::I32;
+        } else if (type == "i64") {
+            return Type::I64;
+        } else if (type == "f32") {
+            return Type::F32;
+        } else if (type == "f64") {
+            return Type::F64;
+        } else {
+            assert(false);
+        }
+        return Type::Any;
     }
 
     void accept(GraphVisitor* visitor);
@@ -253,6 +291,8 @@ public:
 template <NodeType T, char const* nodeName>
 class SimpleNode : public BaseNode<T> {
 public:
+    SimpleNode() {}
+    SimpleNode(Index id) { assert(id == this->getId()); }
     inline const std::string getNodeName() const { return nodeName; }
 
     virtual void accept(GraphVisitor* visitor);
@@ -286,6 +326,11 @@ public:
     Instruction(const ExprType type, const Location loc)
         : _instType(type), _loc(loc) {}
 
+    Instruction(Index id, const ExprType type, const Location loc)
+        : _instType(type), _loc(loc) {
+        assert(id == getId());
+    }
+
     ExprType instType() const override { return _instType; }
 
     Location location() const override { return _loc; }
@@ -295,6 +340,9 @@ template <ExprType exprType>
 class BaseInstruction : public Instruction {
 public:
     BaseInstruction(const Location _loc = Location())
+        : Instruction(exprType, _loc) {}
+
+    BaseInstruction(Index id, const Location _loc = Location())
         : Instruction(exprType, _loc) {}
 
     static bool classof(const Node* node) {
@@ -319,6 +367,8 @@ class ConstInst : public BaseInstruction<ExprType::Const> {
 public:
     ConstInst(const ConstExpr* expr)
         : BaseInstruction(expr->loc), _value(expr->const_) {}
+
+    ConstInst(Index id, Const& value) : _value(value) {}
 
     const Const& value() const override { return _value; }
 
@@ -405,13 +455,30 @@ public:
 
 template <ExprType T>
 class OpcodeInst : public BaseInstruction<T> {
-    const Opcode _opcode;
+    Opcode _opcode;
 
 public:
     OpcodeInst(const OpcodeExpr<T>* expr)
         : BaseInstruction<T>(expr->loc), _opcode(expr->opcode) {}
     OpcodeInst(Opcode opcode, const Location loc)
         : BaseInstruction<T>(loc), _opcode(opcode) {}
+
+    OpcodeInst(Index id, std::string opcode) {
+        bool assigned = false;
+        {
+#define WABT_OPCODE(rtype, type1, type2, type3, mem_size, prefix, code, Name, \
+                    text, decomp)                                             \
+    if (opcode == text) {                                                     \
+        _opcode = Opcode::Name##_Opcode;                                      \
+        assigned = true;                                                      \
+        goto end;                                                             \
+    }
+#include "src/config/opcode.def"
+#undef WABT_OPCODE
+        }
+    end:
+        assert(assigned);
+    }
 
     Opcode opcode() const override { return _opcode; }
 
@@ -431,6 +498,9 @@ public:
     LoadStoreBase(const LoadStoreExpr<T>* expr)
         : OpcodeInst<T>(expr->opcode, expr->loc), _offset(expr->offset) {}
 
+    LoadStoreBase(Index id, std::string opcode, Index offset)
+        : OpcodeInst<T>(id, opcode), _offset(offset) {}
+
     Index offset() const override { return _offset; }
 
     void accept(GraphVisitor* visitor);
@@ -448,6 +518,8 @@ public:
         : BaseInstruction<T>(expr->loc), _label(expr->var.name()) {}
     LabeledInst(std::string label, const Location loc = Location())
         : BaseInstruction<T>(loc), _label(label) {}
+    LabeledInst(Index id, std::string label, const Location loc = Location())
+        : BaseInstruction<T>(id, loc), _label(label) {}
 
     const std::string& label() const { return _label; }
 
@@ -479,6 +551,10 @@ public:
         : LabeledInst<T>(expr->table.name(), loc),
           _nargs(nargs),
           _nresults(nresults) {}
+
+    CallBase(Index id, Index nargs, Index nresults, std::string label)
+        : LabeledInst<T>(id, label), _nargs(nargs), _nresults(nresults) {}
+
     Index nargs() const override { return _nargs; }
     Index nresults() const override { return _nresults; }
 
@@ -504,6 +580,9 @@ public:
         : LabeledInst<T>(block.label, block.end_loc),
           _nresults(block.decl.GetNumResults()) {}
 
+    BlockBase(Index id, Index nresults, std::string label)
+        : LabeledInst<T>(id, label), _nresults(nresults) {}
+
     Index nresults() const override { return _nresults; }
     void setResults(Index nresults) { _nresults = nresults; }
 
@@ -524,7 +603,13 @@ public:
                    const Location loc = Location())
         : LabeledInst<ExprType::Block>(label, loc), _block(block) {}
 
-    Node* block() override { return _block; }
+    BeginBlockInst(Index id, std::string label)
+        : LabeledInst<ExprType::Block>(id, label), _block(nullptr) {}
+
+    Node* block() override {
+        assert(_block != nullptr);
+        return _block;
+    }
 
     virtual bool isBeginBlock() override { return true; }
 
@@ -540,6 +625,9 @@ public:
         : BaseInstruction(expr->loc),
           _nresults(expr->true_.decl.GetNumResults()),
           _hasElse(!expr->false_.empty()) {}
+
+    IfInst(Index id, Index nresults, bool hasElse)
+        : BaseInstruction(id), _nresults(nresults), _hasElse(hasElse) {}
 
     Index nresults() const override { return _nresults; }
     bool hasElse() const override { return _hasElse; }
@@ -579,6 +667,14 @@ public:
         return emptyConst();
     }
     virtual void accept(GraphVisitor* visitor) = 0;
+
+public:
+    static const std::map<std::string, EdgeType> EDGE_TYPES_STR;
+
+    inline static EdgeType type(std::string typeName) {
+        assert(EDGE_TYPES_STR.count(typeName) == 1);
+        return EDGE_TYPES_STR.at(typeName);
+    }
 };
 
 struct ASTEdge : Edge {
@@ -614,6 +710,14 @@ struct PDGEdge : Edge {
 
     inline const std::string& label() const { return _label; }
     inline PDGType pdgType() const override { return _pdgType; }
+
+public:
+    static const std::map<std::string, PDGType> PDGEDGE_TYPES_STR;
+
+    inline static PDGType pdgType(std::string type) {
+        assert(PDGEDGE_TYPES_STR.count(type) == 1);
+        return PDGEDGE_TYPES_STR.at(type);
+    }
 };
 
 struct CGEdge : Edge {
@@ -645,9 +749,20 @@ class Graph {
     Start* _start;
     Module* _module;
 
+    inline void setTrap(Trap* trap) { _trap = trap; }
+    inline void setStart(Start* start) { _start = start; }
+
 public:
-    Graph(wabt::Module& mc);
-    ~Graph();
+    Graph() : _mc(ModuleContext({})), _trap(nullptr), _start(nullptr) {}
+    Graph(wabt::Module& mc)
+        : _mc(ModuleContext(mc)), _trap(nullptr), _start(nullptr) {}
+    ~Graph() {
+        for (auto node : _nodes) {
+            delete node;
+        }
+    }
+
+    void populate(std::string filePath);
 
     inline void setModule(Module* module) {
         assert(module != nullptr);
@@ -741,9 +856,9 @@ public:
     virtual void visitLocalGetInst(LocalGetInst* node) = 0;
     virtual void visitLocalSetInst(LocalSetInst* node) = 0;
     virtual void visitLocalTeeInst(LocalTeeInst* node) = 0;
-    virtual void visitBeginBlockInst(BeginBlockInst* node) = 0;
     virtual void visitCallInst(CallInst* node) = 0;
     virtual void visitCallIndirectInst(CallIndirectInst* node) = 0;
+    virtual void visitBeginBlockInst(BeginBlockInst* node) = 0;
     virtual void visitBlockInst(BlockInst* node) = 0;
     virtual void visitLoopInst(LoopInst* node) = 0;
     virtual void visitIfInst(IfInst* node) = 0;
@@ -971,6 +1086,48 @@ template <ExprType t>
 inline void LabeledInst<t>::accept(GraphVisitor* visitor) {
     assert(false);
 }
+
+struct NodeCol {
+    enum {
+        ID = 0,
+        NodeType,
+        Name,
+        Index,
+        Nargs,
+        Nlocals,
+        Nresults,
+        IsImport,
+        IsExport,
+        VarType,
+        InstType,
+        Opcode,
+        ConstType,
+        ConstValue,
+        Label,
+        Offset,
+        HasElse
+    };
+};
+
+struct EdgeCol {
+    enum { Src = 0, Dest, Type, Label, PdgType, ConstType, ConstValue };
+};
+
+struct Factory {
+    // To delete in the end
+    static std::vector<Const*> consts;
+
+    static Node* createNode(std::vector<std::string>& row);
+    static Edge* createEdge(std::vector<std::string>& row,
+                            std::vector<Node*>& nodes);
+    static Const* createConst(std::string type, std::string value);
+    static void insertConst(Const* expr) { consts.push_back(expr); }
+    static void deleteConsts() {
+        for (auto expr : consts) {
+            delete expr;
+        }
+    }
+};
 
 }  // namespace wasmati
 
