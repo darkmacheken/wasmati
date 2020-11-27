@@ -258,8 +258,10 @@ public:
     /// @param nodeCondition Condition to filter the nodes
     /// @return A set of instructions from the given functions that satisfies
     /// the condition
-    static NodeSet instructions(const NodeSet& nodes,
-                                const NodeCondition& nodeCondition = ALL_NODES);
+#define WASMATI_EVALUATION(type, var, eval, rALL) \
+    static NodeSet instructions(const NodeSet& nodes, const type& var = rALL);
+#include "src/config/predicates.def"
+#undef WASMATI_EVALUATION
 
     /// @brief Returns all the parameters nodes of the given functions that
     /// satisfies the nodeCondition
@@ -279,70 +281,44 @@ struct Queries {
 class Predicate {
 private:
     struct SimplePredicate {
-        virtual bool evaluate(Node* node) const { return false; }
+        virtual bool evaluate(Node* node) const = 0;
     };
 
     struct TruePredicate : SimplePredicate {
         bool evaluate(Node* node) const override { return true; }
     };
 
-    template <class T>
-    struct PredicateHolder : SimplePredicate {
-        std::function<bool(Node*, T)> func;
-        T type;
-
-    public:
-        PredicateHolder(std::function<bool(Node*, T)> func, T type)
-            : func(func), type(type) {}
-
-        bool evaluate(Node* node) const override { return func(node, type); }
-    };
-
-    template <class T, class U>
-    struct PredicateHolder2 : SimplePredicate {
-        std::function<bool(Node*, T, U)> func;
-        T type;
-        U utype;
-
-    public:
-        PredicateHolder2(std::function<bool(Node*, T, U)> func, T type, U utype)
-            : func(func), type(type), utype(utype) {}
-
-        bool evaluate(Node* node) const override {
-            return func(node, type, utype);
-        }
-    };
-
     struct TestHolder : SimplePredicate {
-        std::function<bool()> func;
+        std::function<bool(Node* node)> func;
 
     public:
-        TestHolder(std::function<bool()> func) : func(func) {}
+        TestHolder(std::function<bool(Node*)> func) : func(func) {}
 
-        bool evaluate(Node* node) const override { return func(); }
+        bool evaluate(Node* node) const override { return func(node); }
     };
 
 private:
-    std::vector<std::vector<SimplePredicate>> _predicates;
+    std::vector<std::vector<std::shared_ptr<SimplePredicate>>> _predicates;
     /// @brief Each row is a vector of SimplePredicates. The evaluation of a row
     /// is the AND between them. The evaluation between rows is an OR.
     Index currentRow = 0;
 
 private:
-    void insertPredicate(SimplePredicate& predicate) {
+    void insertPredicate(std::shared_ptr<SimplePredicate> predicate) {
         assert(currentRow + 1 == _predicates.size());
         _predicates[currentRow].emplace_back(predicate);
     }
 
-    bool evaluateRow(Node* node,
-                     const std::vector<SimplePredicate>& predicates) const {
+    bool evaluateRow(
+        Node* node,
+        const std::vector<std::shared_ptr<SimplePredicate>>& predicates) const {
         if (predicates.size() == 0) {
             return false;
         }
         bool res = true;
         Index i = 0;
         while (res && i < predicates.size()) {
-            res = res && predicates[i].evaluate(node);
+            res = res && predicates[i]->evaluate(node);
             i++;
         }
         return res;
@@ -361,49 +337,46 @@ public:
         return res;
     }
 
-    Predicate& truePredicate() {
-        auto predicate = TruePredicate();
-        insertPredicate(predicate);
+    inline Predicate& insert(std::function<bool(Node* node)> f) {
+        insertPredicate(std::make_shared<TestHolder>(f));
         return *this;
     }
 
-#define WASMATI_PREDICATE(funcName, Type_val)               \
-    Predicate& funcName(Type_val val, bool eq = true) {     \
-        auto f = [&](Node* node, Type_val t) {              \
-            return (node->funcName() == t) == eq;           \
-        };                                                  \
-        auto predicate = PredicateHolder<Type_val>(f, val); \
-        insertPredicate(predicate);                         \
-        return *this;                                       \
+    Predicate& truePredicate() {
+        insertPredicate(std::make_shared<TruePredicate>());
+        return *this;
+    }
+
+#define WASMATI_PREDICATE(funcName, TypeVal)                                  \
+    Predicate& funcName(TypeVal val, bool eq = true) {                        \
+        auto f = [=](Node* node) { return (node->funcName() == val) == eq; }; \
+        insert(f);                                                            \
+        return *this;                                                         \
     }
 
     Predicate& value(Type val, bool eq = true) {
-        auto f = [&](Node* node, Type t) {
-            return (node->value().type == t) == eq;
-        };
-        auto predicate = PredicateHolder<Type>(f, val);
-        insertPredicate(predicate);
+        auto f = [&](Node* node) { return (node->value().type == val) == eq; };
+        insert(f);
         return *this;
     }
 
 #define WASMATI_PREDICATE_VALUES_I(funcName, valType, field, rtype) \
     Predicate& value##funcName(valType& val) {                      \
-        auto f = [&](Node* node, Type t) {                          \
-            if (node->value().type == t) {                          \
+        auto f = [&](Node* node) {                                  \
+            if (node->value().type == rtype) {                      \
                 val = node->value().field;                          \
                 return true;                                        \
             }                                                       \
             return false;                                           \
         };                                                          \
-        auto predicate = PredicateHolder<Type>(f, rtype);           \
-        insertPredicate(predicate);                                 \
+        insert(f);                                                  \
         return *this;                                               \
     }
 
 #define WASMATI_PREDICATE_VALUES_F(funcName, valType, field, rtype) \
     Predicate& value##funcName(valType& val) {                      \
-        auto f = [&](Node* node, Type t) {                          \
-            if (node->value().type == t) {                          \
+        auto f = [&](Node* node) {                                  \
+            if (node->value().type == rtype) {                      \
                 valType fval;                                       \
                 memcpy(&fval, &node->value().field, sizeof(fval));  \
                 val = fval;                                         \
@@ -411,8 +384,7 @@ public:
             }                                                       \
             return false;                                           \
         };                                                          \
-        auto predicate = PredicateHolder<Type>(f, rtype);           \
-        insertPredicate(predicate);                                 \
+        insert(f);                                                  \
         return *this;                                               \
     }
 #include "src/config/predicates.def"
@@ -420,26 +392,86 @@ public:
 #undef WASMATI_PREDICATE_VALUES_I
 #undef WASMATI_PREDICATE_VALUES_F
 
-    Predicate& test(std::function<bool()> f) {
-        auto predicate = TestHolder(f);
-        insertPredicate(predicate);
+    Predicate& test(std::function<bool(Node* node)> f) {
+        insert(f);
         return *this;
     }
 
-#define TEST(expr) test([&]() { return expr; })
+#define TEST(expr) test([&](Node* node) { return expr; })
+
+    Predicate& execute(std::function<bool(Node* node)> f) {
+        insert(f);
+        return *this;
+    }
+
+#define EXEC(expr)            \
+    execute([&](Node* node) { \
+        expr;                 \
+        return true;          \
+    })
+
+#define GET_MACRO(_1, _2, _3, _4, _5, NAME, ...) NAME
+#define EDGE(...) GET_MACRO(__VA_ARGS__, EDGE5, EDGE4)(__VA_ARGS__)
+#define EDGE4(src, dest, val, eq)                        \
+    insert([&](Node* node) {                             \
+        auto edges = src->outEdges();                    \
+        for (Edge * e : edges) {                         \
+            if (e->dest() == dest && e->type() == val) { \
+                return true == eq;                       \
+            }                                            \
+        }                                                \
+        return false == eq;                              \
+    })
+
+#define EDGE5(src, dest, val, label, eq)                    \
+    insert([&](Node* node) {                                \
+        auto edges = src->inEdges(val);                     \
+        for (auto e : edges) {                              \
+            if (e->dest() == dest && e->label() == label) { \
+                return true == eq;                          \
+            }                                               \
+        }                                                   \
+        return false == eq;                                 \
+    })
+
+#define PDG_EDGE(...) GET_MACRO(__VA_ARGS__, PDG_EDGE5, PDG_EDGE4)(__VA_ARGS__)
+
+#define PDG_EDGE4(SRC, DEST, PDG_TYPE, EQ)                       \
+    insert([&](Node* node) {                                     \
+        assert(SRC != nullptr);                                  \
+        auto edges = SRC->outEdges(EdgeType::PDG);               \
+        for (auto e : edges) {                                   \
+            if (e->dest() == DEST && e->pdgType() == PDG_TYPE) { \
+                return true == EQ;                               \
+            }                                                    \
+        }                                                        \
+        return false == EQ;                                      \
+    })
+
+#define PDG_EDGE5(SRC, DEST, LABEL, PDG_TYPE, EQ)           \
+    insert([&, PDG_TYPE, EQ](Node* node) {                  \
+        assert(SRC != nullptr);                             \
+        auto edges = SRC->outEdges(EdgeType::PDG);          \
+        for (auto e : edges) {                              \
+            if (e->dest() == DEST && e->label() == LABEL && \
+                e->pdgType() == PDG_TYPE) {                 \
+                return true == EQ;                          \
+            }                                               \
+        }                                                   \
+        return false == EQ;                                 \
+    })
 
     Predicate& inEdge(EdgeType val, bool eq = true) {
-        auto f = [&](Node* node, EdgeType t) {
-            return (node->inEdges(t).size() > 0) == eq;
+        auto f = [=](Node* node) {
+            return (node->inEdges(val).size() > 0) == eq;
         };
-        auto predicate = PredicateHolder<EdgeType>(f, val);
-        insertPredicate(predicate);
+        insert(f);
         return *this;
     }
 
     Predicate& inEdge(EdgeType val, std::string label, bool eq = true) {
-        auto f = [&](Node* node, EdgeType t, std::string label) {
-            auto edges = node->inEdges(t);
+        auto f = [=](Node* node) {
+            auto edges = node->inEdges(val);
             for (auto e : edges) {
                 if (e->label() == label) {
                     return true == eq;
@@ -447,13 +479,26 @@ public:
             }
             return false == eq;
         };
-        auto predicate = PredicateHolder2<EdgeType, std::string>(f, val, label);
-        insertPredicate(predicate);
+        insert(f);
+        return *this;
+    }
+
+    Predicate& inPDGEdge(PDGType pdgType, bool eq = true) {
+        auto f = [=](Node* node) {
+            auto edges = node->inEdges(EdgeType::PDG);
+            for (auto e : edges) {
+                if (e->pdgType() == pdgType) {
+                    return true == eq;
+                }
+            }
+            return false == eq;
+        };
+        insert(f);
         return *this;
     }
 
     Predicate& inPDGEdge(std::string label, PDGType pdgType, bool eq = true) {
-        auto f = [&](Node* node, std::string label, PDGType pdgType) {
+        auto f = [=](Node* node) {
             auto edges = node->inEdges(EdgeType::PDG);
             for (auto e : edges) {
                 if (e->label() == label && e->pdgType() == pdgType) {
@@ -462,37 +507,34 @@ public:
             }
             return false == eq;
         };
-        auto predicate =
-            PredicateHolder2<std::string, PDGType>(f, label, pdgType);
-        insertPredicate(predicate);
+        insert(f);
         return *this;
     }
 
 #define WASMATI_PREDICATE_VALUES_I(funcName, valType, field, rtype) \
     Predicate& inPDGConstEdge##funcName(valType& val) {             \
-        auto f = [&](Node* node, Type t) {                          \
+        auto f = [&](Node* node) {                                  \
             auto edges = node->inEdges(EdgeType::PDG);              \
             for (auto e : edges) {                                  \
                 if (e->pdgType() == PDGType::Const &&               \
-                    node->value().type == t) {                      \
+                    node->value().type == rtype) {                  \
                     val = node->value().field;                      \
                     return true;                                    \
                 }                                                   \
             }                                                       \
             return false;                                           \
         };                                                          \
-        auto predicate = PredicateHolder<Type>(f, rtype);           \
-        insertPredicate(predicate);                                 \
+        insert(f);                                                  \
         return *this;                                               \
     }
 
 #define WASMATI_PREDICATE_VALUES_F(funcName, valType, field, rtype)    \
     Predicate& inPDGConstEdge##funcName(valType& val) {                \
-        auto f = [&](Node* node, Type t) {                             \
+        auto f = [&](Node* node) {                                     \
             auto edges = node->inEdges(EdgeType::PDG);                 \
             for (auto e : edges) {                                     \
                 if (e->pdgType() == PDGType::Const &&                  \
-                    node->value().type == t) {                         \
+                    node->value().type == rtype) {                     \
                     valType fval;                                      \
                     memcpy(&fval, &node->value().field, sizeof(fval)); \
                     val = fval;                                        \
@@ -501,8 +543,7 @@ public:
             }                                                          \
             return false;                                              \
         };                                                             \
-        auto predicate = PredicateHolder<Type>(f, rtype);              \
-        insertPredicate(predicate);                                    \
+        insert(f);                                                     \
         return *this;                                                  \
     }
 #include "src/config/predicates.def"

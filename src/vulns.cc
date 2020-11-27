@@ -340,30 +340,25 @@ void VulnerabilityChecker::checkBoScanfLoops() {
 
 void VulnerabilityChecker::checkFormatString() {
     json fsConfig = config.at(FORMAT_STRING);
-
     std::set<std::string> ignore = config[IGNORE];
 
     Index counter = 0;
     for (auto func : Query::functions()) {
         debug("[DEBUG][Query::FormatString][%u/%u] Function %s\n", counter++,
               numFuncs, func->name().c_str());
-        if (ignore.count(func->name())) {
+        if (ignore.count(func->name()) || fsConfig.contains(func->name())) {
             continue;
         }
-        if (fsConfig.contains(func->name())) {
-            continue;
-        }
-        auto query = Query::instructions({func}, [&](Node* node) {
-            if (node->instType() == ExprType::Call &&
-                fsConfig.contains(node->label())) {
-                auto child = node->getChild(fsConfig.at(node->label()));
-                auto childEdges = child->outEdges(EdgeType::PDG);
-                return !Query::containsEdge(childEdges, [](Edge* e) {
-                    return e->pdgType() == PDGType::Const;
-                });
-            }
-            return false;
-        });
+
+        Node* child = nullptr;
+        auto callPredicate =
+            Predicate()
+                .instType(ExprType::Call)
+                .TEST(fsConfig.contains(node->label()))
+                .EXEC(child = node->getChild(fsConfig.at(node->label())))
+                .PDG_EDGE(child, node, PDGType::Const, false);
+
+        auto query = Query::instructions({func}, callPredicate);
 
         // write vulns
         for (auto call : query) {

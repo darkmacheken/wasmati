@@ -190,24 +190,28 @@ Node* Query::function(Node* node) {
         .findFirst()
         .get();
 }
-NodeSet Query::instructions(const NodeSet& nodes,
-                            const NodeCondition& nodeCondition) {
-    NodeSet funcInstsNode;
-    for (Node* node : nodes) {
-        assert(node->type() == NodeType::Function);
-        if (node->isImport()) {
-            continue;
-        }
-        funcInstsNode.insert(node->getChild(1, EdgeType::AST));
-    }
 
-    return BFS(
-        funcInstsNode,
-        [&](Node* node) {
-            return node->type() == NodeType::Instruction && nodeCondition(node);
-        },
-        AST_EDGES);
-}
+#define WASMATI_EVALUATION(TYPE, var, eval, rALL)                           \
+    NodeSet Query::instructions(const NodeSet& nodes, const TYPE& var) {    \
+        NodeSet funcInstsNode;                                              \
+        for (Node * node : nodes) {                                         \
+            assert(node->type() == NodeType::Function);                     \
+            if (node->isImport()) {                                         \
+                continue;                                                   \
+            }                                                               \
+            funcInstsNode.insert(node->getChild(1, EdgeType::AST));         \
+        }                                                                   \
+                                                                            \
+        return BFS(                                                         \
+            funcInstsNode,                                                  \
+            [&](Node* node) {                                               \
+                return node->type() == NodeType::Instruction && eval(node); \
+            },                                                              \
+            AST_EDGES);                                                     \
+    }
+#include "src/config/predicates.def"
+#undef WASMATI_EVALUATION
+
 NodeSet Query::parameters(const NodeSet& nodes,
                           const NodeCondition& nodeCondition) {
     NodeSet params;
