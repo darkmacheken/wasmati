@@ -25,6 +25,8 @@ const NodeCondition& Query::ALL_INSTS = [](Node* node) {
 
 const NodeCondition& Query::ALL_NODES = [](Node* node) { return true; };
 
+const Predicate& Query::TRUE_PREDICATE = Predicate().truePredicate();
+
 NodeSet Query::children(const NodeSet& nodes,
                         const EdgeCondition& edgeCondition) {
     NodeSet result;
@@ -60,25 +62,30 @@ EdgeSet Query::filterEdges(const EdgeSet& edges,
     return result;
 }
 
-NodeSet Query::filter(const NodeSet& nodes,
-                      const NodeCondition& nodeCondition) {
-    NodeSet result;
-    for (Node* node : nodes) {
-        if (nodeCondition(node)) {
-            result.insert(node);
-        }
+#define WASMATI_EVALUATION(type, var, eval, rALL)                  \
+    NodeSet Query::filter(const NodeSet& nodes, const type& var) { \
+        NodeSet result;                                            \
+        for (Node * node : nodes) {                                \
+            if (eval(node)) {                                      \
+                result.insert(node);                               \
+            }                                                      \
+        }                                                          \
+        return result;                                             \
     }
-    return result;
-}
+#include "src/config/predicates.def"
+#undef WASMATI_EVALUATION
 
-bool Query::contains(const NodeSet& nodes, const NodeCondition& nodeCondition) {
-    for (Node* node : nodes) {
-        if (nodeCondition(node)) {
-            return true;
-        }
+#define WASMATI_EVALUATION(type, var, eval, rALL)                 \
+    bool Query::contains(const NodeSet& nodes, const type& var) { \
+        for (Node * node : nodes) {                               \
+            if (eval(node)) {                                     \
+                return true;                                      \
+            }                                                     \
+        }                                                         \
+        return false;                                             \
     }
-    return false;
-}
+#include "src/config/predicates.def"
+#undef WASMATI_EVALUATION
 
 bool Query::containsEdge(const EdgeSet& edges,
                          const EdgeCondition& edgeCondition) {
@@ -109,64 +116,62 @@ NodeSet Query::map(const NodeSet& nodes,
     return result;
 }
 
-NodeSet Query::BFS(const NodeSet& nodes,
-                   const NodeCondition& nodeCondition,
-                   const EdgeCondition& edgeCondition,
-                   Index limit,
-                   bool reverse,
-                   NodeSet& visited) {
-    NodeSet result;
-    NodeSet nextQuery;
-    if (nodes.size() == 0 || limit == 0) {
-        return result;
+#define WASMATI_EVALUATION(type, var, eval, rALL)                         \
+    NodeSet Query::BFS(const NodeSet& nodes, const type& var,             \
+                       const EdgeCondition& edgeCondition, Index limit,   \
+                       bool reverse) {                                    \
+        NodeSet result;                                                   \
+        NodeSet visited;                                                  \
+        if (nodes.size() == 0 || limit == 0) {                            \
+            return result;                                                \
+        }                                                                 \
+        auto mapFunction = [&](Node* node) {                              \
+            auto edges = reverse ? node->inEdges() : node->outEdges();    \
+            return map<Node*>(                                            \
+                filterEdges(edges, edgeCondition),                        \
+                [&](Edge* e) { return reverse ? e->src() : e->dest(); }); \
+        };                                                                \
+                                                                          \
+        std::list<Node*> queue = map<Node*>(nodes, mapFunction);          \
+                                                                          \
+        while (!queue.empty()) {                                          \
+            Node* node = queue.front();                                   \
+            queue.pop_front();                                            \
+                                                                          \
+            if (visited.count(node) == 1) {                               \
+                continue;                                                 \
+            }                                                             \
+            visited.insert(node);                                         \
+            if (eval(node)) {                                             \
+                result.insert(node);                                      \
+            }                                                             \
+            if (result.size() == limit) {                                 \
+                return result;                                            \
+            }                                                             \
+            queue.splice(queue.end(), map<Node*>({node}, mapFunction));   \
+        }                                                                 \
+        return result;                                                    \
     }
+#include "src/config/predicates.def"
+#undef WASMATI_EVALUATION
 
-    for (Node* node : nodes) {
-        if (visited.count(node) == 1) {
-            continue;
-        }
-        visited.insert(node);
-        auto edges = reverse ? node->inEdges() : node->outEdges();
-        for (Edge* edge : filterEdges(edges, edgeCondition)) {
-            auto node = reverse ? edge->src() : edge->dest();
-            if (nodeCondition(node)) {
-                if (limit == 0) {
-                    return result;
-                }
-                result.insert(node);
-                limit--;
-            }
-            nextQuery.insert(node);
-        }
+#define WASMATI_EVALUATION(type, var, eval, rALL)                              \
+    NodeSet Query::BFSincludes(const NodeSet& nodes, const type& var,          \
+                               const EdgeCondition& edgeCondition,             \
+                               Index limit, bool reverse) {                    \
+        auto filtering = filter(nodes, var);                                   \
+        if (filtering.size() >= limit) {                                       \
+            auto end = filtering.cbegin();                                     \
+            std::advance(end, limit);                                          \
+            return NodeSet(filtering.cbegin(), end);                           \
+        }                                                                      \
+        auto result =                                                          \
+            BFS(nodes, var, edgeCondition, limit - filtering.size(), reverse); \
+        result.insert(filtering.begin(), filtering.end());                     \
+        return result;                                                         \
     }
-    if (nextQuery.size() == 0) {
-        return result;
-    }
-    auto queryResult =
-        BFS(nextQuery, nodeCondition, edgeCondition, limit, reverse, visited);
-    if (queryResult.size() == 0) {
-        return result;
-    }
-    result.insert(queryResult.begin(), queryResult.end());
-    return result;
-}
-
-NodeSet Query::BFSincludes(const NodeSet& nodes,
-                           const NodeCondition& nodeCondition,
-                           const EdgeCondition& edgeCondition,
-                           Index limit,
-                           bool reverse) {
-    auto filtering = filter(nodes, nodeCondition);
-    if (filtering.size() >= limit) {
-        auto end = filtering.cbegin();
-        std::advance(end, limit);
-        return NodeSet(filtering.cbegin(), end);
-    }
-    auto result = BFS(nodes, nodeCondition, edgeCondition,
-                      limit - filtering.size(), reverse);
-    result.insert(filtering.begin(), filtering.end());
-    return result;
-}
+#include "src/config/predicates.def"
+#undef WASMATI_EVALUATION
 
 NodeSet Query::module() {
     assert(_graph != nullptr);

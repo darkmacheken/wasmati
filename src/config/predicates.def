@@ -1,0 +1,46 @@
+#ifdef WASMATI_PREDICATE
+/*                Name  Type 
+ * ==========================================================  */
+WASMATI_PREDICATE(name, std::string)
+WASMATI_PREDICATE(index, Index)
+WASMATI_PREDICATE(nargs, Index)
+WASMATI_PREDICATE(nlocals, Index)
+WASMATI_PREDICATE(nresults, Index)
+WASMATI_PREDICATE(isImport, bool)
+WASMATI_PREDICATE(isExport, bool)
+WASMATI_PREDICATE(varType, Type)
+WASMATI_PREDICATE(instType, ExprType)
+WASMATI_PREDICATE(opcode, Opcode)
+WASMATI_PREDICATE(label, std::string)
+WASMATI_PREDICATE(offset, Index)
+WASMATI_PREDICATE(hasElse, bool)
+WASMATI_PREDICATE(isBeginBlock, bool)
+
+#endif
+
+#ifdef WASMATI_PREDICATE_VALUES_I
+/*							funcName  valType	field	rtype
+ * ==========================================================  */
+WASMATI_PREDICATE_VALUES_I(U32, uint32_t,	u32, Type::I32)
+WASMATI_PREDICATE_VALUES_I(I32, int32_t,	u32, Type::I32)
+WASMATI_PREDICATE_VALUES_I(U64, uint64_t,	u64, Type::I64)
+WASMATI_PREDICATE_VALUES_I(I64, int64_t,	u64, Type::I64)
+
+#endif
+
+#ifdef WASMATI_PREDICATE_VALUES_F
+/*							funcName  valType	field	rtype
+ * ==========================================================  */
+WASMATI_PREDICATE_VALUES_I(F32, float,	 f32_bits, Type::F32)
+WASMATI_PREDICATE_VALUES_I(F64, double, f64_bits, Type::F64)
+
+#endif
+
+#ifdef WASMATI_EVALUATION
+/*							type  var eval	trueConst
+ * ==========================================================  */
+WASMATI_EVALUATION(NodeCondition, condition, condition, ALL_NODES)
+WASMATI_EVALUATION(Predicate, predicate, predicate.evaluate, TRUE_PREDICATE)
+
+#endif
+

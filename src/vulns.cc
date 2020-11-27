@@ -1,7 +1,6 @@
 #include "vulns.h"
 using namespace wasmati;
 
-
 void VulnerabilityChecker::verifyConfig(const json& config) {
     // importAsSources
     assert(config.contains(IMPORT_AS_SOURCES));
@@ -555,10 +554,13 @@ void VulnerabilityChecker::taintedLocalToFunc() {
                        sinks.count(node->label()) == 1;
             })
             .forEach([&](Node* call) {
-                auto localsDepends =
+                auto localsDependsList =
                     EdgeStream(call->inEdges(EdgeType::PDG))
                         .filterPDG(PDGType::Local)
                         .map<std::string>([](Edge* e) { return e->label(); });
+
+                std::set<std::string> localsDepends(localsDependsList.begin(),
+                                                    localsDependsList.end());
 
                 NodeStream(call)
                     .children(Query::AST_EDGES)
@@ -613,12 +615,14 @@ std::pair<std::string, std::string> VulnerabilityChecker::isTainted(
         }
     }
     for (auto arg : Query::parents({param}, Query::PG_EDGES)) {
-        auto localVars =
+        auto localVarsList =
             EdgeStream(arg->outEdges(EdgeType::PDG))
                 .setUnion(arg->inEdges(EdgeType::PDG))
                 .filterPDG(PDGType::Local)
                 .distincLabel()
                 .map<std::string>([](Edge* e) { return e->label(); });
+        std::set<std::string> localVars(localVarsList.begin(),
+                                        localVarsList.end());
 
         auto newParams = NodeStream(Query::function(arg))
                              .parameters([&](Node* node) {

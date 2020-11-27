@@ -63,31 +63,24 @@ public:
     NodeType type() const { return _type; }
 
     virtual const std::string& name() const {
-        assert(false);
         return emptyString();
     }
     virtual Index index() const {
-        assert(false);
         return 0;
     }
     virtual Index nargs() const {
-        assert(false);
         return 0;
     }
     virtual Index nlocals() const {
-        assert(false);
         return 0;
     }
     virtual Index nresults() const {
-        assert(false);
         return 0;
     }
     virtual bool isImport() const {
-        assert(false);
         return false;
     }
     virtual bool isExport() const {
-        assert(false);
         return false;
     }
     virtual Type varType() const {
@@ -107,19 +100,15 @@ public:
         return emptyConst();
     }
     virtual const std::string& label() const {
-        assert(false);
         return emptyString();
     }
     virtual bool hasElse() const {
-        assert(false);
         return false;
     }
     virtual Index offset() const {
-        assert(false);
         return 0;
     }
     virtual Location location() const {
-        assert(false);
         return {};
     }
     virtual Node* block() {
