@@ -5,6 +5,7 @@
 #include <stack>
 #include "graph.h"
 #include "include/nlohmann/json.hpp"
+#include "utils.h"
 
 using nlohmann::json;
 
@@ -46,6 +47,8 @@ public:
     static const NodeCondition& ALL_INSTS;
     /// @brief Condition to return all nodes
     static const NodeCondition& ALL_NODES;
+
+    static EdgeCondition pdgEdge(std::string label, PDGType pdgType);
 
     /// @brief Returns the childrens of the given nodes.
     /// @param nodes Set of nodes
@@ -266,11 +269,13 @@ public:
     /// @brief Returns all the parameters nodes of the given functions that
     /// satisfies the nodeCondition
     /// @param nodes A set of function nodes.
-    /// @param nodeCondition Condition to filter the nodes.
     /// @return A set of parameters nodes from the given functions that
     /// satisfies the condition.
-    static NodeSet parameters(const NodeSet& nodes,
-                              const NodeCondition& nodeCondition = ALL_NODES);
+#define WASMATI_EVALUATION(type, var, eval, rALL) \
+    static NodeSet parameters(const NodeSet& nodes, const type&);
+    static NodeSet parameters(const NodeSet& nodes);
+#include "src/config/predicates.def"
+#undef WASMATI_EVALUATION
 };
 
 // This class is to store more complex queries.
@@ -278,40 +283,22 @@ struct Queries {
     static NodeSet loopsInsts(std::string& loopName);
 };
 
+class TestHolder;
+class TruePredicate;
 class Predicate {
-private:
-    struct SimplePredicate {
-        virtual bool evaluate(Node* node) const = 0;
-    };
-
-    struct TruePredicate : SimplePredicate {
-        bool evaluate(Node* node) const override { return true; }
-    };
-
-    struct TestHolder : SimplePredicate {
-        std::function<bool(Node* node)> func;
-
-    public:
-        TestHolder(std::function<bool(Node*)> func) : func(func) {}
-
-        bool evaluate(Node* node) const override { return func(node); }
-    };
-
-private:
-    std::vector<std::vector<std::shared_ptr<SimplePredicate>>> _predicates;
+    std::vector<std::vector<std::shared_ptr<Predicate>>> _predicates;
     /// @brief Each row is a vector of SimplePredicates. The evaluation of a row
     /// is the AND between them. The evaluation between rows is an OR.
     Index currentRow = 0;
 
-private:
-    void insertPredicate(std::shared_ptr<SimplePredicate> predicate) {
+    void insertPredicate(std::shared_ptr<Predicate> predicate) {
         assert(currentRow + 1 == _predicates.size());
-        _predicates[currentRow].emplace_back(predicate);
+        _predicates[currentRow].push_back(predicate);
     }
 
     bool evaluateRow(
         Node* node,
-        const std::vector<std::shared_ptr<SimplePredicate>>& predicates) const {
+        const std::vector<std::shared_ptr<Predicate>>& predicates) const {
         if (predicates.size() == 0) {
             return false;
         }
@@ -326,26 +313,34 @@ private:
 
 public:
     Predicate() { _predicates.emplace_back(); }
+    Predicate(const Predicate& predicate)
+        : _predicates(predicate._predicates) {}
 
-    bool evaluate(Node* node) const {
+    virtual bool evaluate(Node* node) const {
         bool res = false;
         Index i = 0;
         while (!res && i < _predicates.size()) {
             res = res || evaluateRow(node, _predicates[i]);
             i++;
         }
+        i = 0;
         return res;
     }
 
-    inline Predicate& insert(std::function<bool(Node* node)> f) {
-        insertPredicate(std::make_shared<TestHolder>(f));
+    Predicate& insert(std::function<bool(Node* node)> f);
+
+    inline Predicate& insert(Predicate& predicate) {
+        insertPredicate(std::make_shared<Predicate>(predicate));
         return *this;
     }
 
-    Predicate& truePredicate() {
-        insertPredicate(std::make_shared<TruePredicate>());
+    inline Predicate& Or() {
+        _predicates.emplace_back();
+        currentRow++;
         return *this;
     }
+
+    Predicate& truePredicate();
 
 #define WASMATI_PREDICATE(funcName, TypeVal)                                  \
     Predicate& funcName(TypeVal val, bool eq = true) {                        \
@@ -364,7 +359,7 @@ public:
     Predicate& value##funcName(valType& val) {                      \
         auto f = [&](Node* node) {                                  \
             if (node->value().type == rtype) {                      \
-                val = node->value().field;                          \
+                val = Utils::value##funcName(node->value());        \
                 return true;                                        \
             }                                                       \
             return false;                                           \
@@ -377,9 +372,8 @@ public:
     Predicate& value##funcName(valType& val) {                      \
         auto f = [&](Node* node) {                                  \
             if (node->value().type == rtype) {                      \
-                valType fval;                                       \
-                memcpy(&fval, &node->value().field, sizeof(fval));  \
-                val = fval;                                         \
+                val = Utils::value##funcName(node->value());        \
+                ;                                                   \
                 return true;                                        \
             }                                                       \
             return false;                                           \
@@ -449,7 +443,7 @@ public:
     })
 
 #define PDG_EDGE5(SRC, DEST, LABEL, PDG_TYPE, EQ)           \
-    insert([&, PDG_TYPE, EQ](Node* node) {                  \
+    insert([&](Node* node) {                                \
         assert(SRC != nullptr);                             \
         auto edges = SRC->outEdges(EdgeType::PDG);          \
         for (auto e : edges) {                              \
@@ -511,46 +505,62 @@ public:
         return *this;
     }
 
-#define WASMATI_PREDICATE_VALUES_I(funcName, valType, field, rtype) \
-    Predicate& inPDGConstEdge##funcName(valType& val) {             \
-        auto f = [&](Node* node) {                                  \
-            auto edges = node->inEdges(EdgeType::PDG);              \
-            for (auto e : edges) {                                  \
-                if (e->pdgType() == PDGType::Const &&               \
-                    node->value().type == rtype) {                  \
-                    val = node->value().field;                      \
-                    return true;                                    \
-                }                                                   \
-            }                                                       \
-            return false;                                           \
-        };                                                          \
-        insert(f);                                                  \
-        return *this;                                               \
+#define WASMATI_PREDICATE_VALUES_I(funcName, valType, field, rtype)   \
+    Predicate& pdgConstEdge##funcName(valType& val, bool in = true) { \
+        auto f = [&, in](Node* node) {                                \
+            auto edges = in ? node->inEdges(EdgeType::PDG)            \
+                            : node->outEdges(EdgeType::PDG);          \
+            for (auto e : edges) {                                    \
+                if (e->pdgType() == PDGType::Const &&                 \
+                    e->value().type == rtype) {                       \
+                    val = Utils::value##funcName(e->value());         \
+                    return true;                                      \
+                }                                                     \
+            }                                                         \
+            return false;                                             \
+        };                                                            \
+        insert(f);                                                    \
+        return *this;                                                 \
     }
 
-#define WASMATI_PREDICATE_VALUES_F(funcName, valType, field, rtype)    \
-    Predicate& inPDGConstEdge##funcName(valType& val) {                \
-        auto f = [&](Node* node) {                                     \
-            auto edges = node->inEdges(EdgeType::PDG);                 \
-            for (auto e : edges) {                                     \
-                if (e->pdgType() == PDGType::Const &&                  \
-                    node->value().type == rtype) {                     \
-                    valType fval;                                      \
-                    memcpy(&fval, &node->value().field, sizeof(fval)); \
-                    val = fval;                                        \
-                    return true;                                       \
-                }                                                      \
-            }                                                          \
-            return false;                                              \
-        };                                                             \
-        insert(f);                                                     \
-        return *this;                                                  \
+#define WASMATI_PREDICATE_VALUES_F(funcName, valType, field, rtype)   \
+    Predicate& pdgConstEdge##funcName(valType& val, bool in = true) { \
+        auto f = [&, in](Node* node) {                                \
+            auto edges = in ? node->inEdges(EdgeType::PDG)            \
+                            : node->outEdges(EdgeType::PDG);          \
+            for (auto e : edges) {                                    \
+                if (e->pdgType() == PDGType::Const &&                 \
+                    e->value().type == rtype) {                       \
+                    val = Utils::value##funcName(e->value());         \
+                    return true;                                      \
+                }                                                     \
+            }                                                         \
+            return false;                                             \
+        };                                                            \
+        insert(f);                                                    \
+        return *this;                                                 \
     }
 #include "src/config/predicates.def"
 #undef WASMATI_PREDICATE_VALUES_I
 #undef WASMATI_PREDICATE_VALUES_F
+};
 
-};  // namespace wasmati
+struct TruePredicate : Predicate {
+    TruePredicate() {}
+    TruePredicate(TruePredicate&) : Predicate() {}
+    bool evaluate(Node* node) const override { return true; }
+};
+
+struct TestHolder : Predicate {
+    std::function<bool(Node* node)> func;
+
+    TestHolder() {}
+    TestHolder(TestHolder& test) : Predicate(), func(test.func) {}
+
+    TestHolder(std::function<bool(Node*)> func) : func(func) {}
+
+    bool evaluate(Node* node) const override { return func(node); }
+};
 
 template <class T>
 class Optional {
@@ -681,8 +691,17 @@ public:
         return *this;
     }
 
+    NodeStream& filter(const Predicate& predicate) {
+        nodes = Query::filter(nodes, predicate);
+        return *this;
+    }
+
     bool contains(const NodeCondition& nodeCondition) {
         return Query::contains(nodes, nodeCondition);
+    }
+
+    bool contains(const Predicate& predicate) {
+        return Query::contains(nodes, predicate);
     }
 
     Optional<Node*> findFirst() {
@@ -718,6 +737,14 @@ public:
         return *this;
     }
 
+    NodeStream& BFS(const Predicate& predicate = Query::TRUE_PREDICATE,
+                    const EdgeCondition& edgeCondition = Query::ALL_EDGES,
+                    Index limit = UINT32_MAX,
+                    bool reverse = false) {
+        nodes = Query::BFS(nodes, predicate, edgeCondition, limit, reverse);
+        return *this;
+    }
+
     NodeStream& BFSincludes(
         const NodeCondition& nodeCondition = Query::ALL_NODES,
         const EdgeCondition& edgeCondition = Query::ALL_EDGES,
@@ -728,15 +755,42 @@ public:
         return *this;
     }
 
-    NodeStream& instructions(
-        const NodeCondition& nodeCondition = Query::ALL_NODES) {
+    NodeStream& BFSincludes(
+        const Predicate& predicate = Query::TRUE_PREDICATE,
+        const EdgeCondition& edgeCondition = Query::ALL_EDGES,
+        Index limit = UINT32_MAX,
+        bool reverse = false) {
+        nodes =
+            Query::BFSincludes(nodes, predicate, edgeCondition, limit, reverse);
+        return *this;
+    }
+
+    NodeStream& instructions() {
+        nodes = Query::instructions(nodes, Query::ALL_NODES);
+        return *this;
+    }
+    NodeStream& instructions(const NodeCondition& nodeCondition) {
         nodes = Query::instructions(nodes, nodeCondition);
         return *this;
     }
 
-    NodeStream& parameters(
-        const NodeCondition& nodeCondition = Query::ALL_NODES) {
+    NodeStream& instructions(const Predicate& predicate) {
+        nodes = Query::instructions(nodes, predicate);
+        return *this;
+    }
+
+    NodeStream& parameters() {
+        nodes = Query::parameters(nodes, Query::ALL_NODES);
+        return *this;
+    }
+
+    NodeStream& parameters(const NodeCondition& nodeCondition) {
         nodes = Query::parameters(nodes, nodeCondition);
+        return *this;
+    }
+
+    NodeStream& parameters(const Predicate& predicate) {
+        nodes = Query::parameters(nodes, predicate);
         return *this;
     }
 
@@ -749,4 +803,4 @@ public:
     }
 };
 }  // namespace wasmati
-#endif  // WABT_AST_BUILDER_H_
+#endif  // WABT_QUERY_BUILDER_H_

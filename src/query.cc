@@ -27,6 +27,13 @@ const NodeCondition& Query::ALL_NODES = [](Node* node) { return true; };
 
 const Predicate& Query::TRUE_PREDICATE = Predicate().truePredicate();
 
+EdgeCondition Query::pdgEdge(std::string label, PDGType pdgType) {
+    return [=](Edge* e) {
+        return e->type() == EdgeType::PDG && e->label() == label &&
+               e->pdgType() == pdgType;
+    };
+}
+
 NodeSet Query::children(const NodeSet& nodes,
                         const EdgeCondition& edgeCondition) {
     NodeSet result;
@@ -212,22 +219,32 @@ Node* Query::function(Node* node) {
 #include "src/config/predicates.def"
 #undef WASMATI_EVALUATION
 
-NodeSet Query::parameters(const NodeSet& nodes,
-                          const NodeCondition& nodeCondition) {
-    NodeSet params;
-    for (Node* node : nodes) {
-        assert(node->type() == NodeType::Function);
-        auto paramsNode = filter(
-            children({node->getChild(0, EdgeType::AST)}, AST_EDGES),
-            [](Node* node) { return node->type() == NodeType::Parameters; });
-        assert(paramsNode.size() <= 1);
-        if (paramsNode.size() == 1) {
-            auto childs = children(paramsNode, AST_EDGES);
-            params.insert(childs.begin(), childs.end());
-        }
+#define WASMATI_EVALUATION(TYPE, var, eval, rALL)                        \
+    NodeSet Query::parameters(const NodeSet& nodes, const TYPE& var) {   \
+        NodeSet params;                                                  \
+        for (Node * node : nodes) {                                      \
+            assert(node->type() == NodeType::Function);                  \
+            auto paramsNode = filter(                                    \
+                children({node->getChild(0, EdgeType::AST)}, AST_EDGES), \
+                [](Node* node) {                                         \
+                    return node->type() == NodeType::Parameters;         \
+                });                                                      \
+            assert(paramsNode.size() <= 1);                              \
+            if (paramsNode.size() == 1) {                                \
+                auto childs = children(paramsNode, AST_EDGES);           \
+                params.insert(childs.begin(), childs.end());             \
+            }                                                            \
+        }                                                                \
+        return filter(params, var);                                      \
     }
-    return params;
+
+NodeSet Query::parameters(const NodeSet& nodes) {
+    return parameters(nodes, ALL_NODES);
 }
+
+#include "src/config/predicates.def"
+#undef WASMATI_EVALUATION
+
 NodeSet Queries::loopsInsts(std::string& loopName) {
     NodeSet results;
     auto loops = NodeStream(Query::functions())
@@ -249,5 +266,13 @@ NodeSet Queries::loopsInsts(std::string& loopName) {
 
     results.insert(beginBlocks.begin(), beginBlocks.end());
     return results;
+}
+Predicate& Predicate::insert(std::function<bool(Node* node)> f) {
+    insertPredicate(std::make_shared<TestHolder>(f));
+    return *this;
+}
+Predicate& Predicate::truePredicate() {
+    insertPredicate(std::make_shared<TruePredicate>());
+    return *this;
 }
 }  // namespace wasmati

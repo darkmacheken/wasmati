@@ -4,17 +4,16 @@
 #include <set>
 #include "single_include/csv2/csv2.hpp"
 #include "src/cast.h"
-#include "src/common.h"
 #include "src/ir-util.h"
-#include "src/ir.h"
 #include "src/options.h"
-#include "src/stream.h"
+#include "src/utils.h"
 
 using namespace wabt;
 namespace wasmati {
 class GraphVisitor;
 class Edge;
 class Node;
+class Predicate;
 
 struct Compare {
     bool operator()(Node* const& n1, Node* const& n2) const;
@@ -63,24 +62,31 @@ public:
     NodeType type() const { return _type; }
 
     virtual const std::string& name() const {
+        assert(false);
         return emptyString();
     }
     virtual Index index() const {
+        assert(false);
         return 0;
     }
     virtual Index nargs() const {
+        assert(false);
         return 0;
     }
     virtual Index nlocals() const {
+        assert(false);
         return 0;
     }
     virtual Index nresults() const {
+        assert(false);
         return 0;
     }
     virtual bool isImport() const {
+        assert(false);
         return false;
     }
     virtual bool isExport() const {
+        assert(false);
         return false;
     }
     virtual Type varType() const {
@@ -99,18 +105,10 @@ public:
         assert(false);
         return emptyConst();
     }
-    virtual const std::string& label() const {
-        return emptyString();
-    }
-    virtual bool hasElse() const {
-        return false;
-    }
-    virtual Index offset() const {
-        return 0;
-    }
-    virtual Location location() const {
-        return {};
-    }
+    virtual const std::string& label() const { return emptyString(); }
+    virtual bool hasElse() const { return false; }
+    virtual Index offset() const { return 0; }
+    virtual Location location() const { return {}; }
     virtual Node* block() {
         assert(false);
         return nullptr;
@@ -362,84 +360,6 @@ public:
     const Const& value() const override { return _value; }
 
     void accept(GraphVisitor* visitor);
-
-    static std::string writeConstType(const Const& _const) {
-        switch (_const.type) {
-        case Type::I32:
-            return "i32";
-
-        case Type::I64:
-            return "i64";
-
-        case Type::F32:
-            return "f32";
-
-        case Type::F64:
-            return "f64";
-
-        case Type::V128: {
-            assert(false);
-            break;
-        }
-
-        default:
-            assert(false);
-            break;
-        }
-    }
-
-    static std::string writeConst(const Const& _const, bool prefix = true) {
-        std::string s;
-        switch (_const.type) {
-        case Type::I32:
-            if (prefix) {
-                s += Opcode::I32Const_Opcode.GetName();
-                s += " ";
-            }
-            s += std::to_string(static_cast<int32_t>(_const.u32));
-            break;
-
-        case Type::I64:
-            if (prefix) {
-                s += Opcode::I64Const_Opcode.GetName();
-                s += " ";
-            }
-            s += std::to_string(static_cast<int64_t>(_const.u64));
-            break;
-
-        case Type::F32: {
-            if (prefix) {
-                s += Opcode::F32Const_Opcode.GetName();
-                s += " ";
-            }
-            float f32;
-            memcpy(&f32, &_const.f32_bits, sizeof(f32));
-            s += std::to_string(f32);
-            break;
-        }
-
-        case Type::F64: {
-            if (prefix) {
-                s += Opcode::F64Const_Opcode.GetName();
-                s += " ";
-            }
-            double f64;
-            memcpy(&f64, &_const.f64_bits, sizeof(f64));
-            s += std::to_string(f64);
-            break;
-        }
-
-        case Type::V128: {
-            assert(false);
-            break;
-        }
-
-        default:
-            assert(false);
-            break;
-        }
-        return s;
-    }
 };
 
 template <ExprType T>
@@ -725,7 +645,7 @@ struct PDGEdgeConst : PDGEdge {
     const Const _const;
 
     PDGEdgeConst(Node* src, Node* dest, const Const& const_)
-        : PDGEdge(src, dest, ConstInst::writeConst(const_), PDGType::Const),
+        : PDGEdge(src, dest, Utils::writeConst(const_), PDGType::Const),
           _const(const_) {}
 
     inline const Const& value() const override { return _const; }

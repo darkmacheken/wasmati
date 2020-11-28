@@ -31,8 +31,8 @@ WASMATI_PREDICATE_VALUES_I(I64, int64_t,	u64, Type::I64)
 #ifdef WASMATI_PREDICATE_VALUES_F
 /*							funcName  valType	field	rtype
  * ==========================================================  */
-WASMATI_PREDICATE_VALUES_I(F32, float,	 f32_bits, Type::F32)
-WASMATI_PREDICATE_VALUES_I(F64, double, f64_bits, Type::F64)
+WASMATI_PREDICATE_VALUES_F(F32, float,	 f32_bits, Type::F32)
+WASMATI_PREDICATE_VALUES_F(F64, double, f64_bits, Type::F64)
 
 #endif
 

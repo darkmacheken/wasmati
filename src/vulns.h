@@ -17,6 +17,7 @@
 #define TAINTED "tainted"
 #define PARAMS "params"
 #define BUFFER_OVERFLOW "bufferOverflow"
+#define DANGEROUS_FUNCTIONS "dangerousFunctions"
 #define BUFFER "buffer"
 #define SIZE "size"
 #define FORMAT_STRING "formatString"
@@ -172,7 +173,7 @@ struct VulnerabilityChecker {
     void checkBufferOverflow();
     void checkBoBuffsStatic();
     void checkBoScanfLoops();
-    std::pair<Index, std::map<int, int>> checkBufferSizes(Node* func);
+    std::pair<Index, std::map<Index, Index>> checkBufferSizes(Node* func);
 
     // Format Strings
     void checkFormatString();

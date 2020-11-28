@@ -119,7 +119,7 @@ public:
             : name(name), value(nullptr), type(type) {}
 
         Var(const Const* value)
-            : name(ConstInst::writeConst(*value)),
+            : name(Utils::writeConst(*value)),
               value(value),
               type(PDGType::Const) {}
 

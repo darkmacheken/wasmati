@@ -191,7 +191,7 @@ private:
         visitSimpleNode(node->getId(), Opcode::MemoryGrow_Opcode.GetName());
     }
     void visitConstInst(ConstInst* node) override {
-        visitSimpleNode(node->getId(), ConstInst::writeConst(node->value()));
+        visitSimpleNode(node->getId(), Utils::writeConst(node->value()));
     }
     void visitBinaryInst(BinaryInst* node) override {
         visitSimpleNode(node->getId(), node->opcode().GetName());

@@ -55,11 +55,17 @@ void VulnerabilityChecker::verifyConfig(const json& config) {
         assert(item.value().contains(BUFFER));
         assert(item.value().at(BUFFER).is_number_integer());
         assert(item.value().at(BUFFER) >= 0);
-        if (item.value().contains(SIZE)) {
-            assert(item.value().at(SIZE).is_number_integer());
-            assert(item.value().at(SIZE) >= 0);
-        }
+        assert(item.value().contains(SIZE));
+        assert(item.value().at(SIZE).is_number_integer());
+        assert(item.value().at(SIZE) >= 0);
     }
+    // dangerousFunctions
+    assert(config.contains(DANGEROUS_FUNCTIONS));
+    assert(config.at(DANGEROUS_FUNCTIONS).is_array());
+    for (auto const& item : config.at(DANGEROUS_FUNCTIONS).items()) {
+        assert(item.value().is_string());
+    }
+
     // formatString
     assert(config.contains(FORMAT_STRING));
     assert(config.at(FORMAT_STRING).is_object());
@@ -126,123 +132,90 @@ void VulnerabilityChecker::checkBoBuffsStatic() {
         if (ignore.count(func->name())) {
             continue;
         }
+
         auto buffersSizes = checkBufferSizes(func);
-        auto buffers = buffersSizes.second;
+        const Index sizeAlloc = buffersSizes.first;
+        const std::map<Index, Index> buffers = buffersSizes.second;
 
-        NodeStream({func})
-            .instructions([&](Node* node) {
-                return node->instType() == ExprType::Call &&
-                       funcSink.count(node->label()) == 1;
-            })
-            .forEach([&](Node* call) {
-                json callSink = boConfig.at(call->label());
-                // buffer
-                int indexBuffer;
-                indexBuffer = callSink.at(BUFFER);
-                Node* bufferArg =
-                    call->getOutEdge(indexBuffer, EdgeType::AST)->dest();
+        Node* children = nullptr;
+        auto callsPredicate =
+            Predicate()
+                .instType(ExprType::Call)
+                .TEST(funcSink.count(node->label()) == 1)
+                .EXEC(children =
+                          node->getChild(boConfig.at(node->label()).at(BUFFER)))
+                .PDG_EDGE(children, node, "$g0", PDGType::Global, true);
 
-                // limit
-                int indexLimit = -1;
-                if (callSink.contains(SIZE)) {
-                    indexLimit = callSink.at(SIZE);
-                    if (buffers.size() == 0) {
-                        return;
-                    }
-                } else {
-                    vulns.emplace_back(VulnType::BufferOverflow, func->name(),
-                                       call->label(), "");
-                    return;
-                }
-                Node* limitArg =
-                    call->getOutEdge(indexLimit, EdgeType::AST)->dest();
+        NodeStream(func).instructions(callsPredicate).forEach([&](Node* node) {
+            auto bufferArg =
+                node->getChild(boConfig.at(node->label()).at(BUFFER));
+            auto sizeArg = node->getChild(boConfig.at(node->label()).at(SIZE));
 
-                // lookup buffer
-                int bufferPosition = 0;
-                auto addOrSubbNode =
-                    NodeStream({bufferArg})
-                        .BFSincludes(
-                            [&](Node* node) {
-                                if (node->instType() == ExprType::Binary &&
-                                    (node->opcode() == Opcode::I32Add ||
-                                     node->opcode() == Opcode::I32Sub)) {
-                                    auto inEdges = EdgeStream(
-                                        node->inEdges(EdgeType::PDG));
-                                    if (!inEdges.containsPDG(PDGType::Global,
-                                                             "$g0")) {
-                                        return false;
-                                    }
-                                    auto constEdge =
-                                        inEdges.filterPDG(PDGType::Const)
-                                            .findFirst();
+            Index val = 0;
+            auto addOrSubPredicate = Predicate()
+                                         .instType(ExprType::Binary)
+                                         .insert(Predicate()
+                                                     .opcode(Opcode::I32Add)
+                                                     .Or()
+                                                     .opcode(Opcode::I32Sub))
+                                         .inPDGEdge("$g0", PDGType::Global)
+                                         .pdgConstEdgeU32(val)
+                                         .TEST(val <= sizeAlloc);
 
-                                    if (constEdge.isPresent()) {
-                                        bufferPosition =
-                                            constEdge.get()->value().u32;
-                                        bool test =
-                                            (node->opcode() == Opcode::I32Add)
-                                                ? bufferPosition > 0
-                                                : bufferPosition < 0;
-                                        bufferPosition =
-                                            std::abs(bufferPosition);
-                                        // In case the buffer position is 0:
-                                        // points to the allocation
-                                        if (node->opcode() == Opcode::I32Sub &&
-                                            !test &&
-                                            static_cast<Index>(
-                                                bufferPosition) ==
-                                                buffersSizes.first) {
-                                            bufferPosition = 0;
-                                            return true;
-                                        }
-                                        return test;
-                                    }
-                                }
-                                return false;
-                            },
-                            [](Edge* e) {
-                                return e->type() == EdgeType::PDG &&
-                                       e->pdgType() == PDGType::Global &&
-                                       e->label() == "$g0";
-                            },
-                            1, true)
-                        .findFirst();
+            auto addOrSubInst =
+                NodeStream(bufferArg)
+                    .BFSincludes(addOrSubPredicate,
+                                 Query::pdgEdge("$g0", PDGType::Global), 1,
+                                 true)
+                    .findFirst();
 
-                if (!addOrSubbNode.isPresent()) {
-                    return;
-                }
+            if (!addOrSubInst.isPresent()) {
+                return;
+            }
 
-                // lookup size
-                int sizeToWrite = 0;
-                auto outEdges = EdgeStream(limitArg->outEdges(EdgeType::PDG));
-                auto constEdge = outEdges.filterPDG(PDGType::Const).findFirst();
+            Index buff = 0;
+            Predicate().pdgConstEdgeU32(buff).evaluate(addOrSubInst.get());
 
-                if (constEdge.isPresent()) {
-                    sizeToWrite = constEdge.get()->value().u32;
-                } else {
-                    return;
-                }
+            // If it gets to the SUB inst, buff will be equal to sizeAlloc
+            // in this case should point to buffer 0 and size=sizeAlloc
+            if (buff == sizeAlloc) {
+                buff = 0;
+            }
 
-                int sizeAlloc =
-                    buffers.rbegin()->first + buffers.rbegin()->second;
-                if (bufferPosition < 32 &&
-                    sizeToWrite > sizeAlloc - bufferPosition) {
-                    std::string desc =
-                        "buffer @+" + std::to_string(bufferPosition) + " is " +
-                        std::to_string(sizeAlloc - bufferPosition) +
-                        " and is expecting " + std::to_string(sizeToWrite);
-                    vulns.emplace_back(VulnType::BufferOverflow, func->name(),
-                                       call->label(), desc);
-                } else if (bufferPosition >= 32 &&
-                           sizeToWrite > buffers[bufferPosition]) {
-                    std::string desc =
-                        "buffer @+" + std::to_string(bufferPosition) + " is " +
-                        std::to_string(buffers[bufferPosition]) +
-                        " and is expecting " + std::to_string(sizeToWrite);
-                    vulns.emplace_back(VulnType::BufferOverflow, func->name(),
-                                       call->label(), desc);
-                }
-            });
+            // Get size argument to compare
+            Index sizeToWrite = 0;
+            bool hasConst = Predicate()
+                                .pdgConstEdgeU32(sizeToWrite, false)
+                                .evaluate(sizeArg);
+            if (!hasConst) {
+                return;
+            }
+            Index size;
+            if (buff < 32 && sizeToWrite > sizeAlloc - buff) {
+                size = sizeAlloc - buff;
+            } else if (buff >= 32 && sizeToWrite > buffers.at(buff)) {
+                size = buffers.at(buff);
+            } else {
+                return;
+            }
+            std::string desc = "buffer @+" + std::to_string(buff) + " is " +
+                               std::to_string(size) + " and is expecting " +
+                               std::to_string(sizeToWrite);
+            vulns.emplace_back(VulnType::BufferOverflow, func->name(),
+                               node->label(), desc);
+        });
+
+        // Dangerous functions
+        std::set<std::string> dangFuncs(config.at(DANGEROUS_FUNCTIONS).begin(),
+                                        config.at(DANGEROUS_FUNCTIONS).end());
+        auto dangFunc = Predicate()
+                            .instType(ExprType::Call)
+                            .TEST(dangFuncs.count(node->label()) == 1);
+
+        NodeStream(func).instructions(dangFunc).forEach([&](Node* node) {
+            vulns.emplace_back(VulnType::BufferOverflow, func->name(),
+                               node->label(), "");
+        });
     }
 }
 
@@ -338,6 +311,57 @@ void VulnerabilityChecker::checkBoScanfLoops() {
     }
 }
 
+std::pair<Index, std::map<Index, Index>> VulnerabilityChecker::checkBufferSizes(
+    Node* func) {
+    // Find SUB
+    Index val = 0;
+    auto subPred = Predicate()
+                       .instType(ExprType::Binary)
+                       .opcode(Opcode::I32Sub)
+                       .inPDGEdge("$g0", PDGType::Global)
+                       .pdgConstEdgeU32(val)
+                       .TEST(val > 0);
+
+    auto subInst = NodeStream(func).instructions(subPred).findFirst();
+
+    if (!subInst.isPresent()) {
+        return std::make_pair(0, std::map<Index, Index>());
+    }
+
+    Index sizeAlloc = 0;
+    Predicate().pdgConstEdgeU32(sizeAlloc).evaluate(subInst.get());
+
+    // FIND ADDS
+    std::set<Index> setBuffs;
+    setBuffs.insert(0);
+    setBuffs.insert(sizeAlloc);
+    auto addPred = Predicate()
+                       .instType(ExprType::Binary)
+                       .opcode(Opcode::I32Add)
+                       .inPDGEdge("$g0", PDGType::Global)
+                       .pdgConstEdgeU32(val)
+                       .TEST(val > 0)
+                       .EXEC(setBuffs.insert(val));
+    NodeStream(func).instructions(addPred);
+
+    // Calculate difference
+    std::vector<Index> buffs(setBuffs.begin(), setBuffs.end());
+    std::adjacent_difference(buffs.begin(), buffs.end(), buffs.begin());
+
+    std::map<Index, Index> result;
+    Index i = 1;  // starts at 1 cuz index 0 = 0
+    for (Index buff : setBuffs) {
+        if (i < buffs.size()) {
+            result[buff] = buffs[i];
+            i++;
+        } else {
+            result[buff] = 0;
+        }
+    }
+
+    return std::make_pair(sizeAlloc, result);
+}
+
 void VulnerabilityChecker::checkFormatString() {
     json fsConfig = config.at(FORMAT_STRING);
     std::set<std::string> ignore = config[IGNORE];
@@ -358,91 +382,12 @@ void VulnerabilityChecker::checkFormatString() {
                 .EXEC(child = node->getChild(fsConfig.at(node->label())))
                 .PDG_EDGE(child, node, PDGType::Const, false);
 
-        auto query = Query::instructions({func}, callPredicate);
-
-        // write vulns
-        for (auto call : query) {
+        NodeStream(func).instructions(callPredicate).forEach([&](Node* call) {
+            // write vulns
             vulns.emplace_back(VulnType::FormatStrings, func->name(),
                                call->label());
-        }
+        });
     }
-}
-
-std::pair<Index, std::map<int, int>> VulnerabilityChecker::checkBufferSizes(
-    Node* func) {
-    std::map<int, int> buffers;
-    EdgeSet queryEdges;
-    Index totalSizeAllocated;
-    EdgeCondition edgeCond = [](Edge* e) {
-        return (e->pdgType() == PDGType::Const &&
-                static_cast<int>(e->value().u32) > 0) ||
-               (e->pdgType() == PDGType::Global &&
-                e->label().compare("$g0") == 0);
-    };
-    auto allocQuery = Query::instructions({func}, [&](Node* node) {
-        if (node->instType() == ExprType::Binary &&
-            node->opcode() == Opcode::I32Sub) {
-            auto inEdges = node->inEdges(EdgeType::PDG);
-            auto queryEdges = Query::filterEdges(inEdges, edgeCond);
-            return queryEdges.size() == 2;
-        }
-        return false;
-    });
-
-    if (allocQuery.size() == 1) {
-        auto inEdges = (*allocQuery.begin())->inEdges(EdgeType::PDG);
-        queryEdges = Query::filterEdges(inEdges, edgeCond);
-    }
-
-    if (allocQuery.size() != 1 || queryEdges.size() != 2) {
-        return std::make_pair(totalSizeAllocated, buffers);
-    }
-
-    for (Edge* e : queryEdges) {
-        if (e->pdgType() == PDGType::Const) {
-            totalSizeAllocated = e->value().u32;
-        }
-    }
-
-    std::set<int> buffs;
-    buffs.insert(0);
-    auto buffQuery = Query::instructions({func}, [&](Node* node) {
-        if (node->instType() == ExprType::Binary &&
-            node->opcode() == Opcode::I32Add) {
-            auto inEdges = node->inEdges(EdgeType::PDG);
-            auto queryEdges = Query::filterEdges(inEdges, [&](Edge* e) {
-                return (e->pdgType() == PDGType::Const &&
-                        static_cast<int>(e->value().u32) > 0 &&
-                        static_cast<Index>(e->value().u32) <
-                            totalSizeAllocated) ||
-                       (e->pdgType() == PDGType::Global &&
-                        e->label().compare("$g0") == 0);
-            });
-            auto querySub = Query::BFS(
-                {node}, [&](Node* n) { return n == *allocQuery.begin(); },
-                Query::PDG_EDGES, 1, true);
-            return queryEdges.size() == 2 && querySub.size() == 1;
-        }
-        return false;
-    });
-
-    for (Node* node : buffQuery) {
-        for (Edge* e : node->inEdges(EdgeType::PDG)) {
-            if (e->pdgType() == PDGType::Const) {
-                buffs.insert(e->value().u32);
-            }
-        }
-    }
-    for (auto it = buffs.begin(); it != buffs.end(); ++it) {
-        int size = 0;
-        if (std::next(it) != buffs.end()) {
-            size = (*std::next(it)) - *it;
-        } else {
-            size = totalSizeAllocated - *it;
-        }
-        buffers[*it] = size;
-    }
-    return std::make_pair(totalSizeAllocated, buffers);
 }
 
 void VulnerabilityChecker::checkTainted() {

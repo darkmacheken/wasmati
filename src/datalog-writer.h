@@ -149,9 +149,9 @@ class DatalogWriter : public GraphWriter {
 
 public:
     DatalogWriter(wabt::Stream* stream,
-              wabt::Stream* edges,
-              wabt::Stream* nodes,
-              Graph* graph)
+                  wabt::Stream* edges,
+                  wabt::Stream* nodes,
+                  Graph* graph)
         : GraphWriter(stream, graph), _edges(edges), _nodes(nodes) {}
 
     void writeGraph() override {
@@ -215,15 +215,15 @@ public:
                     "%u,%u,PDG,%s,%s,[%s,%s,%f]\n", e->src()->getId(),
                     e->dest()->getId(), e->label().c_str(),
                     pdgTypeMap[e->pdgType()].c_str(),
-                    ConstInst::writeConstType(e->value()).c_str(),
-                    ConstInst::writeConst(e->value(), false).c_str(), 0.0);
+                    Utils::writeConstType(e->value()).c_str(),
+                    Utils::writeConst(e->value(), false).c_str(), 0.0);
             } else {
-                _edges->Writef(
-                    "%u,%u,PDG,%s,%s,[%s,%u,%s]\n", e->src()->getId(),
-                    e->dest()->getId(), e->label().c_str(),
-                    pdgTypeMap[e->pdgType()].c_str(),
-                    ConstInst::writeConstType(e->value()).c_str(), 0,
-                    ConstInst::writeConst(e->value(), false).c_str());
+                _edges->Writef("%u,%u,PDG,%s,%s,[%s,%u,%s]\n",
+                               e->src()->getId(), e->dest()->getId(),
+                               e->label().c_str(),
+                               pdgTypeMap[e->pdgType()].c_str(),
+                               Utils::writeConstType(e->value()).c_str(), 0,
+                               Utils::writeConst(e->value(), false).c_str());
             }
         } else {
             _edges->Writef("%u,%u,PDG,%s,%s,nil\n", e->src()->getId(),
@@ -330,13 +330,13 @@ private:
             node->value().type == Type::I64) {
             _nodes->Writef(
                 "%u,Instruction,,0,0,0,0,0,0,,Const,,[%s,%s,%f],,0,0\n",
-                node->getId(), ConstInst::writeConstType(node->value()).c_str(),
-                ConstInst::writeConst(node->value(), false).c_str(), 0.0);
+                node->getId(), Utils::writeConstType(node->value()).c_str(),
+                Utils::writeConst(node->value(), false).c_str(), 0.0);
         } else {
             _nodes->Writef(
                 "%u,Instruction,,0,0,0,0,0,0,,Const,,[%s,%d,%s],,0,0\n",
-                node->getId(), ConstInst::writeConstType(node->value()).c_str(),
-                0, ConstInst::writeConst(node->value(), false).c_str());
+                node->getId(), Utils::writeConstType(node->value()).c_str(), 0,
+                Utils::writeConst(node->value(), false).c_str());
         }
     }
     void visitBinaryInst(BinaryInst* node) override {

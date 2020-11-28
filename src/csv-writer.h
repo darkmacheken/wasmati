@@ -80,8 +80,8 @@ public:
             _stream->Writef("%u,%u,PDG,%s,%s,%s,%s\n", e->src()->getId(),
                             e->dest()->getId(), e->label().c_str(),
                             pdgTypeMap[e->pdgType()].c_str(),
-                            ConstInst::writeConstType(e->value()).c_str(),
-                            ConstInst::writeConst(e->value(), false).c_str());
+                            Utils::writeConstType(e->value()).c_str(),
+                            Utils::writeConst(e->value(), false).c_str());
         } else {
             _stream->Writef("%u,%u,PDG,%s,%s,,,\n", e->src()->getId(),
                             e->dest()->getId(), e->label().c_str(),
@@ -116,7 +116,8 @@ private:
                         node->isImport(), node->isExport());
     }
     void visitFunctionSignature(FunctionSignature* node) override {
-        _stream->Writef("%u,FunctionSignature,,,,,,,,,,,,,,,,\n", node->getId());
+        _stream->Writef("%u,FunctionSignature,,,,,,,,,,,,,,,,\n",
+                        node->getId());
     }
     void visitParameters(Parameters* node) override {
         _stream->Writef("%u,Parameters,,,,,,,,,,,,,,,,\n", node->getId());
@@ -152,7 +153,8 @@ private:
                         node->getId());
     }
     void visitReturnInst(ReturnInst* node) override {
-        _stream->Writef("%u,Instruction,,,,,,,,,Return,,,,,,,\n", node->getId());
+        _stream->Writef("%u,Instruction,,,,,,,,,Return,,,,,,,\n",
+                        node->getId());
     }
     void visitBrTableInst(BrTableInst* node) override {
         _stream->Writef("%u,Instruction,,,,,,,,,BrTable,,,,,,,\n",
@@ -162,7 +164,8 @@ private:
         _stream->Writef("%u,Instruction,,,,,,,,,Drop,,,,,,,\n", node->getId());
     }
     void visitSelectInst(SelectInst* node) override {
-        _stream->Writef("%u,Instruction,,,,,,,,,Select,,,,,,,\n", node->getId());
+        _stream->Writef("%u,Instruction,,,,,,,,,Select,,,,,,,\n",
+                        node->getId());
     }
     void visitMemorySizeInst(MemorySizeInst* node) override {
         _stream->Writef("%u,Instruction,,,,,,,,,MemorySize,,,,,,,\n",
@@ -175,8 +178,8 @@ private:
     void visitConstInst(ConstInst* node) override {
         _stream->Writef("%u,Instruction,,,,,,,,,Const,,%s,%s,,,,\n",
                         node->getId(),
-                        ConstInst::writeConstType(node->value()).c_str(),
-                        ConstInst::writeConst(node->value(), false).c_str());
+                        Utils::writeConstType(node->value()).c_str(),
+                        Utils::writeConst(node->value(), false).c_str());
     }
     void visitBinaryInst(BinaryInst* node) override {
         _stream->Writef("%u,Instruction,,,,,,,,,Binary,%s,,,,,,\n",
@@ -191,8 +194,8 @@ private:
                         node->getId(), node->opcode().GetName());
     }
     void visitUnaryInst(UnaryInst* node) override {
-        _stream->Writef("%u,Instruction,,,,,,,,,Unary,%s,,,,,,\n", node->getId(),
-                        node->opcode().GetName());
+        _stream->Writef("%u,Instruction,,,,,,,,,Unary,%s,,,,,,\n",
+                        node->getId(), node->opcode().GetName());
     }
     void visitLoadInst(LoadInst* node) override {
         _stream->Writef("%u,Instruction,,,,,,,,,Load,%s,,,,%u,,\n",
