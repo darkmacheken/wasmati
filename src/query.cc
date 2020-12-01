@@ -275,4 +275,16 @@ Predicate& Predicate::truePredicate() {
     insertPredicate(std::make_shared<TruePredicate>());
     return *this;
 }
+Predicate& Predicate::reaches(Node*& src,
+                              Node*& dest,
+                              const EdgeCondition& edgeCondition) {
+    auto f = [&](Node* node) {
+        return NodeStream(src)
+            .BFS([=](Node* node) { return node == dest; }, edgeCondition)
+            .findFirst()
+            .isPresent();
+    };
+    insert(f);
+    return *this;
+}
 }  // namespace wasmati

@@ -97,14 +97,15 @@ void VulnerabilityChecker::checkUnreachableCode() {
     NodeStream(Query::functions()).forEach([&](Node* func) {
         debug("[DEBUG][Query::UnreachableCode][%u/%u] Function %s\n", counter++,
               numFuncs, func->name().c_str());
-        auto queryInsts = Query::instructions({func}, [](Node* node) {
-            return node->instType() != ExprType::Return &&
-                   node->instType() != ExprType::Block &&
-                   node->instType() != ExprType::Loop &&
-                   node->instType() != ExprType::Unreachable &&
-                   node->inEdges(EdgeType::CFG).size() == 0;
-        });
-        if (queryInsts.size() > 0) {
+
+        auto pred = Predicate()
+                        .instType(ExprType::Return, false)
+                        .instType(ExprType::Block, false)
+                        .instType(ExprType::Loop, false)
+                        .instType(ExprType::Unreachable, false)
+                        .inEdge(EdgeType::CFG, false);
+        auto queryInsts = Query::instructions({func}, pred);
+        if (!queryInsts.empty()) {
             vulns.emplace_back(VulnType::Unreachable, func->name(), "", "");
         }
     });
@@ -589,49 +590,50 @@ void VulnerabilityChecker::checkUseAfterFree() {
         if (ignore.count(func->name())) {
             continue;
         }
+
         for (auto const& item : config[CONTROL_FLOW]) {
             std::string source = item[SOURCE];
             std::string dest = item[DEST];
 
-            NodeStream(func)
-                .instructions([&](Node* node) {
-                    return node->instType() == ExprType::Call &&
-                           node->label() == source;
-                })
-                .forEach([&](Node* callSource) {
-                    Query::DFS<bool>(
-                        callSource, Query::CFG_EDGES, false,
-                        [&](Node* node, bool seenDest) {
-                            auto edges =
-                                EdgeStream(node->inEdges(EdgeType::PDG))
-                                    .setUnion(node->outEdges(EdgeType::PDG))
-                                    .filterPDG(PDGType::Function,
-                                               callSource->label())
-                                    .findFirst();
-                            if (node->type() != NodeType::Instruction) {
-                                return std::make_pair(false, seenDest);
-                            } else if (node->instType() == ExprType::Call &&
-                                       node->label() == dest) {
-                                if (seenDest && edges.isPresent()) {
-                                    std::stringstream desc;
-                                    desc << node->label() << " called again.";
-                                    vulns.emplace_back(
-                                        VulnType::DoubleFree, func->name(),
-                                        node->label(), desc.str());
-                                }
-                                return std::make_pair(true, edges.isPresent());
-                            } else if (seenDest && edges.isPresent()) {
-                                std::stringstream desc;
-                                desc << "Value from call "
-                                     << callSource->label()
-                                     << " used after call to " << dest;
-                                vulns.emplace_back(VulnType::UaF, func->name(),
-                                                   node->label(), desc.str());
-                                return std::make_pair(false, seenDest);
-                            }
-                            return std::make_pair(true, seenDest);
-                        });
-                });
+            auto sourcePredicate =
+                Predicate().instType(ExprType::Call).label(source);
+
+            auto callSourceInsts = Query::instructions({func}, sourcePredicate);
+
+            for (Node* callSource : callSourceInsts) {
+                auto pdgEdgeCond =
+                    Query::pdgEdge(callSource->label(), PDGType::Function);
+
+                Node* destNode = nullptr;
+                auto destPredicate =
+                    Predicate()
+                        .instType(ExprType::Call)
+                        .label(dest)
+                        .EXEC(destNode = node)
+                        .reaches(callSource, destNode, pdgEdgeCond);
+
+                auto destInsts =
+                    Query::BFS({callSource}, destPredicate, Query::CFG_EDGES);
+                for (Node* callDest : destInsts) {
+                    Node* inst = nullptr;
+                    auto uafPredicate =
+                        Predicate()
+                            .inPDGEdge(callSource->label(), PDGType::Function)
+                            .EXEC(inst = node)
+                            .reaches(callSource, inst, pdgEdgeCond);
+                    auto uafInst = NodeStream(callDest)
+                                       .BFS(uafPredicate, Query::CFG_EDGES, 1)
+                                       .findFirst();
+
+                    if (uafInst.isPresent()) {
+                        std::stringstream desc;
+                        desc << "Value from call " << callSource->label()
+                             << " used after call to " << dest;
+                        vulns.emplace_back(VulnType::UaF, func->name(),
+                                           uafInst.get()->label(), desc.str());
+                    }
+                }
+            }
         }
     }
 }

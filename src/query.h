@@ -543,6 +543,10 @@ public:
 #include "src/config/predicates.def"
 #undef WASMATI_PREDICATE_VALUES_I
 #undef WASMATI_PREDICATE_VALUES_F
+
+    Predicate& reaches(Node*& src,
+                       Node*& dest,
+                       const EdgeCondition& edgeCondition);
 };
 
 struct TruePredicate : Predicate {
