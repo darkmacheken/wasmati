@@ -57,6 +57,10 @@ public:
     static NodeSet children(const NodeSet& nodes,
                             const EdgeCondition& edgeCondition = ALL_EDGES);
 
+    static NodeSet child(Index n,
+                         const NodeSet& nodes,
+                         const EdgeType type = EdgeType::AST);
+
     /// @brief Returns the parents of the given nodes.
     /// @param nodes Set of nodes
     /// @param edgeCondition Edge condition to be taken.
@@ -252,6 +256,7 @@ public:
     /// @param nodeCondition Node condition to be present in the result.
     /// @return Set of nodes containing function nodes.
     static NodeSet functions(const NodeCondition& nodeCondition = ALL_NODES);
+    static NodeSet functions(const Predicate& predicate);
 
     static Node* function(Node* node);
 
@@ -455,6 +460,22 @@ public:
         return false == EQ;                                 \
     })
 
+    Predicate& inEdge(EdgeType val,
+                      const std::set<std::string>& labels,
+                      bool eq = true) {
+        auto f = [&, val, eq](Node* node) {
+            auto edges = node->inEdges(val);
+            for (Edge* e : edges) {
+                if (labels.count(e->label()) == 1) {
+                    return true == eq;
+                }
+            }
+            return false == eq;
+        };
+        insert(f);
+        return *this;
+    }
+
     Predicate& inEdge(EdgeType val, bool eq = true) {
         auto f = [=](Node* node) {
             return (node->inEdges(val).size() > 0) == eq;
@@ -496,6 +517,35 @@ public:
             auto edges = node->inEdges(EdgeType::PDG);
             for (auto e : edges) {
                 if (e->label() == label && e->pdgType() == pdgType) {
+                    return true == eq;
+                }
+            }
+            return false == eq;
+        };
+        insert(f);
+        return *this;
+    }
+
+    Predicate& outPDGEdge(PDGType pdgType, bool eq = true) {
+        auto f = [=](Node* node) {
+            auto edges = node->outEdges(EdgeType::PDG);
+            for (auto e : edges) {
+                if (e->pdgType() == pdgType) {
+                    return true == eq;
+                }
+            }
+            return false == eq;
+        };
+        insert(f);
+        return *this;
+    }
+
+    Predicate& outPDGEdge(Edge*& edge, PDGType pdgType, bool eq = true) {
+        auto f = [&, pdgType, eq](Node* node) {
+            auto edges = node->outEdges(EdgeType::PDG);
+            for (auto e : edges) {
+                if (e->pdgType() == pdgType) {
+                    edge = e;
                     return true == eq;
                 }
             }
@@ -607,6 +657,8 @@ public:
 
     size_t size() { return edges.size(); }
 
+    EdgeSet toEdgeSet() { return edges; }
+
     EdgeStream& filter(const EdgeCondition& edgeCondition = Query::ALL_EDGES) {
         edges = Query::filterEdges(edges, edgeCondition);
         return *this;
@@ -685,6 +737,11 @@ public:
         return *this;
     }
 
+    NodeStream& child(Index n, const EdgeType type = EdgeType::AST) {
+        nodes = Query::child(n, nodes, type);
+        return *this;
+    }
+
     NodeStream& parents(const EdgeCondition& edgeCondition = Query::ALL_EDGES) {
         nodes = Query::parents(nodes, edgeCondition);
         return *this;
@@ -717,6 +774,8 @@ public:
     }
 
     size_t size() { return nodes.size(); }
+
+    bool empty() { return nodes.empty(); }
 
     NodeStream& map(const std::function<Node*(Node*)> func) {
         nodes = Query::map(nodes, func);

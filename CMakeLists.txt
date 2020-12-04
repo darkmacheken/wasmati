@@ -237,8 +237,19 @@ add_library(wasmatilib STATIC
   src/dot-writer.h
   src/utils.h
   src/vulns.h
-  src/vulns.cc
-)
+  # Queries
+  src/queries/boBuffsStatic.cc
+  src/queries/boMemcpy.cc
+  src/queries/boScanfLoops.cc
+  src/queries/bufferSizes.cc
+  src/queries/dangerousFunctions.cc
+  src/queries/formatStrings.cc
+  src/queries/isTainted.cc
+  src/queries/taintedFuncToFunc.cc
+  src/queries/taintedLocalToFunc.cc
+  src/queries/unreachable.cc
+  src/queries/useAfterFree.cc
+ )
 
 if (NOT EMSCRIPTEN)
   if (CODE_COVERAGE)
@@ -261,7 +272,7 @@ if (NOT EMSCRIPTEN)
       set(EXE_LIBS "${EXE_LIBS};m")
     endif ()
 
-    add_executable(${EXE_NAME} ${EXE_SOURCES})
+    add_executable(${EXE_NAME} ${EXE_SOURCES} )
     add_dependencies(everything_wasm ${EXE_NAME})
     target_link_libraries(${EXE_NAME} PRIVATE ${EXE_LIBS} wabt nlohmann_json::nlohmann_json csv2::csv2)
     set_property(TARGET ${EXE_NAME} PROPERTY CXX_STANDARD 11)

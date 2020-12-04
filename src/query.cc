@@ -46,6 +46,14 @@ NodeSet Query::children(const NodeSet& nodes,
     return result;
 }
 
+NodeSet Query::child(Index n, const NodeSet& nodes, const EdgeType type) {
+    NodeSet res;
+    for (Node* node : nodes) {
+        res.insert(node->getChild(n, type));
+    }
+    return res;
+}
+
 NodeSet Query::parents(const NodeSet& nodes,
                        const EdgeCondition& edgeCondition) {
     NodeSet result;
@@ -188,6 +196,11 @@ NodeSet Query::module() {
 NodeSet Query::functions(const NodeCondition& nodeCondition) {
     return filter(children(module(), AST_EDGES), nodeCondition);
 }
+
+NodeSet Query::functions(const Predicate& predicate) {
+    return filter(children(module(), AST_EDGES), predicate);
+}
+
 Node* Query::function(Node* node) {
     assert(node->type() != NodeType::Module);
     return NodeStream(node)

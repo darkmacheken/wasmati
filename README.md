@@ -97,3 +97,19 @@ So, for example, if you want to build the debug configuration on Visual Studio 2
 > cmake .. -DCMAKE_BUILD_TYPE=DEBUG -DCMAKE_INSTALL_PREFIX=..\ -G "Visual Studio 14 2015"
 > cmake --build . --config DEBUG --target install
 ```
+
+# Building using Docker
+Wasmati can be build and run in a docker compiler. For this you will need to have [Docker](https://www.docker.com/) installed.
+
+The first thing to do is to build the container using the Dockerfile. In the root of the project just run:
+```console
+$ docker build -t wasmati .
+```
+This will create a docker image with a tag `wasmati`. After build is completed you can run the tool using the command:
+```console
+$ docker run -t wasmati [arguments]
+```
+You can also mount shared folders with the host by using the option `-v` and use as input files thar are in the host. For instance, the file example `example.wasm` is in the host with the path `<host_directory>/example.wasm`
+```console
+$ docker run -v <host_directory>:/work -t wasmati /work/example.wasm -d /work/example.csv
+```

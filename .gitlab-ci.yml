@@ -5,9 +5,9 @@ build:
     # Build the application
     stage: build
     tags:
-        - wasm-ast
+        - wasmati
     script:
-        - mkdir build
+        - mkdir -p build
         - cd build
         - cmake ..
         - make
