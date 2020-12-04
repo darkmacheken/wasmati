@@ -32,6 +32,5 @@ struct GenerateCPGOptions {
 
 extern GenerateCPGOptions cpgOptions;
 extern std::unique_ptr<wabt::FileStream> s_verbose_stream;
-
 }  // namespace wasmati
 #endif  // WABT_OPTIONS_H_

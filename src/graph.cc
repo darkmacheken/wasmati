@@ -13,18 +13,87 @@ const char startName[] = "Start";
 
 Index Node::idCount = 0;
 
-const std::map<std::string, EdgeType> Edge::EDGE_TYPES_STR = {
-    {"AST", EdgeType::AST},
-    {"CFG", EdgeType::CFG},
-    {"PDG", EdgeType::PDG},
-    {"CG", EdgeType::CG},
-    {"PG", EdgeType::PG}};
-
-const std::map<std::string, PDGType> PDGEdge::PDGEDGE_TYPES_STR = {
-    {"Local", PDGType::Local},       {"Global", PDGType::Global},
-    {"Function", PDGType::Function}, {"Control", PDGType::Control},
-    {"Const", PDGType::Const},
+const std::map<NodeType, std::string> NODE_TYPE_MAP = {
+    {NodeType::Module, "0"},       {NodeType::Function, "1"},
+    {NodeType::VarNode, "2"},      {NodeType::FunctionSignature, "3"},
+    {NodeType::Instructions, "4"}, {NodeType::Instruction, "5"},
+    {NodeType::Parameters, "6"},   {NodeType::Locals, "7"},
+    {NodeType::Results, "8"},      {NodeType::Return, "9"},
+    {NodeType::Else, "10"},        {NodeType::Trap, "11"},
+    {NodeType::Start, "12"},
 };
+
+const std::map<std::string, NodeType> NODE_TYPE_MAP_R = {
+    {"0", NodeType::Module},       {"1", NodeType::Function},
+    {"2", NodeType::VarNode},      {"3", NodeType::FunctionSignature},
+    {"4", NodeType::Instructions}, {"5", NodeType::Instruction},
+    {"6", NodeType::Parameters},   {"7", NodeType::Locals},
+    {"8", NodeType::Results},      {"9", NodeType::Return},
+    {"10", NodeType::Else},        {"11", NodeType::Trap},
+    {"12", NodeType::Start},
+};
+
+const std::map<ExprType, std::string> INST_TYPE_MAP = {
+    {ExprType::Nop, "0"},        {ExprType::Unreachable, "1"},
+    {ExprType::Return, "2"},     {ExprType::BrTable, "3"},
+    {ExprType::Drop, "4"},       {ExprType::Select, "5"},
+    {ExprType::MemorySize, "6"}, {ExprType::MemoryGrow, "7"},
+    {ExprType::Const, "8"},      {ExprType::Binary, "9"},
+    {ExprType::Compare, "10"},   {ExprType::Convert, "11"},
+    {ExprType::Unary, "12"},     {ExprType::Load, "13"},
+    {ExprType::Store, "14"},     {ExprType::Br, "15"},
+    {ExprType::BrIf, "16"},      {ExprType::GlobalGet, "17"},
+    {ExprType::GlobalSet, "18"}, {ExprType::LocalGet, "19"},
+    {ExprType::LocalSet, "20"},  {ExprType::LocalTee, "21"},
+    {ExprType::Call, "22"},      {ExprType::CallIndirect, "23"},
+    {ExprType::First, "24"},     {ExprType::Block, "25"},
+    {ExprType::Loop, "26"},      {ExprType::If, "27"},
+};
+
+const std::map<std::string, ExprType> INST_TYPE_MAP_R = {
+    {"0", ExprType::Nop},        {"1", ExprType::Unreachable},
+    {"2", ExprType::Return},     {"3", ExprType::BrTable},
+    {"4", ExprType::Drop},       {"5", ExprType::Select},
+    {"6", ExprType::MemorySize}, {"7", ExprType::MemoryGrow},
+    {"8", ExprType::Const},      {"9", ExprType::Binary},
+    {"10", ExprType::Compare},   {"11", ExprType::Convert},
+    {"12", ExprType::Unary},     {"13", ExprType::Load},
+    {"14", ExprType::Store},     {"15", ExprType::Br},
+    {"16", ExprType::BrIf},      {"17", ExprType::GlobalGet},
+    {"18", ExprType::GlobalSet}, {"19", ExprType::LocalGet},
+    {"20", ExprType::LocalSet},  {"21", ExprType::LocalTee},
+    {"22", ExprType::Call},      {"23", ExprType::CallIndirect},
+    {"24", ExprType::First},     {"25", ExprType::Block},
+    {"26", ExprType::Loop},      {"27", ExprType::If},
+};
+
+const std::map<EdgeType, std::string> EDGE_TYPES_MAP = {
+    {EdgeType::AST, "0"},
+    {EdgeType::CFG, "1"},
+    {EdgeType::PDG, "2"},
+    {EdgeType::CG, "3"},
+    {EdgeType::PG, "4"}};
+
+const std::map<std::string, EdgeType> EDGE_TYPES_MAP_R = {
+    {"0", EdgeType::AST},
+    {"1", EdgeType::CFG},
+    {"2", EdgeType::PDG},
+    {"3", EdgeType::CG},
+    {"4", EdgeType::PG}};
+
+const std::map<PDGType, std::string> PDG_TYPE_MAP = {
+    {PDGType::Const, "0"},
+    {PDGType::Control, "1"},
+    {PDGType::Function, "2"},
+    {PDGType::Global, "3"},
+    {PDGType::Local, "4"}};
+
+const std::map<std::string, PDGType> PDG_TYPE_MAP_R = {
+    {"0", PDGType::Const},
+    {"1", PDGType::Control},
+    {"2", PDGType::Function},
+    {"3", PDGType::Global},
+    {"4", PDGType::Local}};
 
 Node::~Node() {
     for (auto e : _outEdges) {
@@ -207,183 +276,152 @@ std::vector<Const*> Factory::consts;
 Node* Factory::createNode(std::vector<std::string>& row) {
     assert(row.size() == 17);
     Index id = std::stoi(row[NodeCol::ID]);
-    std::string nodeType = row[NodeCol::NodeType];
+    NodeType nodeType = NODE_TYPE_MAP_R.at(row[NodeCol::NodeType]);
+    switch (nodeType) {
     // Module
-    if (nodeType == "Module") {
+    case NodeType::Module:
         return new Module(id, row[NodeCol::Name]);
-    }
     // Function
-    else if (nodeType == "Function") {
+    case NodeType::Function:
         return new Function(
             id, row[NodeCol::Name], std::stoi(row[NodeCol::Index]),
             std::stoi(row[NodeCol::Nargs]), std::stoi(row[NodeCol::Nlocals]),
             std::stoi(row[NodeCol::Nresults]),
             std::stoi(row[NodeCol::IsImport]),
             std::stoi(row[NodeCol::IsImport]));
-    }
     // VarNode
-    else if (nodeType == "VarNode") {
+    case NodeType::VarNode:
         return new VarNode(id, row[NodeCol::VarType],
                            std::stoi(row[NodeCol::Index]), row[NodeCol::Name]);
-    }
     // FunctionSignature
-    else if (nodeType == "FunctionSignature") {
+    case NodeType::FunctionSignature:
         return new FunctionSignature(id);
-    }
-    // Instruction
-    else if (nodeType == "Instructions") {
+    // Instructions
+    case NodeType::Instructions:
         return new Instructions(id);
-    }
     // Parameters
-    else if (nodeType == "Parameters") {
+    case NodeType::Parameters:
         return new Parameters(id);
-    }
     // Locals
-    else if (nodeType == "Locals") {
+    case NodeType::Locals:
         return new Locals(id);
-    }
     // Results
-    else if (nodeType == "Results") {
+    case NodeType::Results:
         return new Results(id);
-    }
     // Else
-    else if (nodeType == "Else") {
+    case NodeType::Else:
         return new Else(id);
-    }
     // Trap
-    else if (nodeType == "Trap") {
+    case NodeType::Trap:
         return new Trap(id);
-    }
     // Start
-    else if (nodeType == "Start") {
+    case NodeType::Start:
         return new Start(id);
-    }
     // Instruction
-    else if (nodeType == "Instruction") {
-        auto instType = row[NodeCol::InstType];
+    case NodeType::Instruction: {
+        auto instType = INST_TYPE_MAP_R.at(row[NodeCol::InstType]);
+        switch (instType) {
         // Nop
-        if (instType == "Nop") {
+        case ExprType::Nop:
             return new NopInst(id);
-        }
         // Unreachable
-        else if (instType == "Unreachable") {
+        case ExprType::Unreachable:
             return new UnreachableInst(id);
-        }
         // Return
-        else if (instType == "Return") {
+        case ExprType::Return:
             return new ReturnInst(id);
-        }
         // BrTable
-        else if (instType == "BrTable") {
+        case ExprType::BrTable:
             return new BrTableInst(id);
-        }
         // Drop
-        else if (instType == "Drop") {
+        case ExprType::Drop:
             return new DropInst(id);
-        }
         // Select
-        else if (instType == "Select") {
+        case ExprType::Select:
             return new SelectInst(id);
-        }
         // MemorySize
-        else if (instType == "MemorySize") {
+        case ExprType::MemorySize:
             return new MemorySizeInst(id);
-        }
         // MemoryGrow
-        else if (instType == "MemoryGrow") {
+        case ExprType::MemoryGrow:
             return new MemoryGrowInst(id);
-        }
         // Const
-        else if (instType == "Const") {
+        case ExprType::Const:
             return new ConstInst(
                 id, *Factory::createConst(row[NodeCol::ConstType],
                                           row[NodeCol::ConstValue]));
-        }
         // Binary
-        else if (instType == "Binary") {
+        case ExprType::Binary:
             return new BinaryInst(id, row[NodeCol::Opcode]);
-        }
         // Compare
-        else if (instType == "Compare") {
+        case ExprType::Compare:
             return new CompareInst(id, row[NodeCol::Opcode]);
-        }
         // Convert
-        else if (instType == "Convert") {
+        case ExprType::Convert:
             return new ConvertInst(id, row[NodeCol::Opcode]);
-        }
         // Unary
-        else if (instType == "Unary") {
+        case ExprType::Unary:
             return new UnaryInst(id, row[NodeCol::Opcode]);
-        }
         // Load
-        else if (instType == "Load") {
+        case ExprType::Load:
             return new LoadInst(id, row[NodeCol::Opcode],
                                 std::stoi(row[NodeCol::Offset]));
-        }
         // Store
-        else if (instType == "Store") {
+        case ExprType::Store:
             return new StoreInst(id, row[NodeCol::Opcode],
                                  std::stoi(row[NodeCol::Offset]));
-        }
         // Br
-        else if (instType == "Br") {
+        case ExprType::Br:
             return new BrInst(id, row[NodeCol::Label]);
-        }
         // BrIf
-        else if (instType == "BrIf") {
+        case ExprType::BrIf:
             return new BrIfInst(id, row[NodeCol::Label]);
-        }
         // GlobalGet
-        else if (instType == "GlobalGet") {
+        case ExprType::GlobalGet:
             return new GlobalGetInst(id, row[NodeCol::Label]);
-        }
         // GlobalSet
-        else if (instType == "GlobalSet") {
+        case ExprType::GlobalSet:
             return new GlobalSetInst(id, row[NodeCol::Label]);
-        }
         // LocalGet
-        else if (instType == "LocalGet") {
+        case ExprType::LocalGet:
             return new LocalGetInst(id, row[NodeCol::Label]);
-        }
         // LocalSet
-        else if (instType == "LocalSet") {
+        case ExprType::LocalSet:
             return new LocalSetInst(id, row[NodeCol::Label]);
-        }
         // LocalTee
-        else if (instType == "LocalTee") {
+        case ExprType::LocalTee:
             return new LocalTeeInst(id, row[NodeCol::Label]);
-        }
         // Call
-        else if (instType == "Call") {
+        case ExprType::Call:
             return new CallInst(id, std::stoi(row[NodeCol::Nargs]),
                                 std::stoi(row[NodeCol::Nresults]),
                                 row[NodeCol::Label]);
-        }
         // CallIndirect
-        else if (instType == "CallIndirect") {
+        case ExprType::CallIndirect:
             return new CallIndirectInst(id, std::stoi(row[NodeCol::Nargs]),
                                         std::stoi(row[NodeCol::Nresults]),
                                         row[NodeCol::Label]);
-        }
         // BeginBlock
-        else if (instType == "BeginBlock") {
+        case ExprType::First:
             return new BeginBlockInst(id, row[NodeCol::Label]);
-        }
         // Block
-        else if (instType == "Block") {
+        case ExprType::Block:
             return new BlockInst(id, std::stoi(row[NodeCol::Nresults]),
                                  row[NodeCol::Label]);
-        }
         // Loop
-        else if (instType == "Loop") {
+        case ExprType::Loop:
             return new LoopInst(id, std::stoi(row[NodeCol::Nresults]),
                                 row[NodeCol::Label]);
-        }
         // If
-        else if (instType == "If") {
+        case ExprType::If:
             return new IfInst(id, std::stoi(row[NodeCol::Nresults]),
                               std::stoi(row[NodeCol::HasElse]));
+        default:
+            break;
         }
+    }
+    default:
+        break;
     }
     assert(false);
     return nullptr;
@@ -408,7 +446,7 @@ Edge* Factory::createEdge(std::vector<std::string>& row,
     }
     case EdgeType::PDG: {
         std::string label = row[EdgeCol::Label];
-        auto pdgType = PDGEdge::pdgType(row[EdgeCol::PdgType]);
+        auto pdgType = PDG_TYPE_MAP_R.at(row[EdgeCol::PdgType]);
         if (pdgType == PDGType::Const) {
             return new PDGEdgeConst(
                 nodes[src], nodes[dest],

@@ -2,6 +2,7 @@
 /*                Name  Type 
  * ==========================================================  */
 WASMATI_PREDICATE(name, std::string)
+WASMATI_PREDICATE(type, NodeType)
 WASMATI_PREDICATE(index, Index)
 WASMATI_PREDICATE(nargs, Index)
 WASMATI_PREDICATE(nlocals, Index)

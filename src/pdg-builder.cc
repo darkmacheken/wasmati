@@ -661,7 +661,8 @@ void PDG::visitLoopInst(LoopInst* node) {
         _loopsStack.push(node);
     }
     // ---------------------------------------
-    // std::cout << "loop " + node->label() << std::endl;
+    //debug("loop %s : dfslist: %u\n", node->label().c_str(), _dfsList.size());
+    auto test = node->label() == "$L73";
     auto reachDef = getReachDef(node);
     if (count == 1) {
         reachDef->unionDef(_loops[node]);

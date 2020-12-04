@@ -67,11 +67,9 @@ static const json defaultConfig = R"(
 		"$fgets": {
 			"buffer": 0,
 			"size": 1
-		},
-		"$gets": {
-			"buffer": 0
 		}
 	},
+	"dangerousFunctions": [ "$gets" ],
 	"formatString": {
 		"$fprintf": 1,
 		"$printf": 0,

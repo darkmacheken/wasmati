@@ -49,6 +49,10 @@ enum class NodeType {
     Start,
 };
 
+extern const std::map<NodeType, std::string> NODE_TYPE_MAP;
+extern const std::map<std::string, NodeType> NODE_TYPE_MAP_R;
+extern const std::map<ExprType, std::string> INST_TYPE_MAP;
+extern const std::map<std::string, ExprType> INST_TYPE_MAP_R;
 class Node {
     static Index idCount;
     const Index _id;
@@ -544,6 +548,12 @@ public:
 };
 
 enum class PDGType { Local, Global, Function, Control, Const };
+
+extern const std::map<EdgeType, std::string> EDGE_TYPES_MAP;
+extern const std::map<std::string, EdgeType> EDGE_TYPES_MAP_R;
+extern const std::map<PDGType, std::string> PDG_TYPE_MAP;
+extern const std::map<std::string, PDGType> PDG_TYPE_MAP_R;
+
 struct Edge {
 private:
     Node* const _src;
@@ -578,11 +588,9 @@ public:
     virtual void accept(GraphVisitor* visitor) = 0;
 
 public:
-    static const std::map<std::string, EdgeType> EDGE_TYPES_STR;
-
     inline static EdgeType type(std::string typeName) {
-        assert(EDGE_TYPES_STR.count(typeName) == 1);
-        return EDGE_TYPES_STR.at(typeName);
+        assert(EDGE_TYPES_MAP_R.count(typeName) == 1);
+        return EDGE_TYPES_MAP_R.at(typeName);
     }
 };
 
@@ -621,11 +629,9 @@ struct PDGEdge : Edge {
     inline PDGType pdgType() const override { return _pdgType; }
 
 public:
-    static const std::map<std::string, PDGType> PDGEDGE_TYPES_STR;
-
     inline static PDGType pdgType(std::string type) {
-        assert(PDGEDGE_TYPES_STR.count(type) == 1);
-        return PDGEDGE_TYPES_STR.at(type);
+        assert(PDG_TYPE_MAP_R.count(type) == 1);
+        return PDG_TYPE_MAP_R.at(type);
     }
 };
 

@@ -205,14 +205,16 @@ bool CFG::construct(const ExprList& es) {
                 if (unreachable && fUnreachable) {
                     return true;
                 }
+            } else {
+                auto falseBeginInst = new BeginBlockInst(
+                    expr->true_.label, static_cast<BlockInst*>(trueBlockInst));
+                graph.insertNode(falseBeginInst);
+                new CFGEdge(inst, falseBeginInst, "false");
+                new CFGEdge(falseBeginInst, trueBlockInst);
             }
 
             // if it's not the last
             if (&*it != &es.back()) {
-                if (expr->false_.empty()) {
-                    new CFGEdge(inst, ast.exprNodes.at(&*std::next(it)),
-                                "false");
-                }
                 if (trueBlockInst->hasInEdgesOf(EdgeType::CFG)) {
                     new CFGEdge(trueBlockInst,
                                 ast.exprNodes.at(&*std::next(it)));
@@ -322,20 +324,18 @@ void CFG::insertEdgeFromLastExpr(const wabt::ExprList& es,
         new CFGEdge(lastBlockInst, blockInst);
     } else if (lastExpr.type() == ExprType::If) {
         auto ifExpr = cast<IfExpr>(&lastExpr);
-        auto ifInst = ast.exprNodes.at(&lastExpr);
-        if (ifExpr->false_.empty()) {
-            new CFGEdge(ifInst, blockInst, "false");
-            auto& lastIfInst = ifExpr->true_.exprs.back();
-            if (lastIfInst.type() == ExprType::BrIf) {
-                new CFGEdge(ast.ifBlocks.at(&ifExpr->true_)->block(),
-                            blockInst);
-            }
-        } else {
-            auto innerBlock = ifInst->getOutEdge(1, EdgeType::AST)->dest();
-            if (innerBlock->inEdges(EdgeType::CFG).size() > 0) {
-                new CFGEdge(innerBlock, blockInst);
-            }
-        }
+        new CFGEdge(ast.ifBlocks.at(&ifExpr->true_)->block(), blockInst);
+        // if (ifExpr->false_.empty()) {
+        //    // new CFGEdge(ifInst, blockInst, "false");
+        //    // auto& lastIfInst = ifExpr->true_.exprs.back();
+        //    // if (lastIfInst.type() == ExprType::BrIf) {
+        //    //}
+        //} else {
+        //    auto innerBlock = ifInst->getOutEdge(1, EdgeType::AST)->dest();
+        //    if (innerBlock->inEdges(EdgeType::CFG).size() > 0) {
+        //        new CFGEdge(innerBlock, blockInst);
+        //    }
+        //}
     } else {
         new CFGEdge(ast.exprNodes.at(&lastExpr), blockInst);
     }
