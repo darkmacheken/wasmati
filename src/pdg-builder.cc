@@ -25,7 +25,7 @@ void PDG::generatePDG() {
         _reachDef.clear();
         _loops.clear();
         _loopsInsts.clear();
-        _loopsStack = {};
+        _loopsStack = std::stack<LoopInst*>();
 
         visitInstructions(
             dynamic_cast<Instructions*>(filterInsts.findFirst().get()));
@@ -661,12 +661,14 @@ void PDG::visitLoopInst(LoopInst* node) {
         _loopsStack.push(node);
     }
     // ---------------------------------------
-    //debug("loop %s : dfslist: %u\n", node->label().c_str(), _dfsList.size());
-    auto test = node->label() == "$L73";
+    // debug("loop %s : dfslist: %u\n", node->label().c_str(), _dfsList.size());
+    //auto test = node->label() == "$L73";
     auto reachDef = getReachDef(node);
     if (count == 1) {
         reachDef->unionDef(_loops[node]);
-        // logDefinition(node, reachDef);
+        //if (test) {
+        //    logDefinition(node, reachDef);
+        //}
         if (reachDef->equals(*_loops[node])) {
             _loopsEntrances[node].second =
                 std::make_shared<ReachDefinition>(*reachDef);
@@ -835,15 +837,15 @@ inline void PDG::advance(Instruction* inst,
 }
 
 void PDG::logDefinition(Node* inst, std::shared_ptr<ReachDefinition> def) {
-    if (!cpgOptions.verbose ||
-        (!cpgOptions.loopName.empty() && _verboseLoops.count(inst) == 0)) {
-        return;
-    }
+    //if (!cpgOptions.verbose ||
+    //    (!cpgOptions.loopName.empty() && _verboseLoops.count(inst) == 0)) {
+    //    return;
+    //}
     json instLog;
     instLog["id"] = inst->getId();
     instLog["lastInstId"] = _lastNode->getId();
     instLog["def"] = *def;
-    _verbose.push_back(instLog);
+    s_verbose_stream->Writef("%s\n", instLog.dump(2).c_str());
 }
 
 }  // namespace wasmati

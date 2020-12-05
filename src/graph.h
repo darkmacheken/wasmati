@@ -633,6 +633,16 @@ public:
         assert(PDG_TYPE_MAP_R.count(type) == 1);
         return PDG_TYPE_MAP_R.at(type);
     }
+    
+    inline std::string writePdgType() {
+        static const std::map<PDGType, std::string> pdgTypeMap = {
+            {PDGType::Const, "Const"},
+            {PDGType::Control, "Control"},
+            {PDGType::Function, "Function"},
+            {PDGType::Global, "Global"},
+            {PDGType::Local, "Local"} };
+        return pdgTypeMap.at(_pdgType);
+    }
 };
 
 struct CGEdge : Edge {

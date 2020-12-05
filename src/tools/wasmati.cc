@@ -4,10 +4,7 @@
 #include "src/binary-reader-ir.h"
 #include "src/binary-reader.h"
 #include "src/cfg-builder.h"
-#include "src/csv-writer.h"
-#include "src/datalog-writer.h"
 #include "src/decompiler.h"
-#include "src/dot-writer.h"
 #include "src/error-formatter.h"
 #include "src/feature.h"
 #include "src/generate-names.h"
@@ -22,6 +19,10 @@
 #include "src/vulns.h"
 #include "src/wast-lexer.h"
 #include "src/wast-parser.h"
+#include "src/writers/csv-writer.h"
+#include "src/writers/datalog-writer.h"
+#include "src/writers/dot-writer.h"
+#include "src/writers/json-writer.h"
 
 using namespace wabt;
 using namespace wasmati;
@@ -37,9 +38,11 @@ static std::string s_outfile;
 static std::string s_csv_outfile;
 static std::string s_doutfile;
 static std::string s_dlogdir;
+static std::string s_json_outfile;
 static bool generate_csv = false;
 static bool generate_dot = false;
 static bool generate_datalog_dir = false;
+static bool generate_json = false;
 static bool is_csv = false;
 static bool is_wat = false;
 static bool is_wasm = false;
@@ -98,6 +101,13 @@ static void ParseOptions(int argc, char** argv) {
                          s_csv_outfile = argument;
                          ConvertBackslashToSlash(&s_csv_outfile);
                          generate_csv = true;
+                     });
+    parser.AddOption('j', "json-output", "FILENAME",
+                     "Serialize the graph as JSON file.",
+                     [](const char* argument) {
+                         s_json_outfile = argument;
+                         ConvertBackslashToSlash(&s_json_outfile);
+                         generate_json = true;
                      });
     parser.AddOption('c', "config", "FILENAME", "JSON configuration file.",
                      [](const char* argument) {
@@ -251,6 +261,13 @@ int ProgramMain(int argc, char** argv) {
         FileStream stream(!s_doutfile.empty() ? FileStream(s_doutfile)
                                               : FileStream(stdout));
         DotWriter writer(&stream, graph);
+        writer.writeGraph();
+    }
+    // generate json
+    if (Succeeded(result) && generate_json) {
+        FileStream stream(!s_json_outfile.empty() ? FileStream(s_json_outfile)
+            : FileStream(stdout));
+        JSONWriter writer(&stream, graph);
         writer.writeGraph();
     }
     // generate datalog facts

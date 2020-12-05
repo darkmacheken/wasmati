@@ -232,11 +232,13 @@ add_library(wasmatilib STATIC
   src/pdg-builder.cc
   src/query.h
   src/query.cc
-  src/csv-writer.h
-  src/datalog-writer.h
-  src/dot-writer.h
   src/utils.h
   src/vulns.h
+  #writters
+  src/writers/csv-writer.h
+  src/writers/datalog-writer.h
+  src/writers/dot-writer.h
+  src/writers/json-writer.h
   # Queries
   src/queries/boBuffsStatic.cc
   src/queries/boMemcpy.cc

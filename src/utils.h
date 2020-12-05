@@ -1,10 +1,12 @@
 #ifndef WASMATI_UTILS_H_
 #define WASMATI_UTILS_H_
 
+#include "include/nlohmann/json.hpp"
 #include "src/cast.h"
 #include "src/ir-util.h"
 
 using namespace wabt;
+using nlohmann::json;
 namespace wasmati {
 
 struct Utils {
@@ -90,6 +92,43 @@ struct Utils {
             break;
         }
         return s;
+    }
+
+    static json jsonConst(const Const& _const) {
+        json res;
+        switch (_const.type) {
+        case Type::I32:
+            res["type"] = "i32";
+            res["value"] = Utils::valueI32(_const);
+            break;
+
+        case Type::I64:
+            res["type"] = "i64";
+            res["value"] = Utils::valueI64(_const);
+            break;
+
+        case Type::F32: {
+            res["type"] = "f32";
+            res["value"] = Utils::valueF32(_const);
+            break;
+        }
+
+        case Type::F64: {
+            res["type"] = "f64";
+            res["value"] = Utils::valueF64(_const);
+            break;
+        }
+
+        case Type::V128: {
+            assert(false);
+            break;
+        }
+
+        default:
+            assert(false);
+            break;
+        }
+        return res;
     }
 };
 

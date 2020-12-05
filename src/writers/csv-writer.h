@@ -1,8 +1,8 @@
 #ifndef WASMATI_CSV_H
 #define WASMATI_CSV_H
 #include <map>
-#include "graph.h"
-#include "query.h"
+#include "src/graph.h"
+#include "src/query.h"
 
 namespace wasmati {
 

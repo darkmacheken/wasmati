@@ -2,8 +2,8 @@
 #define WASMATI_DATALOG_H
 #include <map>
 #include <sstream>
-#include "graph.h"
-#include "query.h"
+#include "src/graph.h"
+#include "src/query.h"
 
 constexpr auto BASE_DL = R"(#ifndef WASMATI_DATALOG 
 #define WASMATI_DATALOG
@@ -137,13 +137,6 @@ reaches(X, Y, type) :- edge(X, Z, type, _, _, _), reaches(Z, Y, type).
 namespace wasmati {
 
 class DatalogWriter : public GraphWriter {
-    std::map<PDGType, std::string> pdgTypeMap = {
-        {PDGType::Const, "Const"},
-        {PDGType::Control, "Control"},
-        {PDGType::Function, "Function"},
-        {PDGType::Global, "Global"},
-        {PDGType::Local, "Local"}};
-
     wabt::Stream* _edges;
     wabt::Stream* _nodes;
 
@@ -211,24 +204,23 @@ public:
         }
         if (e->pdgType() == PDGType::Const) {
             if (e->value().type == Type::I32 || e->value().type == Type::I64) {
-                _edges->Writef(
-                    "%u,%u,PDG,%s,%s,[%s,%s,%f]\n", e->src()->getId(),
-                    e->dest()->getId(), e->label().c_str(),
-                    pdgTypeMap[e->pdgType()].c_str(),
-                    Utils::writeConstType(e->value()).c_str(),
-                    Utils::writeConst(e->value(), false).c_str(), 0.0);
+                _edges->Writef("%u,%u,PDG,%s,%s,[%s,%s,%f]\n",
+                               e->src()->getId(), e->dest()->getId(),
+                               e->label().c_str(), e->writePdgType().c_str(),
+                               Utils::writeConstType(e->value()).c_str(),
+                               Utils::writeConst(e->value(), false).c_str(),
+                               0.0);
             } else {
                 _edges->Writef("%u,%u,PDG,%s,%s,[%s,%u,%s]\n",
                                e->src()->getId(), e->dest()->getId(),
-                               e->label().c_str(),
-                               pdgTypeMap[e->pdgType()].c_str(),
+                               e->label().c_str(), e->writePdgType().c_str(),
                                Utils::writeConstType(e->value()).c_str(), 0,
                                Utils::writeConst(e->value(), false).c_str());
             }
         } else {
             _edges->Writef("%u,%u,PDG,%s,%s,nil\n", e->src()->getId(),
                            e->dest()->getId(), e->label().c_str(),
-                           pdgTypeMap[e->pdgType()].c_str());
+                           e->writePdgType().c_str());
         }
     }
     void visitCGEdge(CGEdge* e) override {

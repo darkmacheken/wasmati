@@ -1,7 +1,7 @@
 #ifndef WASMATI_DOT_H
 #define WASMATI_DOT_H
-#include "graph.h"
-#include "query.h"
+#include "src/graph.h"
+#include "src/query.h"
 
 namespace wasmati {
 
