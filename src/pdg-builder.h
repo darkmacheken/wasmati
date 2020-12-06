@@ -26,10 +26,9 @@ private:
     Func* currentFunction = nullptr;
     std::map<Node*, std::set<std::shared_ptr<ReachDefinition>>> _reachDef;
     std::map<Node*, std::shared_ptr<ReachDefinition>> _loops;
-    std::map<Node*,
-             std::pair<std::shared_ptr<ReachDefinition>,
-                       std::shared_ptr<ReachDefinition>>>
+    std::map<Node*, std::list<std::shared_ptr<ReachDefinition>>>
         _loopsEntrances;
+    std::map<Node*, std::shared_ptr<ReachDefinition>> _cacheDefloops;
     std::map<Node*, NodeSet> _loopsInsts;
     std::stack<LoopInst*> _loopsStack;
     Node* _lastNode;
@@ -82,6 +81,8 @@ private:
     inline std::shared_ptr<ReachDefinition> getReachDef(Instruction* inst);
     inline void advance(Instruction* inst,
                         std::shared_ptr<ReachDefinition> resultReachDef);
+    inline bool contains(std::list<std::shared_ptr<ReachDefinition>>,
+                         std::shared_ptr<ReachDefinition>);
 
     inline void logDefinition(Node* inst, std::shared_ptr<ReachDefinition> def);
 };
@@ -114,19 +115,20 @@ public:
         const std::string name;
         const Const* value;
         const PDGType type;
+        Node* src;
 
-        Var(const std::string& name, const PDGType type)
-            : name(name), value(nullptr), type(type) {}
+        Var(const std::string& name, const PDGType type, Node* node)
+            : name(name), value(nullptr), type(type), src(node) {}
 
-        Var(const Const* value)
+        Var(const Const* value, Node* node)
             : name(Utils::writeConst(*value)),
               value(value),
-              type(PDGType::Const) {}
+              type(PDGType::Const), src(node) {}
 
-        Var(const std::string& name, const Const* value, const PDGType type)
-            : name(name), value(value), type(type) {}
+        Var(const std::string& name, const Const* value, const PDGType type, Node* node)
+            : name(name), value(value), type(type), src(node){}
 
-        Var(const Var& var) : Var(var.name, var.value, var.type) {}
+        Var(const Var& var) : Var(var.name, var.value, var.type, var.src) {}
 
         bool operator==(const Var& o) const {
             return name.compare(o.name) == 0 && value == o.value &&
@@ -144,7 +146,7 @@ public:
     };
 
 private:
-    std::map<const Var, std::set<Node*>> _def;
+    std::map<Node*, Var> _def;
 
 public:
     Definition() {}
@@ -152,26 +154,15 @@ public:
     Definition(const Definition& def) : _def(def._def) {}
 
     inline void insert(const std::string& name, PDGType type, Node* node) {
-        _def[Var(name, type)].insert(node);
+        _def.insert(std::make_pair(node, Var(name, type, node)));
     }
 
     inline void insert(const Const* value, Node* node) {
-        _def[Var(value)].insert(node);
+        _def.insert(std::make_pair(node, Var(value, node)));
     }
 
     inline void unionDef(std::shared_ptr<Definition> otherDef) {
-        for (auto& kv : otherDef->_def) {
-            _def[kv.first].insert(kv.second.begin(), kv.second.end());
-        }
-    }
-
-    inline void clear(const Var& var) { _def[var].clear(); }
-
-    inline void clear(Node* inst) {
-        for (auto& kv : _def) {
-            kv.second.clear();
-            kv.second.insert(inst);
-        }
+        _def.insert(otherDef->_def.begin(), otherDef->_def.end());
     }
 
     inline void clear() { _def.clear(); }
@@ -180,32 +171,36 @@ public:
 
     inline void insertPDGEdge(Node* target) {
         for (auto const& kv : _def) {
-            for (auto& node : kv.second) {
-                auto inEdges = target->inEdges(EdgeType::PDG);
-                auto filter = Query::filterEdges(inEdges, [&](Edge* e) {
-                    return e->src() == node && e->dest() == target &&
-                           e->pdgType() == kv.first.type &&
-                           e->label() == kv.first.name;
-                });
-                if (filter.size() > 0) {
-                    continue;
-                }
-                if (kv.first.type == PDGType::Const) {
-                    new PDGEdgeConst(node, target, *kv.first.value);
-                } else {
-                    new PDGEdge(node, target, kv.first.name, kv.first.type);
-                }
+            auto inEdges = target->inEdges(EdgeType::PDG);
+            auto filter = Query::filterEdges(inEdges, [&](Edge* e) {
+                return e->src() == kv.second.src && e->dest() == target &&
+                       e->pdgType() == kv.second.type &&
+                       e->label() == kv.second.name;
+            });
+            if (filter.size() > 0) {
+                continue;
+            }
+            if (kv.second.type == PDGType::Const) {
+                new PDGEdgeConst(kv.second.src, target, *kv.second.value);
+            } else {
+                new PDGEdge(kv.second.src, target, kv.second.name, kv.second.type);
             }
         }
     }
 
     inline void removeConsts() {
         for (auto it = _def.begin(); it != _def.end();) {
-            if (it->first.type == PDGType::Const) {
+            if (it->second.type == PDGType::Const) {
                 it = _def.erase(it);
             } else {
                 ++it;
             }
+        }
+    }
+
+    inline void clear(Node* node) {
+        for (auto& kv : _def) {
+            kv.second.src = node;
         }
     }
 
@@ -217,7 +212,7 @@ public:
              it != _def.cend(); ++it, ++ito) {
             if (!(it->first == ito->first)) {
                 return false;
-            } else if (it->second != ito->second) {
+            } else if (!(it->second == ito->second)) {
                 return false;
             }
         }
@@ -227,13 +222,9 @@ public:
     friend void to_json(json& j, const Definition& d) {
         for (auto const& kv : d._def) {
             json def;
-            def["name"] = kv.first.name;
-            def["type"] = kv.first.type;
-            json nodes = json::array();
-            for (auto node : kv.second) {
-                nodes.push_back(node->getId());
-            }
-            def["nodes"] = nodes;
+            def["node"] = kv.first->getId();
+            def["name"] = kv.second.name;
+            def["type"] = kv.second.type;
             j.push_back(def);
         }
     }

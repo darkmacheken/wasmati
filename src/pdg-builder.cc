@@ -26,6 +26,7 @@ void PDG::generatePDG() {
         _loops.clear();
         _loopsInsts.clear();
         _loopsStack = std::stack<LoopInst*>();
+        _loopsEntrances.clear();
 
         visitInstructions(
             dynamic_cast<Instructions*>(filterInsts.findFirst().get()));
@@ -155,17 +156,6 @@ void PDG::generatePDG() {
 
 void PDG::visitCFGEdge(Edge* e, std::shared_ptr<std::stack<LoopInst*>> stack) {
     assert(e->type() == EdgeType::CFG);
-    if (!e->label().empty()) {
-        // it is true or false label or (br_table)
-        auto outEdges = e->src()->outEdges(EdgeType::PDG);
-        auto filterQuery = Query::filterEdges(outEdges, [&](Edge* edge) {
-            return e->label().compare(edge->label()) == 0;
-        });
-        if (filterQuery.size() == 0) {
-            new PDGEdge(dynamic_cast<CFGEdge*>(e));
-        }
-    }
-
     _dfsList.emplace_front(e->dest(), stack, e->src());
 }
 
@@ -661,17 +651,24 @@ void PDG::visitLoopInst(LoopInst* node) {
         _loopsStack.push(node);
     }
     // ---------------------------------------
-    // debug("loop %s : dfslist: %u\n", node->label().c_str(), _dfsList.size());
-    //auto test = node->label() == "$L73";
     auto reachDef = getReachDef(node);
     if (count == 1) {
+        // if comes from outside loop, look cache to avoid repeat work.
+        if (_loopsInsts[node].count(_lastNode) == 0) {
+            if (contains(_loopsEntrances[node], reachDef)) {
+                reachDef =
+                    std::make_shared<ReachDefinition>(*_cacheDefloops[node]);
+            } else {
+                // we emplace front to be faster to look for repeated
+                // definitions later, since it is more probable that the next
+                // entrance in the loop the definition, if present to cache, will
+                // be at the beginning of the list. 
+                _loopsEntrances[node].emplace_front(reachDef);
+            }
+        }
         reachDef->unionDef(_loops[node]);
-        //if (test) {
-        //    logDefinition(node, reachDef);
-        //}
         if (reachDef->equals(*_loops[node])) {
-            _loopsEntrances[node].second =
-                std::make_shared<ReachDefinition>(*reachDef);
+            _cacheDefloops[node] = std::make_shared<ReachDefinition>(*reachDef);
             if (_loopsInsts[node].count(_lastNode) == 1 &&
                 (_loopsStack.empty() || _loopsStack.top() != node)) {
                 return;
@@ -685,23 +682,11 @@ void PDG::visitLoopInst(LoopInst* node) {
             advance(node, reachDef);
             return;
         } else if (_loopsStack.empty() || _loopsStack.top() != node) {
-            if (_loopsInsts[node].count(_lastNode) == 0) {
-                if (reachDef->equals(*_loopsEntrances[node].first)) {
-                    reachDef = std::make_shared<ReachDefinition>(
-                        *_loopsEntrances[node].second);
-                } else {
-                    _loopsEntrances[node] = std::make_pair(
-                        std::make_shared<ReachDefinition>(*reachDef),
-                        std::make_shared<ReachDefinition>(*reachDef));
-                }
-            }
             _loopsStack.push(node);
         }
     } else {
-        _loopsEntrances[node] =
-            std::make_pair(std::make_shared<ReachDefinition>(*reachDef),
-                           std::make_shared<ReachDefinition>(*reachDef));
-        // logDefinition(node, reachDef);
+        _loopsEntrances[node];
+        _cacheDefloops[node] = std::make_shared<ReachDefinition>(*reachDef);
     }
     // Save loop def
     _loops[node] = std::make_shared<ReachDefinition>(*reachDef);
@@ -837,15 +822,21 @@ inline void PDG::advance(Instruction* inst,
 }
 
 void PDG::logDefinition(Node* inst, std::shared_ptr<ReachDefinition> def) {
-    //if (!cpgOptions.verbose ||
-    //    (!cpgOptions.loopName.empty() && _verboseLoops.count(inst) == 0)) {
-    //    return;
-    //}
     json instLog;
     instLog["id"] = inst->getId();
     instLog["lastInstId"] = _lastNode->getId();
     instLog["def"] = *def;
     s_verbose_stream->Writef("%s\n", instLog.dump(2).c_str());
+}
+
+inline bool PDG::contains(std::list<std::shared_ptr<ReachDefinition>> list,
+                          std::shared_ptr<ReachDefinition> reachDef) {
+    for (auto const def : list) {
+        if (reachDef->equals(*def)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 }  // namespace wasmati
