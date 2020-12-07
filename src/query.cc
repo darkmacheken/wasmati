@@ -16,9 +16,6 @@ const EdgeCondition& Query::PDG_EDGES = [](Edge* e) {
 const EdgeCondition& Query::CG_EDGES = [](Edge* e) {
     return e->type() == EdgeType::CG;
 };
-const EdgeCondition& Query::PG_EDGES = [](Edge* e) {
-    return e->type() == EdgeType::PG;
-};
 const NodeCondition& Query::ALL_INSTS = [](Node* node) {
     return node->type() == NodeType::Instruction;
 };

@@ -164,10 +164,6 @@ static void ParseOptions(int argc, char** argv) {
         cpgOptions.printCG = true;
         cpgOptions.printAll = false;
     });
-    parser.AddOption("pg", "Output the Parameters Graph", []() {
-        cpgOptions.printPG = true;
-        cpgOptions.printAll = false;
-    });
     parser.Parse(argc, argv);
 }
 

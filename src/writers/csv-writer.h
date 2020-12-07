@@ -38,9 +38,6 @@ public:
             } else if (cpgOptions.printCG &&
                        node->hasEdgesOf(EdgeType::CG)) {  // CG
                 node->accept(this);
-            } else if (cpgOptions.printPG &&
-                       node->hasEdgesOf(EdgeType::PG)) {  // PDG
-                node->accept(this);
             }
         }
         writePutsln("-");
@@ -93,26 +90,20 @@ public:
                         e->dest()->getId(),
                         EDGE_TYPES_MAP.at(EdgeType::CG).c_str());
     }
-    void visitPGEdge(PGEdge* e) override {
-        if (!(cpgOptions.printAll || cpgOptions.printPG)) {
-            return;
-        }
-        _stream->Writef("%u,%u,%s,,,,,\n", e->src()->getId(),
-                        e->dest()->getId(),
-                        EDGE_TYPES_MAP.at(EdgeType::PG).c_str());
-    }
 
 private:
     // Inherited via GraphWriter
     void visitModule(Module* node) override {
         _stream->Writef("%u,%s,%s,,,,,,,,,,,,,,,\n", node->getId(),
-                        NODE_TYPE_MAP.at(node->type()).c_str(), node->name().c_str());
+                        NODE_TYPE_MAP.at(node->type()).c_str(),
+                        node->name().c_str());
     }
     void visitFunction(Function* node) override {
         _stream->Writef("%u,%s,%s,%u,%u,%u,%u,%u,%u,,,,,,,,,\n", node->getId(),
-                        NODE_TYPE_MAP.at(node->type()).c_str(), node->name().c_str(),
-                        node->index(), node->nargs(), node->nlocals(),
-                        node->nresults(), node->isImport(), node->isExport());
+                        NODE_TYPE_MAP.at(node->type()).c_str(),
+                        node->name().c_str(), node->index(), node->nargs(),
+                        node->nlocals(), node->nresults(), node->isImport(),
+                        node->isExport());
     }
     void visitFunctionSignature(FunctionSignature* node) override {
         visitSimpleNode(node);
@@ -128,8 +119,9 @@ private:
     void visitTrap(Trap* node) override { visitSimpleNode(node); }
     void visitVarNode(VarNode* node) override {
         _stream->Writef("%u,%s,%s,%u,,,,,,%s,,,,,,,,\n", node->getId(),
-                        NODE_TYPE_MAP.at(node->type()).c_str(), node->name().c_str(),
-                        node->index(), node->writeVarType().c_str());
+                        NODE_TYPE_MAP.at(node->type()).c_str(),
+                        node->name().c_str(), node->index(),
+                        node->writeVarType().c_str());
     }
     void visitNopInst(NopInst* node) override { visitSimpleInstNode(node); }
     void visitUnreachableInst(UnreachableInst* node) override {
@@ -204,9 +196,10 @@ private:
     void visitBlockInst(BlockInst* node) override { visitBlockInstNode(node); }
     void visitLoopInst(LoopInst* node) override { visitBlockInstNode(node); }
     void visitIfInst(IfInst* node) override {
-        _stream->Writef("%u,%s,,,,,%u,,,,%s,,,,,,%u\n", node->getId(),
-                        NODE_TYPE_MAP.at(node->type()).c_str(), node->nresults(),
-                        INST_TYPE_MAP.at(node->instType()).c_str(), node->hasElse());
+        _stream->Writef(
+            "%u,%s,,,,,%u,,,,%s,,,,,,%u\n", node->getId(),
+            NODE_TYPE_MAP.at(node->type()).c_str(), node->nresults(),
+            INST_TYPE_MAP.at(node->instType()).c_str(), node->hasElse());
     }
 
 private:
@@ -243,15 +236,16 @@ private:
     inline void visitCallInstNode(Node* node) {
         _stream->Writef("%u,%s,,,%u,,%u,,,,%s,,,,%s,,,\n", node->getId(),
                         NODE_TYPE_MAP.at(node->type()).c_str(), node->nargs(),
-                        node->nresults(), INST_TYPE_MAP.at(node->instType()).c_str(),
+                        node->nresults(),
+                        INST_TYPE_MAP.at(node->instType()).c_str(),
                         node->label().c_str());
     }
 
     inline void visitBlockInstNode(Node* node) {
-        _stream->Writef("%u,%s,,,,,%u,,,,%s,,,,%s,,,\n", node->getId(),
-                        NODE_TYPE_MAP.at(node->type()).c_str(), node->nresults(),
-                        INST_TYPE_MAP.at(node->instType()).c_str(),
-                        node->label().c_str());
+        _stream->Writef(
+            "%u,%s,,,,,%u,,,,%s,,,,%s,,,\n", node->getId(),
+            NODE_TYPE_MAP.at(node->type()).c_str(), node->nresults(),
+            INST_TYPE_MAP.at(node->instType()).c_str(), node->label().c_str());
     }
 };
 

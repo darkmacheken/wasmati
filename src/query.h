@@ -41,8 +41,6 @@ public:
     static const EdgeCondition& PDG_EDGES;
     /// @brief Condition to return only CG edges
     static const EdgeCondition& CG_EDGES;
-    /// @brief Condition to return only PG edges
-    static const EdgeCondition& PG_EDGES;
     /// @brief Condition to return all inst nodes
     static const NodeCondition& ALL_INSTS;
     /// @brief Condition to return all nodes

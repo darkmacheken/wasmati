@@ -175,9 +175,6 @@ public:
             } else if (cpgOptions.printCG &&
                        node->hasEdgesOf(EdgeType::CG)) {  // CG
                 node->accept(this);
-            } else if (cpgOptions.printPG &&
-                       node->hasEdgesOf(EdgeType::PG)) {  // PDG
-                node->accept(this);
             }
         }
     }
@@ -228,13 +225,6 @@ public:
             return;
         }
         _edges->Writef("%u,%u,CG,,,nil\n", e->src()->getId(),
-                       e->dest()->getId());
-    }
-    void visitPGEdge(PGEdge* e) override {
-        if (!(cpgOptions.printAll || cpgOptions.printPG)) {
-            return;
-        }
-        _edges->Writef("%u,%u,PG,,,nil\n", e->src()->getId(),
                        e->dest()->getId());
     }
 

@@ -71,15 +71,13 @@ const std::map<EdgeType, std::string> EDGE_TYPES_MAP = {
     {EdgeType::AST, "0"},
     {EdgeType::CFG, "1"},
     {EdgeType::PDG, "2"},
-    {EdgeType::CG, "3"},
-    {EdgeType::PG, "4"}};
+    {EdgeType::CG, "3"}};
 
 const std::map<std::string, EdgeType> EDGE_TYPES_MAP_R = {
     {"0", EdgeType::AST},
     {"1", EdgeType::CFG},
     {"2", EdgeType::PDG},
-    {"3", EdgeType::CG},
-    {"4", EdgeType::PG}};
+    {"3", EdgeType::CG}};
 
 const std::map<PDGType, std::string> PDG_TYPE_MAP = {
     {PDGType::Const, "0"},
@@ -258,10 +256,6 @@ void PDGEdge::accept(GraphVisitor* visitor) {
 
 void CGEdge::accept(GraphVisitor* visitor) {
     visitor->visitCGEdge(this);
-}
-
-void PGEdge::accept(GraphVisitor* visitor) {
-    visitor->visitPGEdge(this);
 }
 
 void BeginBlockInst::accept(GraphVisitor* visitor) {
@@ -458,8 +452,6 @@ Edge* Factory::createEdge(std::vector<std::string>& row,
     }
     case EdgeType::CG:
         return new CGEdge(nodes[src], nodes[dest]);
-    case EdgeType::PG:
-        return new PGEdge(nodes[src], nodes[dest]);
     default:
         assert(false);
         break;

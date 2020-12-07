@@ -43,9 +43,6 @@ public:
             } else if (cpgOptions.printCG &&
                        node->hasEdgesOf(EdgeType::CG)) {  // CG
                 node->accept(this);
-            } else if (cpgOptions.printPG &&
-                       node->hasEdgesOf(EdgeType::PG)) {  // PDG
-                node->accept(this);
             }
         }
         for (auto const& node : _graph->getNodes()) {
@@ -113,17 +110,6 @@ public:
         edgeJson["src"] = e->src()->getId();
         edgeJson["dest"] = e->dest()->getId();
         edgeJson["type"] = "CG";
-        _graphJson["edges"].emplace_back(edgeJson);
-        insertEdge(e->src()->getId(), e->dest()->getId(), _edgeId++);
-    }
-    void visitPGEdge(PGEdge* e) override {
-        if (!(cpgOptions.printAll || cpgOptions.printPG)) {
-            return;
-        }
-        json edgeJson;
-        edgeJson["src"] = e->src()->getId();
-        edgeJson["dest"] = e->dest()->getId();
-        edgeJson["type"] = "PG";
         _graphJson["edges"].emplace_back(edgeJson);
         insertEdge(e->src()->getId(), e->dest()->getId(), _edgeId++);
     }

@@ -23,7 +23,6 @@ struct GenerateCPGOptions {
     bool printCFG = false;
     bool printPDG = false;
     bool printCG = false;
-    bool printPG = false;
     bool printAll = true;
     bool verbose = false;
     bool info = false;

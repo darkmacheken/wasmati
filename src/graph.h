@@ -32,7 +32,7 @@ inline const Const& emptyConst() {
     return empty;
 }
 
-enum class EdgeType { AST, CFG, PDG, CG, PG };
+enum class EdgeType { AST, CFG, PDG, CG};
 
 enum class NodeType {
     Module,
@@ -652,12 +652,6 @@ struct CGEdge : Edge {
     static bool classof(const Edge* e) { return e->type() == EdgeType::CG; }
 };
 
-struct PGEdge : Edge {
-    PGEdge(Node* src, Node* dest) : Edge(src, dest, EdgeType::PG) {}
-    void accept(GraphVisitor* visitor);
-    static bool classof(const Edge* e) { return e->type() == EdgeType::PG; }
-};
-
 struct PDGEdgeConst : PDGEdge {
     const Const _const;
 
@@ -746,7 +740,6 @@ public:
     virtual void visitCFGEdge(CFGEdge* e) = 0;
     virtual void visitPDGEdge(PDGEdge* e) = 0;
     virtual void visitCGEdge(CGEdge* e) = 0;
-    virtual void visitPGEdge(PGEdge* e) = 0;
 
     // Nodes
     virtual void visitModule(Module* node) = 0;

@@ -237,14 +237,6 @@ bool CFG::construct(const ExprList& es) {
                 Node* func = *query.begin();
                 new CGEdge(inst, func);
 
-                // insert PG
-                auto funcParams = Query::parameters({func});
-                auto callParams = Query::children({inst}, Query::AST_EDGES);
-
-                for (auto itf = funcParams.begin(), itc = callParams.begin();
-                     itf != funcParams.end(); ++itf, ++itc) {
-                    new PGEdge(*itc, *itf);
-                }
             }
             break;
         }
@@ -276,14 +268,6 @@ bool CFG::construct(const ExprList& es) {
             for (Node* func : query) {
                 new CGEdge(inst, func);
 
-                // insert PG
-                auto funcParams = Query::parameters({func});
-                auto callParams = Query::children({inst}, Query::AST_EDGES);
-
-                for (auto itf = funcParams.begin(), itc = callParams.begin();
-                     itf != funcParams.end(); ++itf, ++itc) {
-                    new PGEdge(*itc, *itf);
-                }
             }
 
             break;
