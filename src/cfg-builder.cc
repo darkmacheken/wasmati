@@ -325,17 +325,6 @@ void CFG::insertEdgeFromLastExpr(const wabt::ExprList& es,
     } else if (lastExpr.type() == ExprType::If) {
         auto ifExpr = cast<IfExpr>(&lastExpr);
         new CFGEdge(ast.ifBlocks.at(&ifExpr->true_)->block(), blockInst);
-        // if (ifExpr->false_.empty()) {
-        //    // new CFGEdge(ifInst, blockInst, "false");
-        //    // auto& lastIfInst = ifExpr->true_.exprs.back();
-        //    // if (lastIfInst.type() == ExprType::BrIf) {
-        //    //}
-        //} else {
-        //    auto innerBlock = ifInst->getOutEdge(1, EdgeType::AST)->dest();
-        //    if (innerBlock->inEdges(EdgeType::CFG).size() > 0) {
-        //        new CFGEdge(innerBlock, blockInst);
-        //    }
-        //}
     } else {
         new CFGEdge(ast.exprNodes.at(&lastExpr), blockInst);
     }

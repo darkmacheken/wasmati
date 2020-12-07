@@ -288,8 +288,8 @@ struct Queries {
     static NodeSet loopsInsts(std::string& loopName);
 };
 
-class TestHolder;
-class TruePredicate;
+struct TestHolder;
+struct TruePredicate;
 class Predicate {
     std::vector<std::vector<std::shared_ptr<Predicate>>> _predicates;
     /// @brief Each row is a vector of SimplePredicates. The evaluation of a row
@@ -825,6 +825,15 @@ public:
         bool reverse = false) {
         nodes =
             Query::BFSincludes(nodes, predicate, edgeCondition, limit, reverse);
+        return *this;
+    }
+
+    NodeStream& function() {
+        NodeSet res;
+        for (Node* node : nodes) {
+            res.insert(Query::function(node));
+        }
+        nodes = res;
         return *this;
     }
 

@@ -831,7 +831,7 @@ void PDG::logDefinition(Node* inst, std::shared_ptr<ReachDefinition> def) {
 
 inline bool PDG::contains(std::list<std::shared_ptr<ReachDefinition>> list,
                           std::shared_ptr<ReachDefinition> reachDef) {
-    for (auto const def : list) {
+    for (auto const& def : list) {
         if (reachDef->equals(*def)) {
             return true;
         }

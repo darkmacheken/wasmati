@@ -27,7 +27,14 @@ std::pair<std::string, std::string> VulnerabilityChecker::isTainted(
             return std::make_pair(param->name(), func->name());
         }
     }
-    for (auto arg : Query::parents({param}, Query::PG_EDGES)) {
+
+    auto args = NodeStream(param)
+                    .function()
+                    .parents(Query::CG_EDGES)
+                    .child(param->index(), EdgeType::AST)
+                    .toNodeSet();
+
+    for (auto arg : args) {
         auto localVarsList =
             EdgeStream(arg->outEdges(EdgeType::PDG))
                 .setUnion(arg->inEdges(EdgeType::PDG))

@@ -1,5 +1,6 @@
 #ifndef WASMATI_GRAPH_H
 #define WASMATI_GRAPH_H
+#define NOMINMAX 1
 #include <map>
 #include <set>
 #include "single_include/csv2/csv2.hpp"
@@ -11,7 +12,7 @@
 using namespace wabt;
 namespace wasmati {
 class GraphVisitor;
-class Edge;
+struct Edge;
 class Node;
 class Predicate;
 
@@ -170,7 +171,7 @@ public:
 
     const std::string& name() const override { return _name; }
 
-    void accept(GraphVisitor* visitor);
+    void accept(GraphVisitor* visitor) override;
 };
 
 class Function : public BaseNode<NodeType::Function> {
@@ -222,7 +223,7 @@ public:
     bool isExport() const override { return _isExport; }
     Func* getFunc() override { return _f; }
 
-    void accept(GraphVisitor* visitor);
+    void accept(GraphVisitor* visitor) override;
 };
 
 class VarNode : public BaseNode<NodeType::VarNode> {
@@ -276,7 +277,7 @@ public:
         return Type::Any;
     }
 
-    void accept(GraphVisitor* visitor);
+    void accept(GraphVisitor* visitor) override;
 };
 
 template <NodeType T, char const* nodeName>
@@ -363,7 +364,7 @@ public:
 
     const Const& value() const override { return _value; }
 
-    void accept(GraphVisitor* visitor);
+    void accept(GraphVisitor* visitor) override;
 };
 
 template <ExprType T>
@@ -395,7 +396,7 @@ public:
 
     Opcode opcode() const override { return _opcode; }
 
-    virtual void accept(GraphVisitor* visitor);
+    virtual void accept(GraphVisitor* visitor) override;
 };
 
 typedef OpcodeInst<ExprType::Binary> BinaryInst;
@@ -416,7 +417,7 @@ public:
 
     Index offset() const override { return _offset; }
 
-    void accept(GraphVisitor* visitor);
+    void accept(GraphVisitor* visitor) override;
 };
 
 typedef LoadStoreBase<ExprType::Load> LoadInst;
@@ -471,7 +472,7 @@ public:
     Index nargs() const override { return _nargs; }
     Index nresults() const override { return _nresults; }
 
-    virtual void accept(GraphVisitor* visitor);
+    virtual void accept(GraphVisitor* visitor) override;
 };
 
 typedef CallBase<ExprType::Call> CallInst;
@@ -499,7 +500,7 @@ public:
     Index nresults() const override { return _nresults; }
     void setResults(Index nresults) { _nresults = nresults; }
 
-    virtual void accept(GraphVisitor* visitor);
+    virtual void accept(GraphVisitor* visitor) override;
 };
 
 typedef BlockBase<ExprType::Block> BlockInst;
@@ -526,7 +527,7 @@ public:
 
     virtual bool isBeginBlock() override { return true; }
 
-    virtual void accept(GraphVisitor* visitor);
+    virtual void accept(GraphVisitor* visitor) override;
 };
 
 class IfInst : public BaseInstruction<ExprType::If> {
@@ -544,7 +545,7 @@ public:
 
     Index nresults() const override { return _nresults; }
     bool hasElse() const override { return _hasElse; }
-    virtual void accept(GraphVisitor* visitor);
+    virtual void accept(GraphVisitor* visitor) override;
 };
 
 enum class PDGType { Local, Global, Function, Control, Const };
@@ -622,10 +623,10 @@ struct PDGEdge : Edge {
     PDGEdge(Node* src, Node* dest, const std::string& label, PDGType type)
         : Edge(src, dest, EdgeType::PDG), _label(label), _pdgType(type) {}
 
-    void accept(GraphVisitor* visitor);
+    void accept(GraphVisitor* visitor) override;
     static bool classof(const Edge* e) { return e->type() == EdgeType::PDG; }
 
-    inline const std::string& label() const { return _label; }
+    inline const std::string& label() const override { return _label; }
     inline PDGType pdgType() const override { return _pdgType; }
 
 public:

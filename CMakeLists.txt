@@ -66,16 +66,16 @@ if (COMPILER_IS_MSVC)
   #   seems to not like float compare w/ HUGE_VALF; bug?
   # disable warnings C4267 and C4244: conversion/truncation from larger to smaller type.
   # disable warning C4800: implicit conversion from larger int to bool
-  add_definitions(-W3 -wd4018 -wd4056 -wd4756 -wd4267 -wd4244 -wd4800 -D_CRT_SECURE_NO_WARNINGS -D_SCL_SECURE_NO_WARNINGS)
+  add_definitions(-W3 -wd2182 -wd2065 -wd4018 -wd4056 -wd4756 -wd4267 -wd4244 -wd4800 -D_CRT_SECURE_NO_WARNINGS -D_SCL_SECURE_NO_WARNINGS)
 
   if (WERROR)
     add_definitions(-WX)
   endif ()
 
-  if (NOT WITH_EXCEPTIONS)
+  #if (NOT WITH_EXCEPTIONS)
     # disable exception use in C++ library
-    add_definitions(-D_HAS_EXCEPTIONS=0)
-  endif ()
+   # add_definitions(-D_HAS_EXCEPTIONS=0)
+  #endif ()
 else ()
   # disable -Wunused-parameter: this is really common when implementing
   #   interfaces, etc.
