@@ -399,6 +399,10 @@ private:
         _nodes->Writef("%u,Instruction,,0,0,0,%u,0,0,,Loop,,[,0,0],%s,0,0\n",
                        node->getId(), node->nresults(), node->label().c_str());
     }
+    void visitEndLoopInst(EndLoopInst* node) override {
+        _nodes->Writef("%u,Instruction,,0,0,0,%u,0,0,,EndLoop,,[,0,0],%s,0,0\n",
+            node->getId(), node->nresults(), node->label().c_str());
+    }
     void visitIfInst(IfInst* node) override {
         _nodes->Writef("%u,Instruction,,0,0,0,%u,0,0,,If,,[,0,0],,0,%u\n",
                        node->getId(), node->nresults(), node->hasElse());

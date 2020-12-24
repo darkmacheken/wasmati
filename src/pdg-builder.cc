@@ -131,17 +131,19 @@ void PDG::generatePDG() {
                 visitLocalTeeInst(
                     dynamic_cast<LocalTeeInst*>(std::get<0>(firstInst)));
                 break;
+            case ExprType::First:
+                visitBeginBlockInst(
+                    dynamic_cast<BeginBlockInst*>(std::get<0>(firstInst)));
+                break;
             case ExprType::Block:
-                if (std::get<0>(firstInst)->isBeginBlock()) {
-                    visitBeginBlockInst(
-                        dynamic_cast<BeginBlockInst*>(std::get<0>(firstInst)));
-                } else {
-                    visitBlockInst(
-                        dynamic_cast<BlockInst*>(std::get<0>(firstInst)));
-                }
+                visitBlockInst(
+                    dynamic_cast<BlockInst*>(std::get<0>(firstInst)));
                 break;
             case ExprType::Loop:
                 visitLoopInst(dynamic_cast<LoopInst*>(std::get<0>(firstInst)));
+                break;
+            case ExprType::AtomicNotify: // EndLoop workaround
+                visitEndLoopInst(dynamic_cast<EndLoopInst*>(std::get<0>(firstInst)));
                 break;
             case ExprType::If:
                 visitIfInst(dynamic_cast<IfInst*>(std::get<0>(firstInst)));
@@ -661,8 +663,8 @@ void PDG::visitLoopInst(LoopInst* node) {
             } else {
                 // we emplace front to be faster to look for repeated
                 // definitions later, since it is more probable that the next
-                // entrance in the loop the definition, if present to cache, will
-                // be at the beginning of the list. 
+                // entrance in the loop the definition, if present to cache,
+                // will be at the beginning of the list.
                 _loopsEntrances[node].emplace_front(reachDef);
             }
         }
@@ -691,6 +693,27 @@ void PDG::visitLoopInst(LoopInst* node) {
     // Save loop def
     _loops[node] = std::make_shared<ReachDefinition>(*reachDef);
     _reachDef.erase(node);
+    // ---------------------------------------
+    advance(node, reachDef);
+}
+
+void PDG::visitEndLoopInst(EndLoopInst* node) {
+    if (waitPaths(node)) {
+        return;
+    }
+    // ---------------------------------------
+    for (auto& reachDef : _reachDef[node]) {
+        assert(reachDef->stackSize() >= node->nresults());
+
+        // gets results
+        auto results = reachDef->pop(node->nresults());
+        // pop label
+        reachDef->popLabel(node->label());
+        // push back the results
+        reachDef->push(results);
+    }
+    auto reachDef = getReachDef(node);
+    // logDefinition(node, reachDef);
     // ---------------------------------------
     advance(node, reachDef);
 }

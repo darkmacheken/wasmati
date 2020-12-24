@@ -72,6 +72,7 @@ private:
     void visitBeginBlockInst(BeginBlockInst* node);
     void visitBlockInst(BlockInst* node);
     void visitLoopInst(LoopInst* node);
+    void visitEndLoopInst(EndLoopInst* node);
     void visitIfInst(IfInst* node);
 
     // Auxiliars

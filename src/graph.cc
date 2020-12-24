@@ -48,6 +48,7 @@ const std::map<ExprType, std::string> INST_TYPE_MAP = {
     {ExprType::Call, "22"},      {ExprType::CallIndirect, "23"},
     {ExprType::First, "24"},     {ExprType::Block, "25"},
     {ExprType::Loop, "26"},      {ExprType::If, "27"},
+    {ExprType::AtomicNotify, "28"},
 };
 
 const std::map<std::string, ExprType> INST_TYPE_MAP_R = {
@@ -65,33 +66,30 @@ const std::map<std::string, ExprType> INST_TYPE_MAP_R = {
     {"22", ExprType::Call},      {"23", ExprType::CallIndirect},
     {"24", ExprType::First},     {"25", ExprType::Block},
     {"26", ExprType::Loop},      {"27", ExprType::If},
+    {"28", ExprType::AtomicNotify},
 };
 
-const std::map<EdgeType, std::string> EDGE_TYPES_MAP = {
-    {EdgeType::AST, "0"},
-    {EdgeType::CFG, "1"},
-    {EdgeType::PDG, "2"},
-    {EdgeType::CG, "3"}};
+const std::map<EdgeType, std::string> EDGE_TYPES_MAP = {{EdgeType::AST, "0"},
+                                                        {EdgeType::CFG, "1"},
+                                                        {EdgeType::PDG, "2"},
+                                                        {EdgeType::CG, "3"}};
 
-const std::map<std::string, EdgeType> EDGE_TYPES_MAP_R = {
-    {"0", EdgeType::AST},
-    {"1", EdgeType::CFG},
-    {"2", EdgeType::PDG},
-    {"3", EdgeType::CG}};
+const std::map<std::string, EdgeType> EDGE_TYPES_MAP_R = {{"0", EdgeType::AST},
+                                                          {"1", EdgeType::CFG},
+                                                          {"2", EdgeType::PDG},
+                                                          {"3", EdgeType::CG}};
 
-const std::map<PDGType, std::string> PDG_TYPE_MAP = {
-    {PDGType::Const, "0"},
-    {PDGType::Control, "1"},
-    {PDGType::Function, "2"},
-    {PDGType::Global, "3"},
-    {PDGType::Local, "4"}};
+const std::map<PDGType, std::string> PDG_TYPE_MAP = {{PDGType::Const, "0"},
+                                                     {PDGType::Control, "1"},
+                                                     {PDGType::Function, "2"},
+                                                     {PDGType::Global, "3"},
+                                                     {PDGType::Local, "4"}};
 
-const std::map<std::string, PDGType> PDG_TYPE_MAP_R = {
-    {"0", PDGType::Const},
-    {"1", PDGType::Control},
-    {"2", PDGType::Function},
-    {"3", PDGType::Global},
-    {"4", PDGType::Local}};
+const std::map<std::string, PDGType> PDG_TYPE_MAP_R = {{"0", PDGType::Const},
+                                                       {"1", PDGType::Control},
+                                                       {"2", PDGType::Function},
+                                                       {"3", PDGType::Global},
+                                                       {"4", PDGType::Local}};
 
 Node::~Node() {
     for (auto e : _outEdges) {

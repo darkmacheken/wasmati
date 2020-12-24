@@ -9,7 +9,7 @@ void VulnerabilityChecker::FormatStrings() {
     Index counter = 0;
     for (auto func : Query::functions()) {
         debug("[DEBUG][Query::FormatString][%u/%u] Function %s\n", counter++,
-            numFuncs, func->name().c_str());
+              numFuncs, func->name().c_str());
         if (ignore.count(func->name()) || fsConfig.contains(func->name())) {
             continue;
         }
@@ -17,15 +17,15 @@ void VulnerabilityChecker::FormatStrings() {
         Node* child = nullptr;
         auto callPredicate =
             Predicate()
-            .instType(ExprType::Call)
-            .TEST(fsConfig.contains(node->label()))
-            .EXEC(child = node->getChild(fsConfig.at(node->label())))
-            .PDG_EDGE(child, node, PDGType::Const, false);
+                .instType(ExprType::Call)
+                .TEST(fsConfig.contains(node->label()))
+                .EXEC(child = node->getChild(fsConfig.at(node->label())))
+                .PDG_EDGE(child, node, PDGType::Const, false);
 
         NodeStream(func).instructions(callPredicate).forEach([&](Node* call) {
             // write vulns
             vulns.emplace_back(VulnType::FormatStrings, func->name(),
-                call->label());
-            });
+                               call->label());
+        });
     }
 }

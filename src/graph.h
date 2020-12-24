@@ -32,7 +32,7 @@ inline const Const& emptyConst() {
     return empty;
 }
 
-enum class EdgeType { AST, CFG, PDG, CG};
+enum class EdgeType { AST, CFG, PDG, CG };
 
 enum class NodeType {
     Module,
@@ -122,7 +122,6 @@ public:
         assert(false);
         return nullptr;
     }
-    virtual bool isBeginBlock() { return false; }
 
     explicit Node(NodeType type) : _id(idCount++), _type(type) {}
     virtual ~Node();
@@ -497,6 +496,9 @@ public:
     BlockBase(Index id, Index nresults, std::string label)
         : LabeledInst<T>(id, label), _nresults(nresults) {}
 
+    BlockBase(Index nresults, std::string label)
+        : LabeledInst<T>(label), _nresults(nresults) {}
+
     Index nresults() const override { return _nresults; }
     void setResults(Index nresults) { _nresults = nresults; }
 
@@ -505,27 +507,26 @@ public:
 
 typedef BlockBase<ExprType::Block> BlockInst;
 typedef BlockBase<ExprType::Loop> LoopInst;
+typedef BlockBase<ExprType::AtomicNotify> EndLoopInst;
 
-class BeginBlockInst : public LabeledInst<ExprType::Block> {
+class BeginBlockInst : public LabeledInst<ExprType::First> {
     BlockInst* _block;
 
 public:
-    BeginBlockInst(const VarExpr<ExprType::Block>* expr, BlockInst* block)
-        : LabeledInst<ExprType::Block>(expr), _block(block) {}
+    BeginBlockInst(const VarExpr<ExprType::First>* expr, BlockInst* block)
+        : LabeledInst<ExprType::First>(expr), _block(block) {}
     BeginBlockInst(std::string label,
                    BlockInst* block,
                    const Location loc = Location())
-        : LabeledInst<ExprType::Block>(label, loc), _block(block) {}
+        : LabeledInst<ExprType::First>(label, loc), _block(block) {}
 
     BeginBlockInst(Index id, std::string label)
-        : LabeledInst<ExprType::Block>(id, label), _block(nullptr) {}
+        : LabeledInst<ExprType::First>(id, label), _block(nullptr) {}
 
     Node* block() override {
         assert(_block != nullptr);
         return _block;
     }
-
-    virtual bool isBeginBlock() override { return true; }
 
     virtual void accept(GraphVisitor* visitor) override;
 };
@@ -634,14 +635,14 @@ public:
         assert(PDG_TYPE_MAP_R.count(type) == 1);
         return PDG_TYPE_MAP_R.at(type);
     }
-    
+
     inline std::string writePdgType() {
         static const std::map<PDGType, std::string> pdgTypeMap = {
             {PDGType::Const, "Const"},
             {PDGType::Control, "Control"},
             {PDGType::Function, "Function"},
             {PDGType::Global, "Global"},
-            {PDGType::Local, "Local"} };
+            {PDGType::Local, "Local"}};
         return pdgTypeMap.at(_pdgType);
     }
 };
@@ -780,6 +781,7 @@ public:
     virtual void visitBeginBlockInst(BeginBlockInst* node) = 0;
     virtual void visitBlockInst(BlockInst* node) = 0;
     virtual void visitLoopInst(LoopInst* node) = 0;
+    virtual void visitEndLoopInst(EndLoopInst* node) = 0;
     virtual void visitIfInst(IfInst* node) = 0;
 };
 
@@ -989,6 +991,11 @@ inline void BlockBase<ExprType::Block>::accept(GraphVisitor* visitor) {
 template <>
 inline void BlockBase<ExprType::Loop>::accept(GraphVisitor* visitor) {
     visitor->visitLoopInst(this);
+}
+
+template <>
+inline void BlockBase<ExprType::AtomicNotify>::accept(GraphVisitor* visitor) {
+    visitor->visitEndLoopInst(this);
 }
 
 template <ExprType t>

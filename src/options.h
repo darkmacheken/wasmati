@@ -1,6 +1,7 @@
 #ifndef WASMATI_OPTIONS_H_
 #define WASMATI_OPTIONS_H_
 
+#include <chrono>
 #include "src/stream.h"
 
 #define debug(format, ...)                             \

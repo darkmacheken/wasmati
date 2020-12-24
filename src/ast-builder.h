@@ -19,6 +19,8 @@ struct AST {
     std::map<const Expr*, Node*> exprNodes;
     std::map<const Block*, Node*> ifBlocks;
     std::map<const Func*, Node*> returnFunc;
+    std::map<const Func*, Node*> funcs;
+    std::map<const std::string, Node*> funcsByName;
     Func* currentFunction = nullptr;
 
     AST(ModuleContext& mc, Graph& graph) : mc(mc), graph(graph) {}

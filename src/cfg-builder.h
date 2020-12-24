@@ -14,6 +14,8 @@ struct CFG {
     Graph& graph;
     AST& ast;
     std::list<std::pair<std::string, Node*>> _blocks;
+    std::map<std::string, NodeSet> funcByType;
+    unsigned long totalTime = 0;
 
     CFG(ModuleContext& mc, Graph& graph, AST& ast)
         : mc(mc), graph(graph), ast(ast) {}

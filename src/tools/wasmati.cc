@@ -1,4 +1,3 @@
-#include <chrono>
 #include "src/apply-names.h"
 #include "src/ast-builder.h"
 #include "src/binary-reader-ir.h"
@@ -262,7 +261,7 @@ int ProgramMain(int argc, char** argv) {
     // generate json
     if (Succeeded(result) && generate_json) {
         FileStream stream(!s_json_outfile.empty() ? FileStream(s_json_outfile)
-            : FileStream(stdout));
+                                                  : FileStream(stdout));
         JSONWriter writer(&stream, graph);
         writer.writeGraph();
     }
@@ -322,6 +321,9 @@ Result watFile(std::unique_ptr<wabt::Module>* module) {
             Result dummy_result = ApplyNames(module->get());
             WABT_USE(dummy_result);
         }
+    } else {
+        auto line_finder = lexer->MakeLineFinder();
+        FormatErrorsToFile(errors, Location::Type::Text, line_finder.get());
     }
 
     return result;
@@ -387,8 +389,9 @@ void generateCPG(Graph& graph) {
             std::chrono::duration_cast<std::chrono::milliseconds>(pdgTime -
                                                                   cfgTime);
         info["ast"] = astDuration.count();
-        info["cfg"] = cfgDuration.count();
+        info["cfg"] = cfgDuration.count() - cfg.totalTime;
         info["pdg"] = pdgDuration.count();
+        info["cg"] = cfg.totalTime;
     }
 }
 

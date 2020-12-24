@@ -263,6 +263,9 @@ private:
     void visitLoopInst(LoopInst* node) override {
         visitBlockInstNode(node, "Loop");
     }
+    void visitEndLoopInst(EndLoopInst* node) override {
+        visitBlockInstNode(node, "EndLoop");
+    }
     void visitIfInst(IfInst* node) override {
         json nodeJson;
         nodeJson["inEdges"] = json::array();

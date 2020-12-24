@@ -195,6 +195,7 @@ private:
     }
     void visitBlockInst(BlockInst* node) override { visitBlockInstNode(node); }
     void visitLoopInst(LoopInst* node) override { visitBlockInstNode(node); }
+    void visitEndLoopInst(EndLoopInst* node) override { visitBlockInstNode(node); }
     void visitIfInst(IfInst* node) override {
         _stream->Writef(
             "%u,%s,,,,,%u,,,,%s,,,,,,%u\n", node->getId(),

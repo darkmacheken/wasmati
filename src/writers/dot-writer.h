@@ -250,6 +250,10 @@ private:
         visitLabelNode(node->getId(), Opcode::Loop_Opcode.GetName(),
                        node->label());
     }
+    void visitEndLoopInst(EndLoopInst* node) override {
+        visitLabelNode(node->getId(), "EndLoop",
+            node->label());
+    }
     void visitIfInst(IfInst* node) override {
         visitSimpleNode(node->getId(), Opcode::If_Opcode.GetName());
     }

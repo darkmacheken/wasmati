@@ -2,6 +2,26 @@
 
 namespace wasmati {
 void CFG::generateCFG() {
+    // Precalculate sig types for call_indirect
+    std::set<const Func*> funcsInTable;
+    for (auto elems : mc.module.elem_segments) {
+        for (auto elem : elems->elem_exprs) {
+            if (elem.kind == ElemExprKind::RefFunc) {
+                const Func* func = mc.module.GetFunc(elem.var);
+                funcsInTable.insert(func);
+            }
+        }
+    }
+    for (auto f : mc.module.funcs) {
+        if (!cpgOptions.funcName.empty() &&
+            cpgOptions.funcName.compare(f->name) != 0) {
+            continue;
+        }
+        assert(f->decl.has_func_type);
+        if (funcsInTable.count(f) == 1) {
+            funcByType[f->decl.type_var.name()].insert(ast.funcs[f]);
+        }
+    }
     Index func_index = 0;
     for (auto f : mc.module.funcs) {
         debug("[DEBUG][CFG][%u/%lu] Function %s\n", func_index,
@@ -16,10 +36,7 @@ void CFG::generateCFG() {
         if (!isImport) {
             Node* returnFuncNode = ast.returnFunc.at(f);
             NodeSet instNodeQuery = Query::BFS(
-                {returnFuncNode},
-                [](Node* node) {
-                    return node->type() == NodeType::Instructions;
-                },
+                {returnFuncNode}, Predicate().type(NodeType::Instructions),
                 Query::ALL_EDGES, 1, true);
             assert(instNodeQuery.size() == 1);
 
@@ -155,8 +172,11 @@ bool CFG::construct(const ExprList& es) {
 
             // if it's not the last
             if (&*it != &es.back()) {
-                insertEdgeFromLastExpr(expr->block.exprs,
-                                       ast.exprNodes.at(&*std::next(it)));
+                Node* endLoop =
+                    new EndLoopInst(inst->nresults(), inst->label());
+                graph.insertNode(endLoop);
+                insertEdgeFromLastExpr(expr->block.exprs, endLoop);
+                new CFGEdge(endLoop, ast.exprNodes.at(&*std::next(it)));
             }
 
             // Pop label
@@ -229,14 +249,18 @@ bool CFG::construct(const ExprList& es) {
                 new CFGEdge(inst, ast.exprNodes.at(&*std::next(it)));
             }
 
-            // query function by name
-            auto query = Query::functions(
-                [&](Node* node) { return node->name() == inst->label(); });
-
-            if (query.size() == 1) {
-                Node* func = *query.begin();
-                new CGEdge(inst, func);
-
+            auto start = std::chrono::high_resolution_clock::now();
+            // CGEdge
+            if (ast.funcsByName.count(inst->label()) == 1) {
+                new CGEdge(inst, ast.funcsByName[inst->label()]);
+            }
+            if (cpgOptions.info) {
+                auto end = std::chrono::high_resolution_clock::now();
+                auto time =
+                    std::chrono::duration_cast<std::chrono::milliseconds>(end -
+                                                                          start)
+                        .count();
+                totalTime += time;
             }
             break;
         }
@@ -247,29 +271,20 @@ bool CFG::construct(const ExprList& es) {
                 new CFGEdge(inst, ast.exprNodes.at(&*std::next(it)));
             }
 
-            // get all functions possible
+            auto start = std::chrono::high_resolution_clock::now();
+            // insert CG
             auto expr = cast<CallIndirectExpr>(&*it);
-            std::set<std::string> funcs;
-            for (auto elems : mc.module.elem_segments) {
-                if (expr->table.name() == elems->table_var.name()) {
-                    for (auto elem : elems->elem_exprs) {
-                        assert(elem.kind == ElemExprKind::RefFunc);
-                        auto func = mc.module.GetFunc(elem.var);
-                        if (expr->decl.sig == func->decl.sig) {
-                            funcs.insert(func->name);
-                        }
-                    }
-                }
-            }
-            // query possible functions
-            auto query = Query::functions(
-                [&](Node* node) { return funcs.count(node->name()) == 1; });
-
-            for (Node* func : query) {
+            for (Node* func : funcByType[expr->decl.type_var.name()]) {
                 new CGEdge(inst, func);
-
             }
-
+            if (cpgOptions.info) {
+                auto end = std::chrono::high_resolution_clock::now();
+                auto time =
+                    std::chrono::duration_cast<std::chrono::milliseconds>(end -
+                                                                          start)
+                        .count();
+                totalTime += time;
+            }
             break;
         }
         default:

@@ -34,10 +34,17 @@ void VulnerabilityChecker::BOMemcpy() {
                 }
 
                 auto src = call->getChild(1);
+                auto parameters = Query::parameters({func});
                 auto localVarDeps =
                     EdgeStream(src->outEdges(EdgeType::PDG))
                         .setUnion(src->inEdges(EdgeType::PDG))
                         .filterPDG(PDGType::Local)
+                        .filter([&](Edge* e) {
+                            return NodeStream(func)
+                                .parameters(Predicate().name(e->label()))
+                                .findFirst()
+                                .isPresent();
+                        })
                         .map<Node*>([&](Edge* e) {
                             return NodeStream(func)
                                 .parameters(Predicate().name(e->label()))

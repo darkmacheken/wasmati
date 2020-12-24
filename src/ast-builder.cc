@@ -34,6 +34,8 @@ void AST::generateAST() {
         Function* func = new Function(f, func_index, isImport, isExport);
         graph.insertNode(func);
         new ASTEdge(m, func);
+        funcs[f] = func;
+        funcsByName[f->name] = func;
         // Function Signature
         FunctionSignature* fsign = new FunctionSignature();
         graph.insertNode(fsign);
