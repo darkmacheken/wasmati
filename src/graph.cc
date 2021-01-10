@@ -34,38 +34,38 @@ const std::map<std::string, NodeType> NODE_TYPE_MAP_R = {
 };
 
 const std::map<ExprType, std::string> INST_TYPE_MAP = {
-    {ExprType::Nop, "0"},        {ExprType::Unreachable, "1"},
-    {ExprType::Return, "2"},     {ExprType::BrTable, "3"},
-    {ExprType::Drop, "4"},       {ExprType::Select, "5"},
-    {ExprType::MemorySize, "6"}, {ExprType::MemoryGrow, "7"},
-    {ExprType::Const, "8"},      {ExprType::Binary, "9"},
-    {ExprType::Compare, "10"},   {ExprType::Convert, "11"},
-    {ExprType::Unary, "12"},     {ExprType::Load, "13"},
-    {ExprType::Store, "14"},     {ExprType::Br, "15"},
-    {ExprType::BrIf, "16"},      {ExprType::GlobalGet, "17"},
-    {ExprType::GlobalSet, "18"}, {ExprType::LocalGet, "19"},
-    {ExprType::LocalSet, "20"},  {ExprType::LocalTee, "21"},
-    {ExprType::Call, "22"},      {ExprType::CallIndirect, "23"},
-    {ExprType::First, "24"},     {ExprType::Block, "25"},
-    {ExprType::Loop, "26"},      {ExprType::If, "27"},
+    {ExprType::Nop, "0"},           {ExprType::Unreachable, "1"},
+    {ExprType::Return, "2"},        {ExprType::BrTable, "3"},
+    {ExprType::Drop, "4"},          {ExprType::Select, "5"},
+    {ExprType::MemorySize, "6"},    {ExprType::MemoryGrow, "7"},
+    {ExprType::Const, "8"},         {ExprType::Binary, "9"},
+    {ExprType::Compare, "10"},      {ExprType::Convert, "11"},
+    {ExprType::Unary, "12"},        {ExprType::Load, "13"},
+    {ExprType::Store, "14"},        {ExprType::Br, "15"},
+    {ExprType::BrIf, "16"},         {ExprType::GlobalGet, "17"},
+    {ExprType::GlobalSet, "18"},    {ExprType::LocalGet, "19"},
+    {ExprType::LocalSet, "20"},     {ExprType::LocalTee, "21"},
+    {ExprType::Call, "22"},         {ExprType::CallIndirect, "23"},
+    {ExprType::First, "24"},        {ExprType::Block, "25"},
+    {ExprType::Loop, "26"},         {ExprType::If, "27"},
     {ExprType::AtomicNotify, "28"},
 };
 
 const std::map<std::string, ExprType> INST_TYPE_MAP_R = {
-    {"0", ExprType::Nop},        {"1", ExprType::Unreachable},
-    {"2", ExprType::Return},     {"3", ExprType::BrTable},
-    {"4", ExprType::Drop},       {"5", ExprType::Select},
-    {"6", ExprType::MemorySize}, {"7", ExprType::MemoryGrow},
-    {"8", ExprType::Const},      {"9", ExprType::Binary},
-    {"10", ExprType::Compare},   {"11", ExprType::Convert},
-    {"12", ExprType::Unary},     {"13", ExprType::Load},
-    {"14", ExprType::Store},     {"15", ExprType::Br},
-    {"16", ExprType::BrIf},      {"17", ExprType::GlobalGet},
-    {"18", ExprType::GlobalSet}, {"19", ExprType::LocalGet},
-    {"20", ExprType::LocalSet},  {"21", ExprType::LocalTee},
-    {"22", ExprType::Call},      {"23", ExprType::CallIndirect},
-    {"24", ExprType::First},     {"25", ExprType::Block},
-    {"26", ExprType::Loop},      {"27", ExprType::If},
+    {"0", ExprType::Nop},           {"1", ExprType::Unreachable},
+    {"2", ExprType::Return},        {"3", ExprType::BrTable},
+    {"4", ExprType::Drop},          {"5", ExprType::Select},
+    {"6", ExprType::MemorySize},    {"7", ExprType::MemoryGrow},
+    {"8", ExprType::Const},         {"9", ExprType::Binary},
+    {"10", ExprType::Compare},      {"11", ExprType::Convert},
+    {"12", ExprType::Unary},        {"13", ExprType::Load},
+    {"14", ExprType::Store},        {"15", ExprType::Br},
+    {"16", ExprType::BrIf},         {"17", ExprType::GlobalGet},
+    {"18", ExprType::GlobalSet},    {"19", ExprType::LocalGet},
+    {"20", ExprType::LocalSet},     {"21", ExprType::LocalTee},
+    {"22", ExprType::Call},         {"23", ExprType::CallIndirect},
+    {"24", ExprType::First},        {"25", ExprType::Block},
+    {"26", ExprType::Loop},         {"27", ExprType::If},
     {"28", ExprType::AtomicNotify},
 };
 
@@ -266,7 +266,7 @@ bool Compare::operator()(Node* const& n1, Node* const& n2) const {
 
 std::vector<Const*> Factory::consts;
 Node* Factory::createNode(std::vector<std::string>& row) {
-    assert(row.size() == 17);
+    assert(row.size() >= 17);
     Index id = std::stoi(row[NodeCol::ID]);
     NodeType nodeType = NODE_TYPE_MAP_R.at(row[NodeCol::NodeType]);
     switch (nodeType) {
@@ -404,6 +404,10 @@ Node* Factory::createNode(std::vector<std::string>& row) {
         case ExprType::Loop:
             return new LoopInst(id, std::stoi(row[NodeCol::Nresults]),
                                 row[NodeCol::Label]);
+        // LoopEnd
+        case ExprType::AtomicNotify:
+            return new EndLoopInst(id, std::stoi(row[NodeCol::Nresults]),
+                                   row[NodeCol::Label]);
         // If
         case ExprType::If:
             return new IfInst(id, std::stoi(row[NodeCol::Nresults]),

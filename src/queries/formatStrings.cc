@@ -3,6 +3,7 @@
 using namespace wasmati;
 
 void VulnerabilityChecker::FormatStrings() {
+    auto start = std::chrono::high_resolution_clock::now();
     json fsConfig = config.at(FORMAT_STRING);
     std::set<std::string> ignore = config[IGNORE];
 
@@ -28,4 +29,9 @@ void VulnerabilityChecker::FormatStrings() {
                                call->label());
         });
     }
+    auto end = std::chrono::high_resolution_clock::now();
+    auto time =
+        std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
+            .count();
+    info["formatStrings"] = time;
 }

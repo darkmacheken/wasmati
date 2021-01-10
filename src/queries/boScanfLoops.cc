@@ -3,6 +3,7 @@
 using namespace wasmati;
 
 void VulnerabilityChecker::BoScanfLoops() {
+    auto start = std::chrono::high_resolution_clock::now();
     std::set<std::string> ignore = config[IGNORE];
 
     Index counter = 0;
@@ -96,4 +97,9 @@ void VulnerabilityChecker::BoScanfLoops() {
             }
         }
     }
+    auto end = std::chrono::high_resolution_clock::now();
+    auto time =
+        std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
+        .count();
+    info["boScanfLoops"] = time;
 }

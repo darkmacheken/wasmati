@@ -3,6 +3,7 @@
 using namespace wasmati;
 
 void VulnerabilityChecker::BOBuffsStatic() {
+    auto start = std::chrono::high_resolution_clock::now();
     json boConfig = config.at(BUFFER_OVERFLOW);
     std::set<std::string> funcSink;
 
@@ -92,4 +93,9 @@ void VulnerabilityChecker::BOBuffsStatic() {
                                node->label(), desc);
         });
     }
+    auto end = std::chrono::high_resolution_clock::now();
+    auto time =
+        std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
+            .count();
+    info["boBuffsStatic"] = time;
 }

@@ -52,7 +52,6 @@ static bool s_fail_on_custom_section_error = true;
 static std::unique_ptr<FileStream> s_log_stream;
 static std::unique_ptr<FileStream> s_info_stream;
 static bool s_validate = true;
-json info;
 
 static const char s_description[] =
     R"(  Read a file in the WebAssembly binary format or text format, and produces its

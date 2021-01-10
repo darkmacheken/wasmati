@@ -87,6 +87,19 @@ EdgeSet Query::filterEdges(const EdgeSet& edges,
 #include "src/config/predicates.def"
 #undef WASMATI_EVALUATION
 
+#define WASMATI_EVALUATION(type, var, eval, rALL)                  \
+    NodeSet Query::filterOut(const NodeSet& nodes, const type& var) { \
+        NodeSet result;                                            \
+        for (Node * node : nodes) {                                \
+            if (!eval(node)) {                                     \
+                result.insert(node);                               \
+            }                                                      \
+        }                                                          \
+        return result;                                             \
+    }
+#include "src/config/predicates.def"
+#undef WASMATI_EVALUATION
+
 #define WASMATI_EVALUATION(type, var, eval, rALL)                 \
     bool Query::contains(const NodeSet& nodes, const type& var) { \
         for (Node * node : nodes) {                               \

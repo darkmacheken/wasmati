@@ -241,16 +241,21 @@ add_library(wasmatilib STATIC
   src/writers/json-writer.h
   # Queries
   src/queries/boBuffsStatic.cc
+  src/queries/boBuffsStaticMalloc.cc
+  src/queries/verifyMallocConst.cc
   src/queries/boMemcpy.cc
+  #src/queries/boLoops.cc
   src/queries/boScanfLoops.cc
   src/queries/bufferSizes.cc
   src/queries/dangerousFunctions.cc
   src/queries/formatStrings.cc
   src/queries/isTainted.cc
+  src/queries/taintedCallIndirect.cc
   src/queries/taintedFuncToFunc.cc
   src/queries/taintedLocalToFunc.cc
   src/queries/unreachable.cc
   src/queries/useAfterFree.cc
+  src/queries/doubleFree.cc
  )
 
 if (NOT EMSCRIPTEN)

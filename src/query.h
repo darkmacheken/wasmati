@@ -2,6 +2,7 @@
 #define WASMATI_QUERY_BUILDER_H_
 
 #include <list>
+#include <set>
 #include <stack>
 #include "graph.h"
 #include "include/nlohmann/json.hpp"
@@ -81,6 +82,11 @@ public:
     /// @return Set of nodes filtered
 #define WASMATI_EVALUATION(type, var, eval, rALL) \
     static NodeSet filter(const NodeSet& nodes, const type& var);
+#include "src/config/predicates.def"
+#undef WASMATI_EVALUATION
+
+#define WASMATI_EVALUATION(type, var, eval, rALL) \
+    static NodeSet filterOut(const NodeSet& nodes, const type& var);
 #include "src/config/predicates.def"
 #undef WASMATI_EVALUATION
 
@@ -524,6 +530,22 @@ public:
         return *this;
     }
 
+    Predicate& inPDGEdge(std::set<std::string> labels,
+                         PDGType pdgType,
+                         bool eq = true) {
+        auto f = [=](Node* node) {
+            auto edges = node->inEdges(EdgeType::PDG);
+            for (auto e : edges) {
+                if (labels.count(e->label()) == 1 && e->pdgType() == pdgType) {
+                    return true == eq;
+                }
+            }
+            return false == eq;
+        };
+        insert(f);
+        return *this;
+    }
+
     Predicate& outPDGEdge(PDGType pdgType, bool eq = true) {
         auto f = [=](Node* node) {
             auto edges = node->outEdges(EdgeType::PDG);
@@ -651,6 +673,8 @@ class EdgeStream {
     EdgeSet edges;
 
 public:
+    EdgeStream() {}
+
     EdgeStream(EdgeSet edges) : edges(edges) {}
 
     size_t size() { return edges.size(); }
@@ -662,7 +686,14 @@ public:
         return *this;
     }
 
-    EdgeStream& filterPDG(PDGType type, std::string label = "") {
+    EdgeStream& filterPDG(PDGType type) {
+        edges = Query::filterEdges(edges, [&](Edge* e) {
+            return e->type() == EdgeType::PDG && e->pdgType() == type;
+        });
+        return *this;
+    }
+
+    EdgeStream& filterPDG(PDGType type, std::string label) {
         edges = Query::filterEdges(edges, [&](Edge* e) {
             if (type == PDGType::Const || label == "") {
                 return e->type() == EdgeType::PDG && e->pdgType() == type;
@@ -710,6 +741,11 @@ public:
         return Query::map<T>(edges, func);
     }
 
+    EdgeStream& insert(EdgeSet set) {
+        edges.insert(set.begin(), set.end());
+        return *this;
+    }
+
     Optional<Edge*> findFirst() {
         if (edges.size() > 0) {
             return Optional<Edge*>(*edges.begin());
@@ -755,6 +791,16 @@ public:
         return *this;
     }
 
+    NodeStream& filterOut(const NodeCondition& nodeCondition) {
+        nodes = Query::filterOut(nodes, nodeCondition);
+        return *this;
+    }
+
+    NodeStream& filterOut(const Predicate& predicate) {
+        nodes = Query::filterOut(nodes, predicate);
+        return *this;
+    }
+
     bool contains(const NodeCondition& nodeCondition) {
         return Query::contains(nodes, nodeCondition);
     }
@@ -766,6 +812,14 @@ public:
     Optional<Node*> findFirst() {
         if (nodes.size() > 0) {
             return Optional<Node*>(*nodes.begin());
+        } else {
+            return Optional<Node*>();
+        }
+    }
+
+    Optional<Node*> findLast() {
+        if (nodes.size() > 0) {
+            return Optional<Node*>(*nodes.rbegin());
         } else {
             return Optional<Node*>();
         }
@@ -866,10 +920,11 @@ public:
 
     NodeSet toNodeSet() { return nodes; }
 
-    void forEach(std::function<void(Node*)> func) {
+    NodeStream& forEach(std::function<void(Node*)> func) {
         for (auto node : nodes) {
             func(node);
         }
+        return *this;
     }
 };
 }  // namespace wasmati

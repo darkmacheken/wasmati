@@ -23,6 +23,7 @@
 #define BUFFER "buffer"
 #define SIZE "size"
 #define FORMAT_STRING "formatString"
+#define MALLOC "malloc"
 #define CONTROL_FLOW "controlFlow"
 #define SOURCE "source"
 #define DEST "dest"
@@ -86,6 +87,7 @@ static const json defaultConfig = R"(
 		"$syslog": 1,
 		"$vsyslog": 1
 	},
+    "malloc": ["$malloc", "$dlmalloc"],
 	"controlFlow": [
 		{
 			"source": "$malloc",
@@ -97,6 +99,7 @@ static const json defaultConfig = R"(
 
 enum class VulnType {
     Unreachable,
+    DangFunc,
     FormatStrings,
     BufferOverflow,
     Tainted,
@@ -108,6 +111,7 @@ enum class VulnType {
 NLOHMANN_JSON_SERIALIZE_ENUM(VulnType,
                              {
                                  {VulnType::Unreachable, "Unreachable"},
+                                 {VulnType::DangFunc, "Dangerous Function"},
                                  {VulnType::FormatStrings, "Format Strings"},
                                  {VulnType::BufferOverflow, "Buffer Overflow"},
                                  {VulnType::Tainted, "Tainted Variable"},
@@ -260,6 +264,14 @@ struct VulnerabilityChecker {
             assert(item.value().is_number_integer());
             assert(item.value() >= 0);
         }
+
+        // malloc
+        assert(config.contains(MALLOC));
+        assert(config.at(MALLOC).is_array());
+        for (auto const& item : config.at(MALLOC).items()) {
+            assert(item.value().is_string());
+        }
+
         // constrolFlow
         assert(config.contains(CONTROL_FLOW));
         assert(config.at(CONTROL_FLOW).is_array());

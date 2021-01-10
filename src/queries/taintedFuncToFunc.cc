@@ -3,6 +3,7 @@
 using namespace wasmati;
 
 void VulnerabilityChecker::TaintedFuncToFunc() {
+    auto start = std::chrono::high_resolution_clock::now();
     std::set<std::string> sources = config.at(SOURCES);
     std::set<std::string> sinks = config.at(SINKS);
 
@@ -30,7 +31,7 @@ void VulnerabilityChecker::TaintedFuncToFunc() {
     Index counter = 0;
     for (auto func : Query::functions()) {
         debug("[DEBUG][Query::TaintedFuncToFunc][%u/%u] Function %s\n",
-            counter++, numFuncs, func->name().c_str());
+              counter++, numFuncs, func->name().c_str());
         if (ignore.count(func->name())) {
             continue;
         }
@@ -38,7 +39,7 @@ void VulnerabilityChecker::TaintedFuncToFunc() {
             // if it is already a sink, no use check
             continue;
         }
-        auto query = Query::instructions({ func }, [&](Node* node) {
+        auto query = Query::instructions({func}, [&](Node* node) {
             if (node->instType() == ExprType::Call &&
                 sinks.count(node->label()) == 1) {
                 auto pdgEdges = node->inEdges(EdgeType::PDG);
@@ -47,15 +48,20 @@ void VulnerabilityChecker::TaintedFuncToFunc() {
                         sources.count(e->label()) == 1) {
                         std::stringstream desc;
                         desc << "Source " << e->label() << " reaches sink "
-                            << node->label();
+                             << node->label();
                         vulns.emplace_back(VulnType::Tainted, func->name(),
-                            node->label(), desc.str());
+                                           node->label(), desc.str());
                         return true;
                     }
                     return false;
-                    });
+                });
             }
             return false;
-            });
+        });
     }
+    auto end = std::chrono::high_resolution_clock::now();
+    auto time =
+        std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
+            .count();
+    info["taintedFuncToFunc"] = time;
 }
