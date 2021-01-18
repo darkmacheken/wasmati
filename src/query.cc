@@ -87,15 +87,15 @@ EdgeSet Query::filterEdges(const EdgeSet& edges,
 #include "src/config/predicates.def"
 #undef WASMATI_EVALUATION
 
-#define WASMATI_EVALUATION(type, var, eval, rALL)                  \
+#define WASMATI_EVALUATION(type, var, eval, rALL)                     \
     NodeSet Query::filterOut(const NodeSet& nodes, const type& var) { \
-        NodeSet result;                                            \
-        for (Node * node : nodes) {                                \
-            if (!eval(node)) {                                     \
-                result.insert(node);                               \
-            }                                                      \
-        }                                                          \
-        return result;                                             \
+        NodeSet result;                                               \
+        for (Node * node : nodes) {                                   \
+            if (!eval(node)) {                                        \
+                result.insert(node);                                  \
+            }                                                         \
+        }                                                             \
+        return result;                                                \
     }
 #include "src/config/predicates.def"
 #undef WASMATI_EVALUATION
@@ -223,17 +223,8 @@ Node* Query::function(Node* node) {
 
 #define WASMATI_EVALUATION(TYPE, var, eval, rALL)                           \
     NodeSet Query::instructions(const NodeSet& nodes, const TYPE& var) {    \
-        NodeSet funcInstsNode;                                              \
-        for (Node * node : nodes) {                                         \
-            assert(node->type() == NodeType::Function);                     \
-            if (node->isImport()) {                                         \
-                continue;                                                   \
-            }                                                               \
-            funcInstsNode.insert(node->getChild(1, EdgeType::AST));         \
-        }                                                                   \
-                                                                            \
         return BFS(                                                         \
-            funcInstsNode,                                                  \
+            nodes,                                                          \
             [&](Node* node) {                                               \
                 return node->type() == NodeType::Instruction && eval(node); \
             },                                                              \

@@ -205,24 +205,18 @@ FetchContent_Declare(json
   GIT_TAG v3.9.1
 )
 
-FetchContent_Declare(csv
-  GIT_REPOSITORY https://github.com/p-ranav/csv2
-  GIT_TAG "a20992f7a1b75215609037c4cc66f690e8691aab"
-)
-
 include(ExternalProject)
 externalproject_add(libzip
     PREFIX ${CMAKE_CURRENT_BINARY_DIR}/libzip
   GIT_REPOSITORY https://github.com/nih-at/libzip/
   GIT_TAG "66e496489bdae81bfda8b0088172871d8fda0032"
   CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_BINARY_DIR}/libzip
-  #INSTALL_COMMAND "cmake --build . --target install --config"
 )
 
 ExternalProject_Get_Property(libzip install_dir)
 
-FetchContent_MakeAvailable(wabt json csv)
-include_directories(${wabt_SOURCE_DIR} ${json_SOURCE_DIR} ${csv_SOURCE_DIR} ${install_dir}/include)
+FetchContent_MakeAvailable(wabt json)
+include_directories(${wabt_SOURCE_DIR} ${json_SOURCE_DIR} ${install_dir}/include)
 link_directories(${CMAKE_CURRENT_BINARY_DIR}/libzip/lib)
 
 #FetchContent_GetProperties(json)
@@ -248,11 +242,13 @@ add_library(wasmatilib STATIC
   src/query.cc
   src/utils.h
   src/vulns.h
-  #writters
+  # writters
   src/writers/csv-writer.h
   src/writers/datalog-writer.h
   src/writers/dot-writer.h
   src/writers/json-writer.h
+  # readers
+  src/readers/csv-reader.h
   # Queries
   src/queries/boBuffsStatic.cc
   src/queries/boBuffsStaticMalloc.cc
@@ -295,7 +291,7 @@ if (NOT EMSCRIPTEN)
 
     add_executable(${EXE_NAME} ${EXE_SOURCES} )
     add_dependencies(everything_wasm ${EXE_NAME} libzip)
-    target_link_libraries(${EXE_NAME} PRIVATE ${EXE_LIBS} wabt nlohmann_json::nlohmann_json csv2::csv2 zip)
+    target_link_libraries(${EXE_NAME} PRIVATE ${EXE_LIBS} wabt nlohmann_json::nlohmann_json zip)
     set_property(TARGET ${EXE_NAME} PROPERTY CXX_STANDARD 11)
     set_property(TARGET ${EXE_NAME} PROPERTY CXX_STANDARD_REQUIRED ON)
 
@@ -316,6 +312,13 @@ if (NOT EMSCRIPTEN)
     wasmati_executable(
       NAME wasmati
       SOURCES src/tools/wasmati.cc
+      INSTALL
+    )
+
+    # wasmati-query
+    wasmati_executable(
+      NAME wasmati-query
+      SOURCES src/tools/wasmati-query.cc
       INSTALL
     )
   endif ()

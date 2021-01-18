@@ -7,29 +7,6 @@
 #include "src/query.h"
 #include "zip.h"
 
-#define ID "id"
-#define NODE_TYPE "nodeType"
-#define NAME "name"
-#define INDEX "index"
-#define NARGS "nargs"
-#define NLOCALS "nlocals"
-#define NRESULTS "nresults"
-#define IS_IMPORT "isImport"
-#define IS_EXPORT "isImport"
-#define VAR_TYPE "varType"
-#define INST_TYPE "instType"
-#define OPCODE "opcode"
-#define CONST_TYPE "constType"
-#define CONST_VALUE_I "constValueI"
-#define CONST_VALUE_F "constValueF"
-#define LABEL "label"
-#define OFFSET "offset"
-#define HAS_ELSE "hasElse"
-#define SRC "src"
-#define DEST "dest"
-#define EDGE_TYPE "edgeType"
-#define PDG_TYPE "pdgType"
-
 namespace wasmati {
 
 class CSVWriter : public GraphWriter {

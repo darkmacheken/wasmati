@@ -9,6 +9,29 @@
 #include "src/cast.h"
 #include "src/ir-util.h"
 
+#define ID "id"
+#define NODE_TYPE "nodeType"
+#define NAME "name"
+#define INDEX "index"
+#define NARGS "nargs"
+#define NLOCALS "nlocals"
+#define NRESULTS "nresults"
+#define IS_IMPORT "isImport"
+#define IS_EXPORT "isImport"
+#define VAR_TYPE "varType"
+#define INST_TYPE "instType"
+#define OPCODE "opcode"
+#define CONST_TYPE "constType"
+#define CONST_VALUE_I "constValueI"
+#define CONST_VALUE_F "constValueF"
+#define LABEL "label"
+#define OFFSET "offset"
+#define HAS_ELSE "hasElse"
+#define SRC "src"
+#define DEST "dest"
+#define EDGE_TYPE "edgeType"
+#define PDG_TYPE "pdgType"
+
 using namespace wabt;
 using nlohmann::json;
 namespace wasmati {
@@ -146,6 +169,22 @@ struct Utils {
         std::stringstream ss;
         ss << std::put_time(&now_tm, "%d-%m-%Y %H:%M:%S");
         return ss.str();
+    }
+
+    static std::vector<std::string> split(std::string& str, char delim) {
+        std::vector<std::string> result;
+        std::size_t current, previous = 0;
+        if (str.empty()) {
+            return std::vector<std::string>();
+        }
+        current = str.find(delim);
+        while (current != std::string::npos) {
+            result.push_back(str.substr(previous, current - previous));
+            previous = current + 1;
+            current = str.find(delim, previous);
+        }
+        result.push_back(str.substr(previous, current - previous));
+        return result;
     }
 };
 

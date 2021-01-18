@@ -12,6 +12,7 @@
 #include "src/option-parser.h"
 #include "src/options.h"
 #include "src/pdg-builder.h"
+#include "src/readers/csv-reader.h"
 #include "src/resolve-names.h"
 #include "src/stream.h"
 #include "src/validator.h"
@@ -42,10 +43,10 @@ static bool generate_csv = false;
 static bool generate_dot = false;
 static bool generate_datalog_dir = false;
 static bool generate_json = false;
-static bool is_csv = false;
+static bool is_zip = false;
 static bool is_wat = false;
 static bool is_wasm = false;
-static bool skip_queries = false;
+static bool native = false;
 static Features s_features;
 static bool s_read_debug_names = true;
 static bool s_fail_on_custom_section_error = true;
@@ -57,12 +58,6 @@ static const char s_description[] =
     R"(  Read a file in the WebAssembly binary format or text format, and produces its
   Code Property Graph to perform queries and find vulnerabilities in the code.
 
-examples:
-  # parse binary file test.wasm and write text file test.wast
-  $ wasm2cpg test.wasm -o test.wat
-
-  # parse test.wasm, write test.wat, but ignore the debug names, if any
-  $ wasm2cpg test.wasm --no-debug-names -o test.wat
 )";
 
 static void ParseOptions(int argc, char** argv) {
@@ -112,8 +107,8 @@ static void ParseOptions(int argc, char** argv) {
                          s_configfile = argument;
                          ConvertBackslashToSlash(&s_configfile);
                      });
-    parser.AddOption("csv", "Treat input file as a csv file.",
-                     []() { is_csv = true; });
+    parser.AddOption("graph", "Treat input file as a serialised graph.",
+                     []() { is_zip = true; });
     parser.AddOption("wat", "Treat input file as a wat file.",
                      []() { is_wat = true; });
     parser.AddOption("wasm", "Treat input file as a wasm file.",
@@ -144,8 +139,8 @@ static void ParseOptions(int argc, char** argv) {
                            s_infile = argument;
                            ConvertBackslashToSlash(&s_infile);
                        });
-    parser.AddOption("skip-queries", "Do not execute queries.",
-                     []() { skip_queries = true; });
+    parser.AddOption("native", "Execute native queries.",
+                     []() { native = true; });
     parser.AddOption("ast", "Output the Abstract Syntax Tree", []() {
         cpgOptions.printAST = true;
         cpgOptions.printAll = false;
@@ -189,11 +184,12 @@ int ProgramMain(int argc, char** argv) {
         result = watFile(&module);
     } else if (is_wasm || hasEnding(s_infile, ".wasm")) {
         result = wasmFile(&module);
-    } else if (is_csv || hasEnding(s_infile, ".csv")) {
-        is_csv = true;
+    } else if (is_zip || hasEnding(s_infile, ".zip")) {
+        is_zip = true;
         result = Result::Ok;
         graph = new Graph();
-        graph->populate(s_infile);
+        CSVReader reader(s_infile, graph);
+        reader.readGraph();
         Query::setGraph(graph);
     } else {
         WABT_FATAL("Unable to verify file type: %s\n", s_infile.c_str());
@@ -213,14 +209,14 @@ int ProgramMain(int argc, char** argv) {
     }
 
     // Generate graph
-    if (!is_csv) {
+    if (!is_zip) {
         graph = new Graph(*module.get());
         Query::setGraph(graph);
         generateCPG(*graph);
     }
 
-    // Check vulnerabilities
-    if (!skip_queries) {
+    // Execute native queries
+    if (native) {
         auto startVulns = std::chrono::high_resolution_clock::now();
         std::list<Vulnerability> vulns;
         VulnerabilityChecker(config, vulns).checkVulnerabilities();

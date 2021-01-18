@@ -3,7 +3,6 @@
 #define NOMINMAX 1
 #include <map>
 #include <set>
-#include "single_include/csv2/csv2.hpp"
 #include "src/cast.h"
 #include "src/ir-util.h"
 #include "src/options.h"
@@ -366,7 +365,9 @@ public:
         : Instruction(exprType, _loc) {}
 
     BaseInstruction(Index id, const Location _loc = Location())
-        : Instruction(exprType, _loc) {}
+        : Instruction(exprType, _loc) {
+        assert(id == getId());
+    }
 
     static bool classof(const Node* node) {
         return Instruction::classof(node) && (node->instType() == exprType);
@@ -391,7 +392,9 @@ public:
     ConstInst(const ConstExpr* expr)
         : BaseInstruction(expr->loc), _value(expr->const_) {}
 
-    ConstInst(Index id, Const& value) : _value(value) {}
+    ConstInst(Index id, Const& value) : _value(value) {
+        assert(id == getId());
+    }
 
     const Const& value() const override { return _value; }
 
@@ -406,7 +409,8 @@ public:
     OpcodeInst(Opcode opcode, const Location loc)
         : BaseInstruction<T>(loc), _opcode(opcode) {}
 
-    OpcodeInst(Index id, std::string opcode, Location loc = Location()) {
+    OpcodeInst(Index id, std::string opcode, Location loc = Location())
+        : BaseInstruction<T>(id, loc) {
         bool assigned = false;
         {
 #define WABT_OPCODE(rtype, type1, type2, type3, mem_size, prefix, code, Name, \
@@ -421,7 +425,6 @@ public:
         }
     end:
         assert(assigned);
-        BaseInstruction<T>(id, loc);
     }
 
     Opcode opcode() const override { return _opcode; }
@@ -705,9 +708,6 @@ class Graph {
     Start* _start;
     Module* _module;
 
-    inline void setTrap(Trap* trap) { _trap = trap; }
-    inline void setStart(Start* start) { _start = start; }
-
 public:
     Graph() : _mc(ModuleContext({})), _trap(nullptr), _start(nullptr) {}
     Graph(wabt::Module& mc)
@@ -718,8 +718,8 @@ public:
         }
     }
 
-    void populate(std::string filePath);
-
+    inline void setTrap(Trap* trap) { _trap = trap; }
+    inline void setStart(Start* start) { _start = start; }
     inline void setModule(Module* module) {
         assert(module != nullptr);
         _module = module;
@@ -1052,48 +1052,6 @@ template <InstType T>
 inline void BlockBase<T>::accept(GraphVisitor* visitor) {
     assert(false);
 }
-
-struct NodeCol {
-    enum {
-        ID = 0,
-        NodeType,
-        Name,
-        Index,
-        Nargs,
-        Nlocals,
-        Nresults,
-        IsImport,
-        IsExport,
-        VarType,
-        InstType,
-        Opcode,
-        ConstType,
-        ConstValue,
-        Label,
-        Offset,
-        HasElse
-    };
-};
-
-struct EdgeCol {
-    enum { Src = 0, Dest, Type, Label, PdgType, ConstType, ConstValue };
-};
-
-struct Factory {
-    // To delete in the end
-    static std::vector<Const*> consts;
-
-    static Node* createNode(std::vector<std::string>& row);
-    static Edge* createEdge(std::vector<std::string>& row,
-                            std::vector<Node*>& nodes);
-    static Const* createConst(std::string type, std::string value);
-    static void insertConst(Const* expr) { consts.push_back(expr); }
-    static void deleteConsts() {
-        for (auto expr : consts) {
-            delete expr;
-        }
-    }
-};
 
 }  // namespace wasmati
 
