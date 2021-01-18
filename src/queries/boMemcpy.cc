@@ -19,7 +19,7 @@ void VulnerabilityChecker::BOMemcpy() {
 
         NodeStream(func)
             .instructions(Predicate()
-                              .instType(ExprType::Call)
+                              .instType(InstType::Call)
                               .TEST(memcpyFuncs.count(node->label()) == 1))
             .forEach([&](Node* call) {
                 auto dest = call->getChild(0);
@@ -31,7 +31,7 @@ void VulnerabilityChecker::BOMemcpy() {
                                     .outPDGEdge(PDGType::Const))
                         .findFirst()
                         .isPresent() ||
-                    (dest->instType() == ExprType::Load &&
+                    (dest->instType() == InstType::Load &&
                      dest->outEdges(EdgeType::AST).size() == 1 &&
                      Query::containsEdge(dest->inEdges(EdgeType::PDG),
                                          [](Edge* e) {

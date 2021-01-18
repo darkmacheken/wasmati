@@ -18,7 +18,7 @@ void VulnerabilityChecker::FormatStrings() {
         Node* child = nullptr;
         auto callPredicate =
             Predicate()
-                .instType(ExprType::Call)
+                .instType(InstType::Call)
                 .TEST(fsConfig.contains(node->label()))
                 .EXEC(child = node->getChild(fsConfig.at(node->label())))
                 .PDG_EDGE(child, node, PDGType::Const, false);

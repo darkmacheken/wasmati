@@ -24,7 +24,7 @@ void VulnerabilityChecker::TaintedCallIndirect() {
 
         auto callIndirects =
             NodeStream(func)
-                .instructions(Predicate().instType(ExprType::CallIndirect))
+                .instructions(Predicate().instType(InstType::CallIndirect))
                 .toNodeSet();
 
         for (Node* callIndirect : callIndirects) {

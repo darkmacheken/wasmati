@@ -19,7 +19,7 @@ void VulnerabilityChecker::DoubleFree() {
             std::string dest = item[DEST];
 
             auto sourcePredicate =
-                Predicate().instType(ExprType::Call).label(source);
+                Predicate().instType(InstType::Call).label(source);
 
             auto callSourceInsts = Query::instructions({func}, sourcePredicate);
 
@@ -31,7 +31,7 @@ void VulnerabilityChecker::DoubleFree() {
                 auto destPredicate =
                     Predicate()
                         .type(NodeType::Instruction)
-                        .instType(ExprType::Call)
+                        .instType(InstType::Call)
                         .label(dest)
                         .EXEC(destNode = node)
                         .reaches(callSource, destNode, pdgEdgeCond);
@@ -43,7 +43,7 @@ void VulnerabilityChecker::DoubleFree() {
                     auto dfPredicate =
                         Predicate()
                             .type(NodeType::Instruction)
-                            .instType(ExprType::Call)
+                            .instType(InstType::Call)
                             .label(dest)
                             .inPDGEdge(callSource->label(), PDGType::Function)
                             .EXEC(inst = node)

@@ -14,7 +14,7 @@ void VulnerabilityChecker::BoLoops() {
         }
         // find all loops
         auto loops =
-            Query::instructions({func}, Predicate().instType(ExprType::Loop));
+            Query::instructions({func}, Predicate().instType(InstType::Loop));
 
         for (Node* loop : loops) {
             auto insts = Query::BFS({loop}, Query::ALL_INSTS, Query::AST_EDGES);
@@ -22,34 +22,34 @@ void VulnerabilityChecker::BoLoops() {
             std::set<std::string> vars;
             auto stores =
                 NodeStream(insts)
-                    .filter(Predicate().instType(ExprType::Store))
+                    .filter(Predicate().instType(InstType::Store))
                     .child(0)
                     .filter(Predicate()
-                                .instType(ExprType::Binary)
+                                .instType(InstType::Binary)
                                 .opcode(Opcode::I32Add))
                     .children(Query::AST_EDGES)
                     .filter(Predicate()
-                                .instType(ExprType::LocalGet)
+                                .instType(InstType::LocalGet)
                                 .Or()
-                                .instType(ExprType::LocalTee))
+                                .instType(InstType::LocalTee))
                     .forEach([&](Node* node) { vars.insert(node->label()); })
                     .toNodeSet();
 
             for (auto var : vars) {
                 auto addChildren = NodeStream(insts)
                                        .filter(Predicate()
-                                                   .instType(ExprType::Binary)
+                                                   .instType(InstType::Binary)
                                                    .opcode(Opcode::I32Add))
                                        .children();
                 bool containsGet =
                     addChildren.contains(Predicate()
-                                             .instType(ExprType::LocalGet)
+                                             .instType(InstType::LocalGet)
                                              .label(var)
                                              .Or()
-                                             .instType(ExprType::LocalTee)
+                                             .instType(InstType::LocalTee)
                                              .label(var));
                 bool containsConst =
-                    addChildren.contains(Predicate().instType(ExprType::Const));
+                    addChildren.contains(Predicate().instType(InstType::Const));
 
                 if (!(containsGet && containsConst)) {
                     continue;
@@ -57,15 +57,15 @@ void VulnerabilityChecker::BoLoops() {
 
                 auto brIfsNotEq =
                     NodeStream(insts)
-                        .filter(Predicate().instType(ExprType::BrIf))
+                        .filter(Predicate().instType(InstType::BrIf))
                         .child(0)
-                        .filter(Predicate().instType(ExprType::Compare))
+                        .filter(Predicate().instType(InstType::Compare))
                         .children()
                         .filter(Predicate()
-                                    .instType(ExprType::LocalGet)
+                                    .instType(InstType::LocalGet)
                                     .label(var)
                                     .Or()
-                                    .instType(ExprType::LocalTee)
+                                    .instType(InstType::LocalTee)
                                     .label(var))
                         .toNodeSet();
 

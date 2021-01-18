@@ -4,7 +4,7 @@ using namespace wasmati;
 
 std::pair<bool, Index> VulnerabilityChecker::verifyMallocConst(Node* node) {
     std::set<std::string> mallocs = config.at(MALLOC);
-    if (node->instType() == ExprType::Call && mallocs.count(node->label())) {
+    if (node->instType() == InstType::Call && mallocs.count(node->label())) {
         auto constEdge =
             EdgeStream(node->inEdges()).filterPDG(PDGType::Const).findFirst();
         if (constEdge.isPresent()) {
@@ -23,7 +23,7 @@ std::pair<bool, Index> VulnerabilityChecker::verifyMallocConst(Node* node) {
     }
     auto mallocCall =
         NodeStream(node)
-            .BFS(Predicate().instType(ExprType::Call).label(e.get()->label()),
+            .BFS(Predicate().instType(InstType::Call).label(e.get()->label()),
                  Query::pdgEdge(e.get()->label(), PDGType::Function), 1, true)
             .findFirst();
     if (!mallocCall.isPresent()) {

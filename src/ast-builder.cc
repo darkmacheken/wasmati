@@ -141,56 +141,82 @@ void AST::construct(const Expr& e,
     case ExprType::MemoryGrow:
         node = new MemoryGrowInst(e.loc);
         break;
-        // Const
+    // Const
     case ExprType::Const:
         node = new ConstInst(cast<ConstExpr>(&e));
         break;
-        // Opcode
-    case ExprType::Binary:
-        node = new BinaryInst(cast<BinaryExpr>(&e));
+    // Opcode
+    case ExprType::Binary: {
+        auto expr = cast<BinaryExpr>(&e);
+        node = new BinaryInst(expr->opcode, expr->loc);
         break;
-    case ExprType::Compare:
-        node = new CompareInst(cast<CompareExpr>(&e));
+    }
+    case ExprType::Compare: {
+        auto expr = cast<CompareExpr>(&e);
+        node = new CompareInst(expr->opcode, expr->loc);
         break;
-    case ExprType::Convert:
-        node = new ConvertInst(cast<ConvertExpr>(&e));
+    }
+    case ExprType::Convert: {
+        auto expr = cast<ConvertExpr>(&e);
+        node = new ConvertInst(expr->opcode, expr->loc);
         break;
-    case ExprType::Unary:
-        node = new UnaryInst(cast<UnaryExpr>(&e));
+    }
+    case ExprType::Unary: {
+        auto expr = cast<UnaryExpr>(&e);
+        node = new UnaryInst(expr->opcode, expr->loc);
         break;
-        // LoadStore
-    case ExprType::Load:
-        node = new LoadInst(cast<LoadExpr>(&e));
+    }
+    // LoadStore
+    case ExprType::Load: {
+        auto expr = cast<LoadExpr>(&e);
+        node = new LoadInst(expr->opcode, expr->offset, expr->loc);
         break;
-    case ExprType::Store:
-        node = new StoreInst(cast<StoreExpr>(&e));
+    }
+    case ExprType::Store: {
+        auto expr = cast<StoreExpr>(&e);
+        node = new StoreInst(expr->opcode, expr->offset, expr->loc);
         break;
-        // LabeledInst
-    case ExprType::Br:
+    }
+    // LabeledInst
+    case ExprType::Br: {
         arity.nargs = 0;
         arity.nreturns = 0;
-        node = new BrInst(cast<BrExpr>(&e));
+        auto expr = cast<BrExpr>(&e);
+        node = new BrInst(expr->var.name(), expr->loc);
         break;
-    case ExprType::BrIf:
+    }
+    case ExprType::BrIf: {
         arity.nargs = 1;
         arity.nreturns = 0;
-        node = new BrIfInst(cast<BrIfExpr>(&e));
+        auto expr = cast<BrIfExpr>(&e);
+        node = new BrIfInst(expr->var.name(), expr->loc);
         break;
-    case ExprType::LocalGet:
-        node = new LocalGetInst(cast<LocalGetExpr>(&e));
+    }
+    case ExprType::LocalGet: {
+        auto expr = cast<LocalGetExpr>(&e);
+        node = new LocalGetInst(expr->var.name(), expr->loc);
         break;
-    case ExprType::LocalSet:
-        node = new LocalSetInst(cast<LocalSetExpr>(&e));
+    }
+    case ExprType::LocalSet: {
+        auto expr = cast<LocalSetExpr>(&e);
+        node = new LocalSetInst(expr->var.name(), expr->loc);
         break;
-    case ExprType::GlobalGet:
-        node = new GlobalGetInst(cast<GlobalGetExpr>(&e));
+    }
+    case ExprType::GlobalGet: {
+        auto expr = cast<GlobalGetExpr>(&e);
+        node = new GlobalGetInst(expr->var.name(), expr->loc);
         break;
-    case ExprType::GlobalSet:
-        node = new GlobalSetInst(cast<GlobalSetExpr>(&e));
+    }
+    case ExprType::GlobalSet: {
+        auto expr = cast<GlobalSetExpr>(&e);
+        node = new GlobalSetInst(expr->var.name(), expr->loc);
         break;
-    case ExprType::LocalTee:
-        node = new LocalTeeInst(cast<LocalTeeExpr>(&e));
+    }
+    case ExprType::LocalTee: {
+        auto expr = cast<LocalTeeExpr>(&e);
+        node = new LocalTeeInst(expr->var.name(), expr->loc);
         break;
+    }
         // Call Base
     case ExprType::Call:
         node = new CallInst(cast<CallExpr>(&e), e.loc, arity.nargs,
@@ -203,7 +229,8 @@ void AST::construct(const Expr& e,
         // Block Base
     case ExprType::Block: {
         auto block = cast<BlockExpr>(&e);
-        node = new BlockInst(block);
+        node = new BlockInst(block->block.label,
+                             block->block.decl.GetNumResults(), block->loc);
         mc.BeginBlock(LabelType::Block, block->block);
         construct(block->block.exprs, block->block.decl.GetNumResults(), node);
         mc.EndBlock();
@@ -215,7 +242,8 @@ void AST::construct(const Expr& e,
     }
     case ExprType::Loop: {
         auto loop = cast<LoopExpr>(&e);
-        node = new LoopInst(loop);
+        node = new LoopInst(loop->block.label, loop->block.decl.GetNumResults(),
+                            loop->loc);
         mc.BeginBlock(LabelType::Loop, loop->block);
         construct(loop->block.exprs, loop->block.decl.GetNumResults(), node);
         mc.EndBlock();

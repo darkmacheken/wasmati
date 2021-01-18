@@ -61,7 +61,7 @@ void CFG::generateCFG() {
                     return node->outEdges(EdgeType::CFG).size() == 0 &&
                            node->inEdges(EdgeType::CFG).size() > 0 &&
                            node->type() == NodeType::Instruction &&
-                           node->instType() != ExprType::Return;
+                           node->instType() != InstType::Return;
                 },
                 Query::AST_EDGES);
             for (Node* node : childlessReturn) {

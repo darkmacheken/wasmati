@@ -272,7 +272,7 @@ NodeSet Queries::loopsInsts(std::string& loopName) {
     NodeSet results;
     auto loops = NodeStream(Query::functions())
                      .instructions([&](Node* node) {
-                         return node->instType() == ExprType::Loop &&
+                         return node->instType() == InstType::Loop &&
                                 node->label() == loopName;
                      })
                      .toNodeSet();
@@ -280,7 +280,7 @@ NodeSet Queries::loopsInsts(std::string& loopName) {
     auto beginBlocks = Query::BFS(
         loops,
         [&](Node* node) {
-            return node->instType() == ExprType::Block &&
+            return node->instType() == InstType::Block &&
                    Query::contains(
                        Query::parents({node}, Query::CFG_EDGES),
                        [&](Node* n) { return results.count(n) == 1; });

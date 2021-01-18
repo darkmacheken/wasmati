@@ -28,7 +28,7 @@ void VulnerabilityChecker::BOBuffsStatic() {
         Node* children = nullptr;
         auto callsPredicate =
             Predicate()
-                .instType(ExprType::Call)
+                .instType(InstType::Call)
                 .TEST(funcSink.count(node->label()) == 1)
                 .EXEC(children =
                           node->getChild(boConfig.at(node->label()).at(BUFFER)))
@@ -41,7 +41,7 @@ void VulnerabilityChecker::BOBuffsStatic() {
 
             Index val = 0;
             auto addOrSubPredicate = Predicate()
-                                         .instType(ExprType::Binary)
+                                         .instType(InstType::Binary)
                                          .insert(Predicate()
                                                      .opcode(Opcode::I32Add)
                                                      .Or()

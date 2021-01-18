@@ -245,9 +245,7 @@ int ProgramMain(int argc, char** argv) {
 
     // generate csv
     if (Succeeded(result) && generate_csv) {
-        FileStream stream(!s_csv_outfile.empty() ? FileStream(s_csv_outfile)
-                                                 : FileStream(stdout));
-        CSVWriter writer(&stream, graph);
+        CSVWriter writer(s_csv_outfile, graph);
         writer.writeGraph();
     }
     // generate dot

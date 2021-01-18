@@ -19,7 +19,7 @@ void VulnerabilityChecker::UseAfterFree() {
             std::string dest = item[DEST];
 
             auto sourcePredicate =
-                Predicate().instType(ExprType::Call).label(source);
+                Predicate().instType(InstType::Call).label(source);
 
             auto callSourceInsts = Query::instructions({func}, sourcePredicate);
 
@@ -31,7 +31,7 @@ void VulnerabilityChecker::UseAfterFree() {
                 auto destPredicate =
                     Predicate()
                         .type(NodeType::Instruction)
-                        .instType(ExprType::Call)
+                        .instType(InstType::Call)
                         .label(dest)
                         .EXEC(destNode = node)
                         .reaches(callSource, destNode, pdgEdgeCond);
@@ -50,12 +50,12 @@ void VulnerabilityChecker::UseAfterFree() {
                         NodeStream(callDest)
                             .BFS(uafPredicate, Query::CFG_EDGES, 1)
                             .filterOut(Predicate()
-                                           .instType(ExprType::Call)
+                                           .instType(InstType::Call)
                                            .label(dest)
                                            .Or()
                                            .EXEC(parent = node->getParent(0))
                                            .TEST(parent->instType() ==
-                                                     ExprType::Call &&
+                                                     InstType::Call &&
                                                  parent->label() == dest))
                             .findFirst();
 

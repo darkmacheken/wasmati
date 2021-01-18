@@ -9,10 +9,10 @@ void VulnerabilityChecker::UnreachableCode() {
               numFuncs, func->name().c_str());
 
         auto pred = Predicate()
-                        .instType(ExprType::Return, false)
-                        .instType(ExprType::Block, false)
-                        .instType(ExprType::Loop, false)
-                        .instType(ExprType::Unreachable, false)
+                        .instType(InstType::Return, false)
+                        .instType(InstType::Block, false)
+                        .instType(InstType::Loop, false)
+                        .instType(InstType::Unreachable, false)
                         .inEdge(EdgeType::CFG, false);
         auto queryInsts = Query::instructions({func}, pred);
         if (!queryInsts.empty()) {

@@ -8,7 +8,7 @@ void wasmati::VulnerabilityChecker::DangerousFunctions() {
                                     config.at(DANGEROUS_FUNCTIONS).end());
     for (auto func : Query::functions()) {
         auto dangFunc = Predicate()
-                            .instType(ExprType::Call)
+                            .instType(InstType::Call)
                             .TEST(dangFuncs.count(node->label()) == 1);
 
         NodeStream(func).instructions(dangFunc).forEach([&](Node* node) {

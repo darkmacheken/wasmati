@@ -22,7 +22,7 @@ void VulnerabilityChecker::BOBuffsStaticMalloc() {
         }
 
         auto callsPredicate = Predicate()
-                                  .instType(ExprType::Call)
+                                  .instType(InstType::Call)
                                   .TEST(funcSink.count(node->label()) == 1);
         NodeStream(func).instructions(callsPredicate).forEach([&](Node* call) {
             auto buffer = call->getChild(boConfig.at(call->label()).at(BUFFER));

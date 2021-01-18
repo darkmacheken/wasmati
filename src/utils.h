@@ -1,6 +1,10 @@
 #ifndef WASMATI_UTILS_H_
 #define WASMATI_UTILS_H_
 
+#include <chrono>
+#include <ctime>
+#include <iomanip>
+#include <sstream>
 #include "include/nlohmann/json.hpp"
 #include "src/cast.h"
 #include "src/ir-util.h"
@@ -129,6 +133,67 @@ struct Utils {
             break;
         }
         return res;
+    }
+
+    static std::string currentDate() {
+        // Get current time
+        std::chrono::time_point<std::chrono::system_clock> time_now =
+            std::chrono::system_clock::now();
+
+        // Format time and print using put_time
+        std::time_t time_now_t = std::chrono::system_clock::to_time_t(time_now);
+        std::tm now_tm = *std::localtime(&time_now_t);
+        std::stringstream ss;
+        ss << std::put_time(&now_tm, "%d-%m-%Y %H:%M:%S");
+        return ss.str();
+    }
+};
+
+class Path {
+    std::vector<std::string> _path;
+
+    std::vector<std::string> parsePath(std::string path) {
+        if (path.size() == 0) {
+            return std::vector<std::string>();
+        }
+        std::vector<std::string> result;
+        std::size_t current, previous = 0;
+        current = path.find('/');
+        if (current == 0) {
+            current = path.find('/', 1);
+            result.push_back(path.substr(0, current));
+            previous = current;
+        }
+        while (current != std::string::npos) {
+            current = path.find('/', previous + 1);
+            result.push_back(path.substr(previous, current - previous));
+            previous = current;
+        }
+
+        return result;
+    }
+
+public:
+    Path(std::string path) { _path = parsePath(path); }
+
+    std::string directory() {
+        if (_path.size() == 0) {
+            return "";
+        } else if (_path.size() == 1) {
+            return _path[0];
+        }
+
+        std::string result = "";
+        if (_path[_path.size() - 1].find('.') != std::string::npos) {
+            for (size_t i = 0; i < _path.size() - 1; i++) {
+                result += _path[i];
+            }
+        } else {
+            for (size_t i = 0; i < _path.size(); i++) {
+                result += _path[i];
+            }
+        }
+        return result;
     }
 };
 

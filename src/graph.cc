@@ -14,82 +14,52 @@ const char startName[] = "Start";
 Index Node::idCount = 0;
 
 const std::map<NodeType, std::string> NODE_TYPE_MAP = {
-    {NodeType::Module, "0"},       {NodeType::Function, "1"},
-    {NodeType::VarNode, "2"},      {NodeType::FunctionSignature, "3"},
-    {NodeType::Instructions, "4"}, {NodeType::Instruction, "5"},
-    {NodeType::Parameters, "6"},   {NodeType::Locals, "7"},
-    {NodeType::Results, "8"},      {NodeType::Return, "9"},
-    {NodeType::Else, "10"},        {NodeType::Trap, "11"},
-    {NodeType::Start, "12"},
+#define WASMATI_ENUMS_NODE_TYPE(type, name) {type, name},
+#include "src/config/enums.def"
+#undef WASMATI_ENUMS_NODE_TYPE
 };
 
 const std::map<std::string, NodeType> NODE_TYPE_MAP_R = {
-    {"0", NodeType::Module},       {"1", NodeType::Function},
-    {"2", NodeType::VarNode},      {"3", NodeType::FunctionSignature},
-    {"4", NodeType::Instructions}, {"5", NodeType::Instruction},
-    {"6", NodeType::Parameters},   {"7", NodeType::Locals},
-    {"8", NodeType::Results},      {"9", NodeType::Return},
-    {"10", NodeType::Else},        {"11", NodeType::Trap},
-    {"12", NodeType::Start},
+#define WASMATI_ENUMS_NODE_TYPE(type, name) {name, type},
+#include "src/config/enums.def"
+#undef WASMATI_ENUMS_NODE_TYPE
 };
 
-const std::map<ExprType, std::string> INST_TYPE_MAP = {
-    {ExprType::Nop, "0"},           {ExprType::Unreachable, "1"},
-    {ExprType::Return, "2"},        {ExprType::BrTable, "3"},
-    {ExprType::Drop, "4"},          {ExprType::Select, "5"},
-    {ExprType::MemorySize, "6"},    {ExprType::MemoryGrow, "7"},
-    {ExprType::Const, "8"},         {ExprType::Binary, "9"},
-    {ExprType::Compare, "10"},      {ExprType::Convert, "11"},
-    {ExprType::Unary, "12"},        {ExprType::Load, "13"},
-    {ExprType::Store, "14"},        {ExprType::Br, "15"},
-    {ExprType::BrIf, "16"},         {ExprType::GlobalGet, "17"},
-    {ExprType::GlobalSet, "18"},    {ExprType::LocalGet, "19"},
-    {ExprType::LocalSet, "20"},     {ExprType::LocalTee, "21"},
-    {ExprType::Call, "22"},         {ExprType::CallIndirect, "23"},
-    {ExprType::First, "24"},        {ExprType::Block, "25"},
-    {ExprType::Loop, "26"},         {ExprType::If, "27"},
-    {ExprType::AtomicNotify, "28"},
+const std::map<InstType, std::string> INST_TYPE_MAP = {
+#define WASMATI_ENUMS_INST_TYPE(type, name) {type, name},
+#include "src/config/enums.def"
+#undef WASMATI_ENUMS_INST_TYPE
 };
 
-const std::map<std::string, ExprType> INST_TYPE_MAP_R = {
-    {"0", ExprType::Nop},           {"1", ExprType::Unreachable},
-    {"2", ExprType::Return},        {"3", ExprType::BrTable},
-    {"4", ExprType::Drop},          {"5", ExprType::Select},
-    {"6", ExprType::MemorySize},    {"7", ExprType::MemoryGrow},
-    {"8", ExprType::Const},         {"9", ExprType::Binary},
-    {"10", ExprType::Compare},      {"11", ExprType::Convert},
-    {"12", ExprType::Unary},        {"13", ExprType::Load},
-    {"14", ExprType::Store},        {"15", ExprType::Br},
-    {"16", ExprType::BrIf},         {"17", ExprType::GlobalGet},
-    {"18", ExprType::GlobalSet},    {"19", ExprType::LocalGet},
-    {"20", ExprType::LocalSet},     {"21", ExprType::LocalTee},
-    {"22", ExprType::Call},         {"23", ExprType::CallIndirect},
-    {"24", ExprType::First},        {"25", ExprType::Block},
-    {"26", ExprType::Loop},         {"27", ExprType::If},
-    {"28", ExprType::AtomicNotify},
+const std::map<std::string, InstType> INST_TYPE_MAP_R = {
+#define WASMATI_ENUMS_INST_TYPE(type, name) {name, type},
+#include "src/config/enums.def"
+#undef WASMATI_ENUMS_INST_TYPE
 };
 
-const std::map<EdgeType, std::string> EDGE_TYPES_MAP = {{EdgeType::AST, "0"},
-                                                        {EdgeType::CFG, "1"},
-                                                        {EdgeType::PDG, "2"},
-                                                        {EdgeType::CG, "3"}};
+const std::map<EdgeType, std::string> EDGE_TYPES_MAP = {
+#define WASMATI_ENUMS_EDGE_TYPE(type, name) {type, name},
+#include "src/config/enums.def"
+#undef WASMATI_ENUMS_EDGE_TYPE
+};
 
-const std::map<std::string, EdgeType> EDGE_TYPES_MAP_R = {{"0", EdgeType::AST},
-                                                          {"1", EdgeType::CFG},
-                                                          {"2", EdgeType::PDG},
-                                                          {"3", EdgeType::CG}};
+const std::map<std::string, EdgeType> EDGE_TYPES_MAP_R = {
+#define WASMATI_ENUMS_EDGE_TYPE(type, name) {name, type},
+#include "src/config/enums.def"
+#undef WASMATI_ENUMS_EDGE_TYPE
+};
 
-const std::map<PDGType, std::string> PDG_TYPE_MAP = {{PDGType::Const, "0"},
-                                                     {PDGType::Control, "1"},
-                                                     {PDGType::Function, "2"},
-                                                     {PDGType::Global, "3"},
-                                                     {PDGType::Local, "4"}};
+const std::map<PDGType, std::string> PDG_TYPE_MAP = {
+#define WASMATI_ENUMS_PDG_EDGE_TYPE(type, name) {type, name},
+#include "src/config/enums.def"
+#undef WASMATI_ENUMS_PDG_EDGE_TYPE
+};
 
-const std::map<std::string, PDGType> PDG_TYPE_MAP_R = {{"0", PDGType::Const},
-                                                       {"1", PDGType::Control},
-                                                       {"2", PDGType::Function},
-                                                       {"3", PDGType::Global},
-                                                       {"4", PDGType::Local}};
+const std::map<std::string, PDGType> PDG_TYPE_MAP_R = {
+#define WASMATI_ENUMS_PDG_EDGE_TYPE(type, name) {name, type},
+#include "src/config/enums.def"
+#undef WASMATI_ENUMS_PDG_EDGE_TYPE
+};
 
 Node::~Node() {
     for (auto e : _outEdges) {
@@ -314,102 +284,103 @@ Node* Factory::createNode(std::vector<std::string>& row) {
         auto instType = INST_TYPE_MAP_R.at(row[NodeCol::InstType]);
         switch (instType) {
         // Nop
-        case ExprType::Nop:
+        case InstType::Nop:
             return new NopInst(id);
         // Unreachable
-        case ExprType::Unreachable:
+        case InstType::Unreachable:
             return new UnreachableInst(id);
         // Return
-        case ExprType::Return:
+        case InstType::Return:
             return new ReturnInst(id);
         // BrTable
-        case ExprType::BrTable:
+        case InstType::BrTable:
             return new BrTableInst(id);
         // Drop
-        case ExprType::Drop:
+        case InstType::Drop:
             return new DropInst(id);
         // Select
-        case ExprType::Select:
+        case InstType::Select:
             return new SelectInst(id);
         // MemorySize
-        case ExprType::MemorySize:
+        case InstType::MemorySize:
             return new MemorySizeInst(id);
         // MemoryGrow
-        case ExprType::MemoryGrow:
+        case InstType::MemoryGrow:
             return new MemoryGrowInst(id);
         // Const
-        case ExprType::Const:
+        case InstType::Const:
             return new ConstInst(
                 id, *Factory::createConst(row[NodeCol::ConstType],
                                           row[NodeCol::ConstValue]));
         // Binary
-        case ExprType::Binary:
+        case InstType::Binary:
             return new BinaryInst(id, row[NodeCol::Opcode]);
         // Compare
-        case ExprType::Compare:
+        case InstType::Compare:
             return new CompareInst(id, row[NodeCol::Opcode]);
         // Convert
-        case ExprType::Convert:
+        case InstType::Convert:
             return new ConvertInst(id, row[NodeCol::Opcode]);
         // Unary
-        case ExprType::Unary:
+        case InstType::Unary:
             return new UnaryInst(id, row[NodeCol::Opcode]);
         // Load
-        case ExprType::Load:
+        case InstType::Load:
             return new LoadInst(id, row[NodeCol::Opcode],
                                 std::stoi(row[NodeCol::Offset]));
         // Store
-        case ExprType::Store:
+        case InstType::Store:
             return new StoreInst(id, row[NodeCol::Opcode],
                                  std::stoi(row[NodeCol::Offset]));
         // Br
-        case ExprType::Br:
+        case InstType::Br:
             return new BrInst(id, row[NodeCol::Label]);
         // BrIf
-        case ExprType::BrIf:
+        case InstType::BrIf:
             return new BrIfInst(id, row[NodeCol::Label]);
         // GlobalGet
-        case ExprType::GlobalGet:
+        case InstType::GlobalGet:
             return new GlobalGetInst(id, row[NodeCol::Label]);
         // GlobalSet
-        case ExprType::GlobalSet:
+        case InstType::GlobalSet:
             return new GlobalSetInst(id, row[NodeCol::Label]);
         // LocalGet
-        case ExprType::LocalGet:
+        case InstType::LocalGet:
             return new LocalGetInst(id, row[NodeCol::Label]);
         // LocalSet
-        case ExprType::LocalSet:
+        case InstType::LocalSet:
             return new LocalSetInst(id, row[NodeCol::Label]);
         // LocalTee
-        case ExprType::LocalTee:
+        case InstType::LocalTee:
             return new LocalTeeInst(id, row[NodeCol::Label]);
         // Call
-        case ExprType::Call:
+        case InstType::Call:
             return new CallInst(id, std::stoi(row[NodeCol::Nargs]),
                                 std::stoi(row[NodeCol::Nresults]),
                                 row[NodeCol::Label]);
         // CallIndirect
-        case ExprType::CallIndirect:
+        case InstType::CallIndirect:
             return new CallIndirectInst(id, std::stoi(row[NodeCol::Nargs]),
                                         std::stoi(row[NodeCol::Nresults]),
                                         row[NodeCol::Label]);
         // BeginBlock
-        case ExprType::First:
-            return new BeginBlockInst(id, row[NodeCol::Label]);
+        case InstType::BeginBlock:
+            return new BeginBlockInst(id, std::stoi(row[NodeCol::Nresults]),
+                                      row[NodeCol::Label]);
         // Block
-        case ExprType::Block:
+        case InstType::Block:
             return new BlockInst(id, std::stoi(row[NodeCol::Nresults]),
                                  row[NodeCol::Label]);
         // Loop
-        case ExprType::Loop:
+        case InstType::Loop:
             return new LoopInst(id, std::stoi(row[NodeCol::Nresults]),
                                 row[NodeCol::Label]);
         // LoopEnd
-        case ExprType::AtomicNotify:
+        case InstType::EndLoop:
             return new EndLoopInst(id, std::stoi(row[NodeCol::Nresults]),
                                    row[NodeCol::Label]);
         // If
-        case ExprType::If:
+        case InstType::If:
             return new IfInst(id, std::stoi(row[NodeCol::Nresults]),
                               std::stoi(row[NodeCol::HasElse]));
         default:

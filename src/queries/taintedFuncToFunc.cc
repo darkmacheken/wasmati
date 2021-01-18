@@ -40,7 +40,7 @@ void VulnerabilityChecker::TaintedFuncToFunc() {
             continue;
         }
         auto query = Query::instructions({func}, [&](Node* node) {
-            if (node->instType() == ExprType::Call &&
+            if (node->instType() == InstType::Call &&
                 sinks.count(node->label()) == 1) {
                 auto pdgEdges = node->inEdges(EdgeType::PDG);
                 return Query::containsEdge(pdgEdges, [&](Edge* e) {

@@ -44,16 +44,48 @@ enum class NodeType {
     Parameters,
     Locals,
     Results,
-    Return,
     Else,
     Trap,
     Start,
 };
 
+enum class InstType {
+    Nop,
+    Unreachable,
+    Return,
+    BrTable,
+    Drop,
+    Select,
+    MemorySize,
+    MemoryGrow,
+    Const,
+    Binary,
+    Compare,
+    Convert,
+    Unary,
+    Load,
+    Store,
+    Br,
+    BrIf,
+    GlobalGet,
+    GlobalSet,
+    LocalGet,
+    LocalSet,
+    LocalTee,
+    Call,
+    CallIndirect,
+    BeginBlock,
+    Block,
+    Loop,
+    EndLoop,
+    If,
+    None
+};
+
 extern const std::map<NodeType, std::string> NODE_TYPE_MAP;
 extern const std::map<std::string, NodeType> NODE_TYPE_MAP_R;
-extern const std::map<ExprType, std::string> INST_TYPE_MAP;
-extern const std::map<std::string, ExprType> INST_TYPE_MAP_R;
+extern const std::map<InstType, std::string> INST_TYPE_MAP;
+extern const std::map<std::string, InstType> INST_TYPE_MAP_R;
 class Node {
     static Index idCount;
     const Index _id;
@@ -67,47 +99,47 @@ public:
     NodeType type() const { return _type; }
 
     virtual const std::string& name() const {
-        assert(false);
+        warning(false);
         return emptyString();
     }
     virtual Index index() const {
-        assert(false);
+        warning(false);
         return 0;
     }
     virtual Index nargs() const {
-        assert(false);
+        warning(false);
         return 0;
     }
     virtual Index nlocals() const {
-        assert(false);
+        warning(false);
         return 0;
     }
     virtual Index nresults() const {
-        assert(false);
+        warning(false);
         return 0;
     }
     virtual bool isImport() const {
-        assert(false);
+        warning(false);
         return false;
     }
     virtual bool isExport() const {
-        assert(false);
+        warning(false);
         return false;
     }
     virtual Type varType() const {
-        assert(false);
+        warning(false);
         return {};
     }
-    virtual ExprType instType() const {
-        assert(false);
-        return ExprType::Nop;
+    virtual InstType instType() const {
+        warning(false);
+        return InstType::None;
     }
     virtual Opcode opcode() const {
-        assert(false);
+        warning(false);
         return {};
     }
     virtual const Const& value() const {
-        assert(false);
+        warning(false);
         return emptyConst();
     }
     virtual const std::string& label() const { return emptyString(); }
@@ -310,24 +342,24 @@ typedef SimpleNode<NodeType::Start, startName> Start;
 
 class Instruction : public BaseNode<NodeType::Instruction> {
 protected:
-    const ExprType _instType;
+    const InstType _instType;
     const Location _loc;
 
 public:
-    Instruction(const ExprType type, const Location loc)
+    Instruction(const InstType type, const Location loc)
         : _instType(type), _loc(loc) {}
 
-    Instruction(Index id, const ExprType type, const Location loc)
+    Instruction(Index id, const InstType type, const Location loc)
         : _instType(type), _loc(loc) {
         assert(id == getId());
     }
 
-    ExprType instType() const override { return _instType; }
+    InstType instType() const override { return _instType; }
 
     Location location() const override { return _loc; }
 };
 
-template <ExprType exprType>
+template <InstType exprType>
 class BaseInstruction : public Instruction {
 public:
     BaseInstruction(const Location _loc = Location())
@@ -343,16 +375,16 @@ public:
     virtual void accept(GraphVisitor* visitor);
 };
 
-typedef BaseInstruction<ExprType::Nop> NopInst;
-typedef BaseInstruction<ExprType::Unreachable> UnreachableInst;
-typedef BaseInstruction<ExprType::Return> ReturnInst;
-typedef BaseInstruction<ExprType::BrTable> BrTableInst;
-typedef BaseInstruction<ExprType::Drop> DropInst;
-typedef BaseInstruction<ExprType::Select> SelectInst;
-typedef BaseInstruction<ExprType::MemorySize> MemorySizeInst;
-typedef BaseInstruction<ExprType::MemoryGrow> MemoryGrowInst;
+typedef BaseInstruction<InstType::Nop> NopInst;
+typedef BaseInstruction<InstType::Unreachable> UnreachableInst;
+typedef BaseInstruction<InstType::Return> ReturnInst;
+typedef BaseInstruction<InstType::BrTable> BrTableInst;
+typedef BaseInstruction<InstType::Drop> DropInst;
+typedef BaseInstruction<InstType::Select> SelectInst;
+typedef BaseInstruction<InstType::MemorySize> MemorySizeInst;
+typedef BaseInstruction<InstType::MemoryGrow> MemoryGrowInst;
 
-class ConstInst : public BaseInstruction<ExprType::Const> {
+class ConstInst : public BaseInstruction<InstType::Const> {
     const Const _value;
 
 public:
@@ -366,17 +398,15 @@ public:
     void accept(GraphVisitor* visitor) override;
 };
 
-template <ExprType T>
+template <InstType T>
 class OpcodeInst : public BaseInstruction<T> {
     Opcode _opcode;
 
 public:
-    OpcodeInst(const OpcodeExpr<T>* expr)
-        : BaseInstruction<T>(expr->loc), _opcode(expr->opcode) {}
     OpcodeInst(Opcode opcode, const Location loc)
         : BaseInstruction<T>(loc), _opcode(opcode) {}
 
-    OpcodeInst(Index id, std::string opcode) {
+    OpcodeInst(Index id, std::string opcode, Location loc = Location()) {
         bool assigned = false;
         {
 #define WABT_OPCODE(rtype, type1, type2, type3, mem_size, prefix, code, Name, \
@@ -391,6 +421,7 @@ public:
         }
     end:
         assert(assigned);
+        BaseInstruction<T>(id, loc);
     }
 
     Opcode opcode() const override { return _opcode; }
@@ -398,37 +429,38 @@ public:
     virtual void accept(GraphVisitor* visitor) override;
 };
 
-typedef OpcodeInst<ExprType::Binary> BinaryInst;
-typedef OpcodeInst<ExprType::Compare> CompareInst;
-typedef OpcodeInst<ExprType::Convert> ConvertInst;
-typedef OpcodeInst<ExprType::Unary> UnaryInst;
+typedef OpcodeInst<InstType::Binary> BinaryInst;
+typedef OpcodeInst<InstType::Compare> CompareInst;
+typedef OpcodeInst<InstType::Convert> ConvertInst;
+typedef OpcodeInst<InstType::Unary> UnaryInst;
 
-template <ExprType T>
+template <InstType T>
 class LoadStoreBase : public OpcodeInst<T> {
     const Index _offset;
 
 public:
-    LoadStoreBase(const LoadStoreExpr<T>* expr)
-        : OpcodeInst<T>(expr->opcode, expr->loc), _offset(expr->offset) {}
+    LoadStoreBase(Opcode opcode, Index offset, Location loc = Location())
+        : OpcodeInst<T>(opcode, loc), _offset(offset) {}
 
-    LoadStoreBase(Index id, std::string opcode, Index offset)
-        : OpcodeInst<T>(id, opcode), _offset(offset) {}
+    LoadStoreBase(Index id,
+                  std::string opcode,
+                  Index offset,
+                  Location loc = Location())
+        : OpcodeInst<T>(id, opcode, loc), _offset(offset) {}
 
     Index offset() const override { return _offset; }
 
     void accept(GraphVisitor* visitor) override;
 };
 
-typedef LoadStoreBase<ExprType::Load> LoadInst;
-typedef LoadStoreBase<ExprType::Store> StoreInst;
+typedef LoadStoreBase<InstType::Load> LoadInst;
+typedef LoadStoreBase<InstType::Store> StoreInst;
 
-template <ExprType T>
+template <InstType T>
 class LabeledInst : public BaseInstruction<T> {
     const std::string _label;
 
 public:
-    LabeledInst(const VarExpr<T>* expr)
-        : BaseInstruction<T>(expr->loc), _label(expr->var.name()) {}
     LabeledInst(std::string label, const Location loc = Location())
         : BaseInstruction<T>(loc), _label(label) {}
     LabeledInst(Index id, std::string label, const Location loc = Location())
@@ -439,15 +471,15 @@ public:
     virtual void accept(GraphVisitor* visitor);
 };
 
-typedef LabeledInst<ExprType::Br> BrInst;
-typedef LabeledInst<ExprType::BrIf> BrIfInst;
-typedef LabeledInst<ExprType::GlobalGet> GlobalGetInst;
-typedef LabeledInst<ExprType::GlobalSet> GlobalSetInst;
-typedef LabeledInst<ExprType::LocalGet> LocalGetInst;
-typedef LabeledInst<ExprType::LocalSet> LocalSetInst;
-typedef LabeledInst<ExprType::LocalTee> LocalTeeInst;
+typedef LabeledInst<InstType::Br> BrInst;
+typedef LabeledInst<InstType::BrIf> BrIfInst;
+typedef LabeledInst<InstType::GlobalGet> GlobalGetInst;
+typedef LabeledInst<InstType::GlobalSet> GlobalSetInst;
+typedef LabeledInst<InstType::LocalGet> LocalGetInst;
+typedef LabeledInst<InstType::LocalSet> LocalSetInst;
+typedef LabeledInst<InstType::LocalTee> LocalTeeInst;
 
-template <ExprType T>
+template <InstType T>
 class CallBase : public LabeledInst<T> {
     const Index _nargs;
     const Index _nresults;
@@ -474,20 +506,23 @@ public:
     virtual void accept(GraphVisitor* visitor) override;
 };
 
-typedef CallBase<ExprType::Call> CallInst;
-typedef CallBase<ExprType::CallIndirect> CallIndirectInst;
+typedef CallBase<InstType::Call> CallInst;
+typedef CallBase<InstType::CallIndirect> CallIndirectInst;
 
-template <ExprType T>
+template <InstType T>
 class BlockBase : public LabeledInst<T> {
     Index _nresults;
 
 public:
-    BlockBase(const BlockExprBase<T>* expr)
-        : LabeledInst<T>(expr->block.label, expr->loc),
-          _nresults(expr->block.decl.GetNumResults()) {}
+    // BlockBase(const BlockExprBase<T>* expr)
+    //    : LabeledInst<T>(expr->block.label, expr->loc),
+    //      _nresults(expr->block.decl.GetNumResults()) {}
 
-    BlockBase(const BlockExprBase<T>* expr, Index nresults)
-        : LabeledInst<T>(expr->block.label, expr->loc), _nresults(nresults) {}
+    // BlockBase(const BlockExprBase<T>* expr, Index nresults)
+    //    : LabeledInst<T>(expr->block.label, expr->loc), _nresults(nresults) {}
+
+    BlockBase(std::string label, Index nresults, Location loc = Location())
+        : LabeledInst<T>(label, loc), _nresults(nresults) {}
 
     BlockBase(const Block& block)
         : LabeledInst<T>(block.label, block.end_loc),
@@ -505,33 +540,33 @@ public:
     virtual void accept(GraphVisitor* visitor) override;
 };
 
-typedef BlockBase<ExprType::Block> BlockInst;
-typedef BlockBase<ExprType::Loop> LoopInst;
-typedef BlockBase<ExprType::AtomicNotify> EndLoopInst;
+typedef BlockBase<InstType::Block> BlockInst;
+typedef BlockBase<InstType::Loop> LoopInst;
+typedef BlockBase<InstType::EndLoop> EndLoopInst;
 
-class BeginBlockInst : public LabeledInst<ExprType::First> {
+class BeginBlockInst : public BlockBase<InstType::BeginBlock> {
     BlockInst* _block;
 
 public:
-    BeginBlockInst(const VarExpr<ExprType::First>* expr, BlockInst* block)
-        : LabeledInst<ExprType::First>(expr), _block(block) {}
     BeginBlockInst(std::string label,
                    BlockInst* block,
                    const Location loc = Location())
-        : LabeledInst<ExprType::First>(label, loc), _block(block) {}
+        : BlockBase<InstType::BeginBlock>(label, block->nresults(), loc),
+          _block(block) {}
 
-    BeginBlockInst(Index id, std::string label)
-        : LabeledInst<ExprType::First>(id, label), _block(nullptr) {}
+    BeginBlockInst(Index id, Index nresults, std::string label)
+        : BlockBase<InstType::BeginBlock>(id, nresults, label),
+          _block(nullptr) {}
 
     Node* block() override {
         assert(_block != nullptr);
         return _block;
     }
 
-    virtual void accept(GraphVisitor* visitor) override;
+    void accept(GraphVisitor* visitor) override;
 };
 
-class IfInst : public BaseInstruction<ExprType::If> {
+class IfInst : public BaseInstruction<InstType::If> {
     const Index _nresults;
     const bool _hasElse;
 
@@ -866,150 +901,155 @@ inline void SimpleNode<NodeType::Start, startName>::accept(
 }
 
 template <>
-inline void BaseInstruction<ExprType::Nop>::accept(GraphVisitor* visitor) {
+inline void BaseInstruction<InstType::Nop>::accept(GraphVisitor* visitor) {
     visitor->visitNopInst(this);
 }
 
 template <>
-inline void BaseInstruction<ExprType::Unreachable>::accept(
+inline void BaseInstruction<InstType::Unreachable>::accept(
     GraphVisitor* visitor) {
     visitor->visitUnreachableInst(this);
 }
 
 template <>
-inline void BaseInstruction<ExprType::Return>::accept(GraphVisitor* visitor) {
+inline void BaseInstruction<InstType::Return>::accept(GraphVisitor* visitor) {
     visitor->visitReturnInst(this);
 }
 
 template <>
-inline void BaseInstruction<ExprType::BrTable>::accept(GraphVisitor* visitor) {
+inline void BaseInstruction<InstType::BrTable>::accept(GraphVisitor* visitor) {
     visitor->visitBrTableInst(this);
 }
 
 template <>
-inline void BaseInstruction<ExprType::Drop>::accept(GraphVisitor* visitor) {
+inline void BaseInstruction<InstType::Drop>::accept(GraphVisitor* visitor) {
     visitor->visitDropInst(this);
 }
 
 template <>
-inline void BaseInstruction<ExprType::Select>::accept(GraphVisitor* visitor) {
+inline void BaseInstruction<InstType::Select>::accept(GraphVisitor* visitor) {
     visitor->visitSelectInst(this);
 }
 
 template <>
-inline void BaseInstruction<ExprType::MemorySize>::accept(
+inline void BaseInstruction<InstType::MemorySize>::accept(
     GraphVisitor* visitor) {
     visitor->visitMemorySizeInst(this);
 }
 
 template <>
-inline void BaseInstruction<ExprType::MemoryGrow>::accept(
+inline void BaseInstruction<InstType::MemoryGrow>::accept(
     GraphVisitor* visitor) {
     visitor->visitMemoryGrowInst(this);
 }
 
 template <>
-inline void OpcodeInst<ExprType::Binary>::accept(GraphVisitor* visitor) {
+inline void OpcodeInst<InstType::Binary>::accept(GraphVisitor* visitor) {
     visitor->visitBinaryInst(this);
 }
 
 template <>
-inline void OpcodeInst<ExprType::Compare>::accept(GraphVisitor* visitor) {
+inline void OpcodeInst<InstType::Compare>::accept(GraphVisitor* visitor) {
     visitor->visitCompareInst(this);
 }
 
 template <>
-inline void OpcodeInst<ExprType::Convert>::accept(GraphVisitor* visitor) {
+inline void OpcodeInst<InstType::Convert>::accept(GraphVisitor* visitor) {
     visitor->visitConvertInst(this);
 }
 
 template <>
-inline void OpcodeInst<ExprType::Unary>::accept(GraphVisitor* visitor) {
+inline void OpcodeInst<InstType::Unary>::accept(GraphVisitor* visitor) {
     visitor->visitUnaryInst(this);
 }
 
 template <>
-inline void LoadStoreBase<ExprType::Load>::accept(GraphVisitor* visitor) {
+inline void LoadStoreBase<InstType::Load>::accept(GraphVisitor* visitor) {
     visitor->visitLoadInst(this);
 }
 
 template <>
-inline void LoadStoreBase<ExprType::Store>::accept(GraphVisitor* visitor) {
+inline void LoadStoreBase<InstType::Store>::accept(GraphVisitor* visitor) {
     visitor->visitStoreInst(this);
 }
 
 template <>
-inline void LabeledInst<ExprType::Br>::accept(GraphVisitor* visitor) {
+inline void LabeledInst<InstType::Br>::accept(GraphVisitor* visitor) {
     visitor->visitBrInst(this);
 }
 
 template <>
-inline void LabeledInst<ExprType::BrIf>::accept(GraphVisitor* visitor) {
+inline void LabeledInst<InstType::BrIf>::accept(GraphVisitor* visitor) {
     visitor->visitBrIfInst(this);
 }
 
 template <>
-inline void LabeledInst<ExprType::GlobalGet>::accept(GraphVisitor* visitor) {
+inline void LabeledInst<InstType::GlobalGet>::accept(GraphVisitor* visitor) {
     visitor->visitGlobalGetInst(this);
 }
 
 template <>
-inline void LabeledInst<ExprType::GlobalSet>::accept(GraphVisitor* visitor) {
+inline void LabeledInst<InstType::GlobalSet>::accept(GraphVisitor* visitor) {
     visitor->visitGlobalSetInst(this);
 }
 
 template <>
-inline void LabeledInst<ExprType::LocalGet>::accept(GraphVisitor* visitor) {
+inline void LabeledInst<InstType::LocalGet>::accept(GraphVisitor* visitor) {
     visitor->visitLocalGetInst(this);
 }
 
 template <>
-inline void LabeledInst<ExprType::LocalSet>::accept(GraphVisitor* visitor) {
+inline void LabeledInst<InstType::LocalSet>::accept(GraphVisitor* visitor) {
     visitor->visitLocalSetInst(this);
 }
 
 template <>
-inline void LabeledInst<ExprType::LocalTee>::accept(GraphVisitor* visitor) {
+inline void LabeledInst<InstType::LocalTee>::accept(GraphVisitor* visitor) {
     visitor->visitLocalTeeInst(this);
 }
 
 template <>
-inline void CallBase<ExprType::CallIndirect>::accept(GraphVisitor* visitor) {
+inline void CallBase<InstType::CallIndirect>::accept(GraphVisitor* visitor) {
     visitor->visitCallIndirectInst(this);
 }
 
 template <>
-inline void CallBase<ExprType::Call>::accept(GraphVisitor* visitor) {
+inline void CallBase<InstType::Call>::accept(GraphVisitor* visitor) {
     visitor->visitCallInst(this);
 }
 
 template <>
-inline void BlockBase<ExprType::Block>::accept(GraphVisitor* visitor) {
+inline void BlockBase<InstType::Block>::accept(GraphVisitor* visitor) {
     visitor->visitBlockInst(this);
 }
 
 template <>
-inline void BlockBase<ExprType::Loop>::accept(GraphVisitor* visitor) {
+inline void BlockBase<InstType::Loop>::accept(GraphVisitor* visitor) {
     visitor->visitLoopInst(this);
 }
 
 template <>
-inline void BlockBase<ExprType::AtomicNotify>::accept(GraphVisitor* visitor) {
+inline void BlockBase<InstType::EndLoop>::accept(GraphVisitor* visitor) {
     visitor->visitEndLoopInst(this);
 }
 
-template <ExprType t>
-inline void BaseInstruction<t>::accept(GraphVisitor* visitor) {
+template <InstType T>
+inline void BaseInstruction<T>::accept(GraphVisitor* visitor) {
     assert(false);
 }
 
-template <ExprType t>
-inline void OpcodeInst<t>::accept(GraphVisitor* visitor) {
+template <InstType T>
+inline void OpcodeInst<T>::accept(GraphVisitor* visitor) {
     assert(false);
 }
 
-template <ExprType t>
-inline void LabeledInst<t>::accept(GraphVisitor* visitor) {
+template <InstType T>
+inline void LabeledInst<T>::accept(GraphVisitor* visitor) {
+    assert(false);
+}
+
+template <InstType T>
+inline void BlockBase<T>::accept(GraphVisitor* visitor) {
     assert(false);
 }
 

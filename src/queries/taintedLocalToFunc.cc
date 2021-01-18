@@ -40,7 +40,7 @@ void VulnerabilityChecker::TaintedLocalToFunc() {
 
         NodeStream(func)
             .instructions(Predicate()
-                              .instType(ExprType::Call)
+                              .instType(InstType::Call)
                               .TEST(sinks.count(node->label()) == 1))
             .forEach([&](Node* call) {
                 auto localsDependsList =
