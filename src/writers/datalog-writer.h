@@ -184,16 +184,16 @@ public:
         if (!(cpgOptions.printAll || cpgOptions.printAST)) {
             return;
         }
-        _edges->Writef("%u,%u,AST,,,nil\n", e->src()->getId(),
-                       e->dest()->getId());
+        _edges->Writef("%u,%u,AST,,,nil\n", e->src()->id(),
+                       e->dest()->id());
     }
     void visitCFGEdge(CFGEdge* e) override {
         if (!(cpgOptions.printAll || cpgOptions.printCFG)) {
             return;
         }
 
-        _edges->Writef("%u,%u,CFG,%s,,nil\n", e->src()->getId(),
-                       e->dest()->getId(), e->label().c_str());
+        _edges->Writef("%u,%u,CFG,%s,,nil\n", e->src()->id(),
+                       e->dest()->id(), e->label().c_str());
     }
     void visitPDGEdge(PDGEdge* e) override {
         if (!(cpgOptions.printAll || cpgOptions.printPDG)) {
@@ -202,21 +202,21 @@ public:
         if (e->pdgType() == PDGType::Const) {
             if (e->value().type == Type::I32 || e->value().type == Type::I64) {
                 _edges->Writef("%u,%u,PDG,%s,%s,[%s,%s,%f]\n",
-                               e->src()->getId(), e->dest()->getId(),
+                               e->src()->id(), e->dest()->id(),
                                e->label().c_str(), e->writePdgType().c_str(),
                                Utils::writeConstType(e->value()).c_str(),
                                Utils::writeConst(e->value(), false).c_str(),
                                0.0);
             } else {
                 _edges->Writef("%u,%u,PDG,%s,%s,[%s,%u,%s]\n",
-                               e->src()->getId(), e->dest()->getId(),
+                               e->src()->id(), e->dest()->id(),
                                e->label().c_str(), e->writePdgType().c_str(),
                                Utils::writeConstType(e->value()).c_str(), 0,
                                Utils::writeConst(e->value(), false).c_str());
             }
         } else {
-            _edges->Writef("%u,%u,PDG,%s,%s,nil\n", e->src()->getId(),
-                           e->dest()->getId(), e->label().c_str(),
+            _edges->Writef("%u,%u,PDG,%s,%s,nil\n", e->src()->id(),
+                           e->dest()->id(), e->label().c_str(),
                            e->writePdgType().c_str());
         }
     }
@@ -224,188 +224,188 @@ public:
         if (!(cpgOptions.printAll || cpgOptions.printCG)) {
             return;
         }
-        _edges->Writef("%u,%u,CG,,,nil\n", e->src()->getId(),
-                       e->dest()->getId());
+        _edges->Writef("%u,%u,CG,,,nil\n", e->src()->id(),
+                       e->dest()->id());
     }
 
 private:
     // Inherited via GraphWriter
     void visitModule(Module* node) override {
         _nodes->Writef("%u,Module,%s,0,0,0,0,0,0,,,,[,0,0],,0,0\n",
-                       node->getId(), node->name().c_str());
+                       node->id(), node->name().c_str());
     }
     void visitFunction(Function* node) override {
         _nodes->Writef("%u,Function,%s,%u,%u,%u,%u,%u,%u,,,,[,0,0],,0,0\n",
-                       node->getId(), node->name().c_str(), node->index(),
+                       node->id(), node->name().c_str(), node->index(),
                        node->nargs(), node->nlocals(), node->nresults(),
                        node->isImport(), node->isExport());
     }
     void visitFunctionSignature(FunctionSignature* node) override {
         _nodes->Writef("%u,FunctionSignature,,0,0,0,0,0,0,,,,[,0,0],,0,0\n",
-                       node->getId());
+                       node->id());
     }
     void visitParameters(Parameters* node) override {
         _nodes->Writef("%u,Parameters,,0,0,0,0,0,0,,,,[,0,0],,0,0\n",
-                       node->getId());
+                       node->id());
     }
     void visitInstructions(Instructions* node) override {
         _nodes->Writef("%u,Instructions,,0,0,0,0,0,0,,,,[,0,0],,0,0\n",
-                       node->getId());
+                       node->id());
     }
     void visitLocals(Locals* node) override {
         _nodes->Writef("%u,Locals,,0,0,0,0,0,0,,,,[,0,0],,0,0\n",
-                       node->getId());
+                       node->id());
     }
     void visitResults(Results* node) override {
         _nodes->Writef("%u,Results,,0,0,0,0,0,0,,,,[,0,0],,0,0\n",
-                       node->getId());
+                       node->id());
     }
     void visitElse(Else* node) override {
-        _nodes->Writef("%u,Else,,0,0,0,0,0,0,,,,[,0,0],,0,0\n", node->getId());
+        _nodes->Writef("%u,Else,,0,0,0,0,0,0,,,,[,0,0],,0,0\n", node->id());
     }
     void visitStart(Start* node) override {
-        _nodes->Writef("%u,Start,,0,0,0,0,0,0,,,,[,0,0],,0,0\n", node->getId());
+        _nodes->Writef("%u,Start,,0,0,0,0,0,0,,,,[,0,0],,0,0\n", node->id());
     }
     void visitTrap(Trap* node) override {
-        _nodes->Writef("%u,Trap,,0,0,0,0,0,0,,,,[,0,0],,0,0\n", node->getId());
+        _nodes->Writef("%u,Trap,,0,0,0,0,0,0,,,,[,0,0],,0,0\n", node->id());
     }
     void visitVarNode(VarNode* node) override {
         _nodes->Writef("%u,VarNode,%s,%u,0,0,0,0,0,%s,,,[,0,0],,0,0\n",
-                       node->getId(), node->name().c_str(), node->index(),
+                       node->id(), node->name().c_str(), node->index(),
                        node->writeVarType().c_str());
     }
     void visitNopInst(NopInst* node) override {
         _nodes->Writef("%u,Instruction,,0,0,0,0,0,0,,Nop,,[,0,0],,0,0\n",
-                       node->getId());
+                       node->id());
     }
     void visitUnreachableInst(UnreachableInst* node) override {
         _nodes->Writef(
             "%u,Instruction,,0,0,0,0,0,0,,Unreachable,,[,0,0],,0,0\n",
-            node->getId());
+            node->id());
     }
     void visitReturnInst(ReturnInst* node) override {
         _nodes->Writef("%u,Instruction,,0,0,0,0,0,0,,Return,,[,0,0],,0,0\n",
-                       node->getId());
+                       node->id());
     }
     void visitBrTableInst(BrTableInst* node) override {
         _nodes->Writef("%u,Instruction,,0,0,0,0,0,0,,BrTable,,[,0,0],,0,0\n",
-                       node->getId());
+                       node->id());
     }
     void visitDropInst(DropInst* node) override {
         _nodes->Writef("%u,Instruction,,0,0,0,0,0,0,,Drop,,[,0,0],,0,0\n",
-                       node->getId());
+                       node->id());
     }
     void visitSelectInst(SelectInst* node) override {
         _nodes->Writef("%u,Instruction,,0,0,0,0,0,0,,Select,,[,0,0],,0,0\n",
-                       node->getId());
+                       node->id());
     }
     void visitMemorySizeInst(MemorySizeInst* node) override {
         _nodes->Writef("%u,Instruction,,0,0,0,0,0,0,,MemorySize,,[,0,0],,0,0\n",
-                       node->getId());
+                       node->id());
     }
     void visitMemoryGrowInst(MemoryGrowInst* node) override {
         _nodes->Writef("%u,Instruction,,0,0,0,0,0,0,,MemoryGrow,,[,0,0],,0,0\n",
-                       node->getId());
+                       node->id());
     }
     void visitConstInst(ConstInst* node) override {
         if (node->value().type == Type::I32 ||
             node->value().type == Type::I64) {
             _nodes->Writef(
                 "%u,Instruction,,0,0,0,0,0,0,,Const,,[%s,%s,%f],,0,0\n",
-                node->getId(), Utils::writeConstType(node->value()).c_str(),
+                node->id(), Utils::writeConstType(node->value()).c_str(),
                 Utils::writeConst(node->value(), false).c_str(), 0.0);
         } else {
             _nodes->Writef(
                 "%u,Instruction,,0,0,0,0,0,0,,Const,,[%s,%d,%s],,0,0\n",
-                node->getId(), Utils::writeConstType(node->value()).c_str(), 0,
+                node->id(), Utils::writeConstType(node->value()).c_str(), 0,
                 Utils::writeConst(node->value(), false).c_str());
         }
     }
     void visitBinaryInst(BinaryInst* node) override {
         _nodes->Writef("%u,Instruction,,0,0,0,0,0,0,,Binary,%s,[,0,0],,0,0\n",
-                       node->getId(), node->opcode().GetName());
+                       node->id(), node->opcode().GetName());
     }
     void visitCompareInst(CompareInst* node) override {
         _nodes->Writef("%u,Instruction,,0,0,0,0,0,0,,Compare,%s,[,0,0],,0,0\n",
-                       node->getId(), node->opcode().GetName());
+                       node->id(), node->opcode().GetName());
     }
     void visitConvertInst(ConvertInst* node) override {
         _nodes->Writef("%u,Instruction,,0,0,0,0,0,0,,Convert,%s,[,0,0],,0,0\n",
-                       node->getId(), node->opcode().GetName());
+                       node->id(), node->opcode().GetName());
     }
     void visitUnaryInst(UnaryInst* node) override {
         _nodes->Writef("%u,Instruction,,0,0,0,0,0,0,,Unary,%s,[,0,0],,0,0\n",
-                       node->getId(), node->opcode().GetName());
+                       node->id(), node->opcode().GetName());
     }
     void visitLoadInst(LoadInst* node) override {
         _nodes->Writef("%u,Instruction,,0,0,0,0,0,0,,Load,,[,0,0],,%u,0\n",
-                       node->getId(), node->offset());
+                       node->id(), node->offset());
     }
     void visitStoreInst(StoreInst* node) override {
         _nodes->Writef("%u,Instruction,,0,0,0,0,0,0,,Store,,[,0,0],,%u,0\n",
-                       node->getId(), node->offset());
+                       node->id(), node->offset());
     }
     void visitBrInst(BrInst* node) override {
         _nodes->Writef("%u,Instruction,,0,0,0,0,0,0,,Br,,[,0,0],%s,0,0\n",
-                       node->getId(), node->label().c_str());
+                       node->id(), node->label().c_str());
     }
     void visitBrIfInst(BrIfInst* node) override {
         _nodes->Writef("%u,Instruction,,0,0,0,0,0,0,,BrIf,,[,0,0],%s,0,0\n",
-                       node->getId(), node->label().c_str());
+                       node->id(), node->label().c_str());
     }
     void visitGlobalGetInst(GlobalGetInst* node) override {
         _nodes->Writef(
             "%u,Instruction,,0,0,0,0,0,0,,GlobalGet,,[,0,0],%s,0,0\n",
-            node->getId(), node->label().c_str());
+            node->id(), node->label().c_str());
     }
     void visitGlobalSetInst(GlobalSetInst* node) override {
         _nodes->Writef(
             "%u,Instruction,,0,0,0,0,0,0,,GlobalSet,,[,0,0],%s,0,0\n",
-            node->getId(), node->label().c_str());
+            node->id(), node->label().c_str());
     }
     void visitLocalGetInst(LocalGetInst* node) override {
         _nodes->Writef("%u,Instruction,,0,0,0,0,0,0,,LocalGet,,[,0,0],%s,0,0\n",
-                       node->getId(), node->label().c_str());
+                       node->id(), node->label().c_str());
     }
     void visitLocalSetInst(LocalSetInst* node) override {
         _nodes->Writef("%u,Instruction,,0,0,0,0,0,0,,LocalSet,,[,0,0],%s,0,0\n",
-                       node->getId(), node->label().c_str());
+                       node->id(), node->label().c_str());
     }
     void visitLocalTeeInst(LocalTeeInst* node) override {
         _nodes->Writef("%u,Instruction,,0,0,0,0,0,0,,LocalTee,,[,0,0],%s,0,0\n",
-                       node->getId(), node->label().c_str());
+                       node->id(), node->label().c_str());
     }
     void visitCallInst(CallInst* node) override {
         _nodes->Writef("%u,Instruction,,0,%u,0,%u,0,0,,Call,,[,0,0],%s,0,0\n",
-                       node->getId(), node->nargs(), node->nresults(),
+                       node->id(), node->nargs(), node->nresults(),
                        node->label().c_str());
     }
     void visitCallIndirectInst(CallIndirectInst* node) override {
         _nodes->Writef(
             "%u,Instruction,,0,%u,0,%u,0,0,,CallIndirect,,[,0,0],%s,0,0\n",
-            node->getId(), node->nargs(), node->nresults(),
+            node->id(), node->nargs(), node->nresults(),
             node->label().c_str());
     }
     void visitBeginBlockInst(BeginBlockInst* node) override {
         _nodes->Writef(
             "%u,Instruction,,0,0,0,0,0,0,,BeginBlock,,[,0,0],%s,0,0\n",
-            node->getId(), node->label().c_str());
+            node->id(), node->label().c_str());
     }
     void visitBlockInst(BlockInst* node) override {
         _nodes->Writef("%u,Instruction,,0,0,0,%u,0,0,,Block,,[,0,0],%s,0,0\n",
-                       node->getId(), node->nresults(), node->label().c_str());
+                       node->id(), node->nresults(), node->label().c_str());
     }
     void visitLoopInst(LoopInst* node) override {
         _nodes->Writef("%u,Instruction,,0,0,0,%u,0,0,,Loop,,[,0,0],%s,0,0\n",
-                       node->getId(), node->nresults(), node->label().c_str());
+                       node->id(), node->nresults(), node->label().c_str());
     }
     void visitEndLoopInst(EndLoopInst* node) override {
         _nodes->Writef("%u,Instruction,,0,0,0,%u,0,0,,EndLoop,,[,0,0],%s,0,0\n",
-            node->getId(), node->nresults(), node->label().c_str());
+            node->id(), node->nresults(), node->label().c_str());
     }
     void visitIfInst(IfInst* node) override {
         _nodes->Writef("%u,Instruction,,0,0,0,%u,0,0,,If,,[,0,0],,0,%u\n",
-                       node->getId(), node->nresults(), node->hasElse());
+                       node->id(), node->nresults(), node->hasElse());
     }
 };
 

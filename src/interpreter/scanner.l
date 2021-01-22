@@ -3,6 +3,7 @@
 #include <string>
 
 #include "src/interpreter/scanner.h"
+#include "src/interpreter/nodes.h"
 
 /* import the parser's token type into a local typedef */
 typedef wasmati::Parser::token token;
@@ -24,7 +25,7 @@ extern "C" int yylex();
 %}
 
 /*** Flex Declarations and Options ***/
-%option yylineno 8bit
+%option yylineno 8bit 
 
 /* enable c++ scanner class generation */
 %option c++
@@ -70,6 +71,7 @@ EMPTY_LINE                                  ^{SPACE}*\n
 
  /*** BEGIN REGEX - Change the example lexer rules below ***/
 "="                  { return token::EQUAL;         }
+"!="                 { return token::NEQUAL;        }
 "in"                 { return token::IN;            }
 "&&"                 { return token::AND;           }
 "||"                 { return token::OR;            }
@@ -77,23 +79,21 @@ EMPTY_LINE                                  ^{SPACE}*\n
 "foreach"            { return token::FOREACH;       }
 ":="                 { return token::ASSIGN;        }
 "if"                 { return token::IF;            }
-"do"                 { return token::DO;            }
-"then"               { return token::THEN;          }
 "else"               { return token::ELSE;          }
-"end"                { return token::END;           }
 "nil"                { return token::NIL;           }
+"false"              { return token::FALSE;         }
+"true"               { return token::TRUE;          }
 
-"("                  { return token::LBRACE;         }
-")"                  { return token::RBRACE;         }
-"["                  { return token::LBRACKET;       }
-"]"                  { return token::RBRACKET;       }
-"{"                  { return token::CLBRACKET;      }
-"}"                  { return token::CRBRACKET;      }
-"."                  { return token::DOT;            }
-","                  { return token::COMMA;          }
-":"                  { return token::COLON;          }
-";"                  { return token::SEMICOLON;      }
-"|"                  { return token::VERT;           }
+"("                  { return '(';                  }
+")"                  { return ')';                  }
+"["                  { return '[';                  }
+"]"                  { return ']';                  }
+"{"                  { return '{';                  }
+"}"                  { return '}';                  }
+"."                  { return '.';                  }
+","                  { return ',';                  }
+":"                  { return ':';                  }
+";"                  { return ';';                  }
 
 
 <*>{EMPTY_LINE}                             ; /*ignore*/
@@ -134,9 +134,17 @@ EMPTY_LINE                                  ^{SPACE}*\n
 <X_STRING_ESCAPECHAR>\"                     *yylval->s += "\""; yy_pop_state();
 <X_STRING_ESCAPECHAR>.                      yy_pop_state(); *yylval->s +=std::string(yytext);
 
-[ \t]+                                     ; /* ignore whitespace */
+[ \t\n]+                                     ; /* ignore whitespace */
 
-.                                          yyerror("LEXERROR: Unknown char");
+.                                          {
+                                            if (*yytext == EOF) {
+                                                return token::END;
+                                            } else {
+                                                int chr = static_cast<int>(*yytext);
+                                                yyerror(("LEXERROR: Unknown char: '" + std::to_string(chr) + "'").c_str());
+                                            }
+                                           }
+
 
 
  /*** END REGEX - Change the example lexer rules above ***/

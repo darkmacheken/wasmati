@@ -15,6 +15,7 @@ WASMATI_PREDICATE(opcode, Opcode)
 WASMATI_PREDICATE(label, std::string)
 WASMATI_PREDICATE(offset, Index)
 WASMATI_PREDICATE(hasElse, bool)
+WASMATI_PREDICATE(id, Index)
 
 #endif
 

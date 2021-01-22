@@ -1,3 +1,4 @@
+#include <chrono>
 #include <fstream>
 #include <sstream>
 
@@ -5,9 +6,6 @@
 #include "src/interpreter/scanner.h"
 
 namespace wasmati {
-
-Interpreter::Interpreter(class Context& _context)
-    : trace_scanning(false), trace_parsing(false), context(_context) {}
 
 bool Interpreter::parse_stream(std::istream& in, const std::string& sname) {
     streamname = sname;
@@ -28,7 +26,12 @@ bool Interpreter::parse_file(const std::string& filename) {
     return parse_stream(in, filename);
 }
 
-bool Interpreter::parse_string(const std::string& input, const std::string& sname) {
+int Interpreter::lineno() const {
+    return lexer->lineno();
+}
+
+bool Interpreter::parse_string(const std::string& input,
+                               const std::string& sname) {
     std::istringstream iss(input);
     return parse_stream(iss, sname);
 }
@@ -39,6 +42,14 @@ void Interpreter::error(const class location& l, const std::string& m) {
 
 void Interpreter::error(const std::string& m) {
     std::cerr << m << std::endl;
+}
+
+int64_t Interpreter::evaluate(Visitor* visitor) {
+    auto start = std::chrono::high_resolution_clock::now();
+    _ast->accept(visitor);
+    auto end = std::chrono::high_resolution_clock::now();
+    return std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
+        .count();
 }
 
 }  // namespace wasmati

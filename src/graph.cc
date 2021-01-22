@@ -92,7 +92,7 @@ inline Edge* Node::getOutEdge(Index i, EdgeType type) {
     assert(i < edges.size());
     std::vector<Edge*> vec(edges.begin(), edges.end());
     std::sort(vec.begin(), vec.end(), [](Edge* a, Edge* b) {
-        return a->dest()->getId() < b->dest()->getId();
+        return a->dest()->id() < b->dest()->id();
     });
     return vec[i];
 }
@@ -101,9 +101,8 @@ inline Edge* Node::getInEdge(Index i, EdgeType type) {
     auto edges = inEdges(type);
     assert(i < edges.size());
     std::vector<Edge*> vec(edges.begin(), edges.end());
-    std::sort(vec.begin(), vec.end(), [](Edge* a, Edge* b) {
-        return a->src()->getId() < b->src()->getId();
-    });
+    std::sort(vec.begin(), vec.end(),
+              [](Edge* a, Edge* b) { return a->src()->id() < b->src()->id(); });
 
     return vec[i];
 }
@@ -186,8 +185,26 @@ void BeginBlockInst::accept(GraphVisitor* visitor) {
     visitor->visitBeginBlockInst(this);
 }
 
-bool Compare::operator()(Node* const& n1, Node* const& n2) const {
-    return n1->getId() < n2->getId();
+bool CompareNode::operator()(Node* const& n1, Node* const& n2) const {
+    return n1->id() < n2->id();
+}
+
+bool CompareEdge::operator()(Edge* const& e1, Edge* const& e2) const {
+    if (e1->type() != e2->type()) {
+        return e1->type() < e2->type();
+    } else if (e1->src()->id() != e2->src()->id()) {
+        return e1->src()->id() < e2->src()->id();
+    } else if (e1->dest()->id() != e2->dest()->id()) {
+        return e1->dest()->id() < e2->dest()->id();
+    } else if (e1->label() != e2->label()) {
+        return e1->label() < e2->label();
+    }
+    if (e1->type() == EdgeType::PDG) {
+        if (e1->pdgType() != e2->pdgType()) {
+            return e1->pdgType() < e2->pdgType();
+        }
+    }
+    return false;
 }
 
 }  // namespace wasmati

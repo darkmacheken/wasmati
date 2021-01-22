@@ -25,7 +25,7 @@ public:
         _zipArchive = zip_open(zipFileName.c_str(), ZIP_RDONLY, &error);
     }
 
-    void readGraph() {
+    std::pair<size_t, size_t> readGraph() {
         size_t nodes = 0, edges = 0;
         json infoFile = json::parse(readFile(_zipArchive, "info.json"));
         auto nodesFile = fopen(_zipArchive, "nodes.csv");
@@ -59,6 +59,8 @@ public:
         assert(nodes == infoFile["nodes"]);
         assert(edges == infoFile["edges"]);
         deleteConsts();
+
+        return std::make_pair(nodes, edges);
     }
 
 private:
@@ -393,8 +395,8 @@ private:
         Index dest = std::stoi(row[EdgeCol::Dest]);
         auto nodes = _graph->getNodes();
 
-        assert(src < nodes.size() && nodes[src]->getId() == src);
-        assert(dest < nodes.size() && nodes[dest]->getId() == dest);
+        assert(src < nodes.size() && nodes[src]->id() == src);
+        assert(dest < nodes.size() && nodes[dest]->id() == dest);
 
         std::string type = row[EdgeCol::Type];
         switch (Edge::type(type)) {

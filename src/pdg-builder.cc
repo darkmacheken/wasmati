@@ -847,8 +847,8 @@ inline void PDG::advance(Instruction* inst,
 
 void PDG::logDefinition(Node* inst, std::shared_ptr<ReachDefinition> def) {
     json instLog;
-    instLog["id"] = inst->getId();
-    instLog["lastInstId"] = _lastNode->getId();
+    instLog["id"] = inst->id();
+    instLog["lastInstId"] = _lastNode->id();
     instLog["def"] = *def;
     s_verbose_stream->Writef("%s\n", instLog.dump(2).c_str());
 }

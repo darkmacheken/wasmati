@@ -15,11 +15,14 @@ struct Edge;
 class Node;
 class Predicate;
 
-struct Compare {
+struct CompareNode {
     bool operator()(Node* const& n1, Node* const& n2) const;
 };
-typedef std::set<Node*, Compare> NodeSet;
-typedef std::set<Edge*> EdgeSet;
+struct CompareEdge {
+    bool operator()(Edge* const& e1, Edge* const& e2) const;
+};
+typedef std::set<Node*, CompareNode> NodeSet;
+typedef std::set<Edge*, CompareEdge> EdgeSet;
 
 inline const std::string& emptyString() {
     static const std::string empty = "";
@@ -157,7 +160,7 @@ public:
     explicit Node(NodeType type) : _id(idCount++), _type(type) {}
     virtual ~Node();
 
-    inline Index getId() const { return _id; }
+    inline Index id() const { return _id; }
     inline const EdgeSet& inEdges() const { return _inEdges; }
     inline const EdgeSet& outEdges() const { return _outEdges; }
     EdgeSet inEdges(EdgeType type);
@@ -197,7 +200,7 @@ class Module : public BaseNode<NodeType::Module> {
 public:
     Module() {}
     Module(std::string name) : _name(name) {}
-    Module(Index id, std::string name) : _name(name) { assert(id == getId()); }
+    Module(Index id_, std::string name) : _name(name) { assert(id_ == id()); }
 
     const std::string& name() const override { return _name; }
 
@@ -225,7 +228,7 @@ public:
           _isImport(isImport),
           _isExport(isExport) {}
 
-    Function(Index id,
+    Function(Index id_,
              std::string name,
              Index index,
              Index nargs,
@@ -241,7 +244,7 @@ public:
           _nresults(nresults),
           _isImport(isImport),
           _isExport(isExport) {
-        assert(id == getId());
+        assert(id_ == id());
     }
 
     const std::string& name() const override { return _name; }
@@ -265,9 +268,9 @@ public:
     VarNode(Type type, Index index, std::string name = "")
         : _varType(type), _index(index), _name(name) {}
 
-    VarNode(Index id, std::string type, Index index, std::string name)
+    VarNode(Index id_, std::string type, Index index, std::string name)
         : _varType(readVarType(type)), _index(index), _name(name) {
-        assert(id == getId());
+        assert(id_ == id());
     }
 
     Type varType() const override { return _varType; }
@@ -314,7 +317,7 @@ template <NodeType T, char const* nodeName>
 class SimpleNode : public BaseNode<T> {
 public:
     SimpleNode() {}
-    SimpleNode(Index id) { assert(id == this->getId()); }
+    SimpleNode(Index id_) { assert(id_ == this->id()); }
     inline const std::string getNodeName() const { return nodeName; }
 
     virtual void accept(GraphVisitor* visitor);
@@ -348,9 +351,9 @@ public:
     Instruction(const InstType type, const Location loc)
         : _instType(type), _loc(loc) {}
 
-    Instruction(Index id, const InstType type, const Location loc)
+    Instruction(Index id_, const InstType type, const Location loc)
         : _instType(type), _loc(loc) {
-        assert(id == getId());
+        assert(id_ == id());
     }
 
     InstType instType() const override { return _instType; }
@@ -364,9 +367,9 @@ public:
     BaseInstruction(const Location _loc = Location())
         : Instruction(exprType, _loc) {}
 
-    BaseInstruction(Index id, const Location _loc = Location())
+    BaseInstruction(Index id_, const Location _loc = Location())
         : Instruction(exprType, _loc) {
-        assert(id == getId());
+        assert(id_ == id());
     }
 
     static bool classof(const Node* node) {
@@ -392,9 +395,7 @@ public:
     ConstInst(const ConstExpr* expr)
         : BaseInstruction(expr->loc), _value(expr->const_) {}
 
-    ConstInst(Index id, Const& value) : _value(value) {
-        assert(id == getId());
-    }
+    ConstInst(Index id_, Const& value) : _value(value) { assert(id_ == id()); }
 
     const Const& value() const override { return _value; }
 

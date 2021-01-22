@@ -226,7 +226,7 @@ public:
     friend void to_json(json& j, const Definition& d) {
         for (auto const& kv : d._def) {
             json def;
-            def["node"] = kv.first->getId();
+            def["node"] = kv.first->id();
             def["name"] = kv.second.name;
             def["type"] = kv.second.type;
             j.push_back(def);

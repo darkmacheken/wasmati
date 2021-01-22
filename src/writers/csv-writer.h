@@ -21,6 +21,8 @@ class CSVWriter : public GraphWriter {
     size_t _numNodes = 0;
     size_t _numEdges = 0;
 
+    size_t _astOrder = 0;
+
 public:
     CSVWriter(std::string zipFileName, Graph* graph)
         : GraphWriter(nullptr, graph) {
@@ -43,13 +45,16 @@ public:
             loopsInsts = Queries::loopsInsts(cpgOptions.loopName);
         }
         auto nodes = _graph->getNodes();
-        std::sort(nodes.begin(), nodes.end(), Compare());
+        std::sort(nodes.begin(), nodes.end(), CompareNode());
 
         for (auto const& node : nodes) {
             if (!loopsInsts.empty() && loopsInsts.count(node) == 0) {
                 continue;
             }
-            node->acceptEdges(this);
+            _astOrder = 0;
+            for (auto edge : node->outEdges()) {
+                edge->accept(this);
+            }
 
             if (cpgOptions.printAll) {
                 node->accept(this);
@@ -108,18 +113,20 @@ public:
             return;
         }
         std::map<std::string, std::string> edges;
-        edges[SRC] = std::to_string(e->src()->getId());
-        edges[DEST] = std::to_string(e->dest()->getId());
+        edges[SRC] = std::to_string(e->src()->id());
+        edges[DEST] = std::to_string(e->dest()->id());
         edges[EDGE_TYPE] = EDGE_TYPES_MAP.at(EdgeType::AST);
+        edges[AST_ORDER] = std::to_string(_astOrder);
         writeEdge(edges);
+        _astOrder++;
     }
     void visitCFGEdge(CFGEdge* e) override {
         if (!(cpgOptions.printAll || cpgOptions.printCFG)) {
             return;
         }
         std::map<std::string, std::string> edges;
-        edges[SRC] = std::to_string(e->src()->getId());
-        edges[DEST] = std::to_string(e->dest()->getId());
+        edges[SRC] = std::to_string(e->src()->id());
+        edges[DEST] = std::to_string(e->dest()->id());
         edges[EDGE_TYPE] = EDGE_TYPES_MAP.at(EdgeType::CFG);
         edges[LABEL] = e->label();
         writeEdge(edges);
@@ -129,8 +136,8 @@ public:
             return;
         }
         std::map<std::string, std::string> edges;
-        edges[SRC] = std::to_string(e->src()->getId());
-        edges[DEST] = std::to_string(e->dest()->getId());
+        edges[SRC] = std::to_string(e->src()->id());
+        edges[DEST] = std::to_string(e->dest()->id());
         edges[EDGE_TYPE] = EDGE_TYPES_MAP.at(EdgeType::PDG);
         edges[LABEL] = e->label();
         edges[PDG_TYPE] = PDG_TYPE_MAP.at(e->pdgType());
@@ -149,8 +156,8 @@ public:
             return;
         }
         std::map<std::string, std::string> edges;
-        edges[SRC] = std::to_string(e->src()->getId());
-        edges[DEST] = std::to_string(e->dest()->getId());
+        edges[SRC] = std::to_string(e->src()->id());
+        edges[DEST] = std::to_string(e->dest()->id());
         edges[EDGE_TYPE] = EDGE_TYPES_MAP.at(EdgeType::CG);
         writeEdge(edges);
     }
@@ -159,14 +166,14 @@ private:
     // Inherited via GraphWriter
     void visitModule(Module* node) override {
         std::map<std::string, std::string> nodes;
-        nodes[ID] = std::to_string(node->getId());
+        nodes[ID] = std::to_string(node->id());
         nodes[NODE_TYPE] = NODE_TYPE_MAP.at(node->type());
         nodes[NAME] = node->name();
         writeNode(nodes);
     }
     void visitFunction(Function* node) override {
         std::map<std::string, std::string> nodes;
-        nodes[ID] = std::to_string(node->getId());
+        nodes[ID] = std::to_string(node->id());
         nodes[NODE_TYPE] = NODE_TYPE_MAP.at(node->type());
         nodes[NAME] = node->name();
         nodes[INDEX] = std::to_string(node->index());
@@ -191,7 +198,7 @@ private:
     void visitTrap(Trap* node) override { visitSimpleNode(node); }
     void visitVarNode(VarNode* node) override {
         std::map<std::string, std::string> nodes;
-        nodes[ID] = std::to_string(node->getId());
+        nodes[ID] = std::to_string(node->id());
         nodes[NODE_TYPE] = NODE_TYPE_MAP.at(node->type());
         nodes[NAME] = node->name();
         nodes[INDEX] = std::to_string(node->index());
@@ -220,7 +227,7 @@ private:
     }
     void visitConstInst(ConstInst* node) override {
         std::map<std::string, std::string> nodes;
-        nodes[ID] = std::to_string(node->getId());
+        nodes[ID] = std::to_string(node->id());
         nodes[NODE_TYPE] = NODE_TYPE_MAP.at(node->type());
         nodes[INST_TYPE] = INST_TYPE_MAP.at(node->instType());
         nodes[CONST_TYPE] = Utils::writeConstType(node->value());
@@ -279,7 +286,7 @@ private:
     }
     void visitIfInst(IfInst* node) override {
         std::map<std::string, std::string> nodes;
-        nodes[ID] = std::to_string(node->getId());
+        nodes[ID] = std::to_string(node->id());
         nodes[NODE_TYPE] = NODE_TYPE_MAP.at(node->type());
         nodes[NRESULTS] = std::to_string(node->nresults());
         nodes[INST_TYPE] = INST_TYPE_MAP.at(node->instType());
@@ -290,14 +297,14 @@ private:
 private:
     inline void visitSimpleNode(Node* node) {
         std::map<std::string, std::string> nodes;
-        nodes[ID] = std::to_string(node->getId());
+        nodes[ID] = std::to_string(node->id());
         nodes[NODE_TYPE] = NODE_TYPE_MAP.at(node->type());
         writeNode(nodes);
     }
 
     inline void visitSimpleInstNode(Node* node) {
         std::map<std::string, std::string> nodes;
-        nodes[ID] = std::to_string(node->getId());
+        nodes[ID] = std::to_string(node->id());
         nodes[NODE_TYPE] = NODE_TYPE_MAP.at(node->type());
         nodes[INST_TYPE] = INST_TYPE_MAP.at(node->instType());
         writeNode(nodes);
@@ -305,7 +312,7 @@ private:
 
     inline void visitOpcodeInstNode(Node* node) {
         std::map<std::string, std::string> nodes;
-        nodes[ID] = std::to_string(node->getId());
+        nodes[ID] = std::to_string(node->id());
         nodes[NODE_TYPE] = NODE_TYPE_MAP.at(node->type());
         nodes[INST_TYPE] = INST_TYPE_MAP.at(node->instType());
         nodes[OPCODE] = node->opcode().GetName();
@@ -314,7 +321,7 @@ private:
 
     inline void visitLoadStoreInstNode(Node* node) {
         std::map<std::string, std::string> nodes;
-        nodes[ID] = std::to_string(node->getId());
+        nodes[ID] = std::to_string(node->id());
         nodes[NODE_TYPE] = NODE_TYPE_MAP.at(node->type());
         nodes[INST_TYPE] = INST_TYPE_MAP.at(node->instType());
         nodes[OPCODE] = node->opcode().GetName();
@@ -323,7 +330,7 @@ private:
     }
     inline void visitLabelInstNode(Node* node) {
         std::map<std::string, std::string> nodes;
-        nodes[ID] = std::to_string(node->getId());
+        nodes[ID] = std::to_string(node->id());
         nodes[NODE_TYPE] = NODE_TYPE_MAP.at(node->type());
         nodes[INST_TYPE] = INST_TYPE_MAP.at(node->instType());
         nodes[LABEL] = node->label();
@@ -331,7 +338,7 @@ private:
     }
     inline void visitCallInstNode(Node* node) {
         std::map<std::string, std::string> nodes;
-        nodes[ID] = std::to_string(node->getId());
+        nodes[ID] = std::to_string(node->id());
         nodes[NODE_TYPE] = NODE_TYPE_MAP.at(node->type());
         nodes[NARGS] = std::to_string(node->nargs());
         nodes[NRESULTS] = std::to_string(node->nresults());
@@ -342,7 +349,7 @@ private:
 
     inline void visitBlockInstNode(Node* node) {
         std::map<std::string, std::string> nodes;
-        nodes[ID] = std::to_string(node->getId());
+        nodes[ID] = std::to_string(node->id());
         nodes[NODE_TYPE] = NODE_TYPE_MAP.at(node->type());
         nodes[NRESULTS] = std::to_string(node->nresults());
         nodes[INST_TYPE] = INST_TYPE_MAP.at(node->instType());
@@ -370,15 +377,15 @@ private:
     }
 
     inline void writeEdge(std::map<std::string, std::string>& edge) {
-        // src,dest,edgeType,label,pdgType,constType,constValueI,constValueF
+        // src,dest,edgeType,label,pdgType,constType,constValueI,constValueF,astOrder
         std::replace(edge[LABEL].begin(), edge[LABEL].end(), ',', '_');
         std::replace(edge[CONST_VALUE_F].begin(), edge[CONST_VALUE_F].end(),
                      ',', '.');
-        _edges->Writef("%s,%s,%s,%s,%s,%s,%s,%s\n", edge[SRC].c_str(),
+        _edges->Writef("%s,%s,%s,%s,%s,%s,%s,%s,%s\n", edge[SRC].c_str(),
                        edge[DEST].c_str(), edge[EDGE_TYPE].c_str(),
                        edge[LABEL].c_str(), edge[PDG_TYPE].c_str(),
                        edge[CONST_TYPE].c_str(), edge[CONST_VALUE_I].c_str(),
-                       edge[CONST_VALUE_F].c_str());
+                       edge[CONST_VALUE_F].c_str(), edge[AST_ORDER].c_str());
         _numEdges++;
     }
 
@@ -393,9 +400,9 @@ private:
             NLOCALS,   NRESULTS,  IS_IMPORT,  IS_EXPORT,     VAR_TYPE,
             INST_TYPE, OPCODE,    CONST_TYPE, CONST_VALUE_I, CONST_VALUE_F,
             LABEL,     OFFSET,    HAS_ELSE};
-        result["edgeHeader"] = {SRC,           DEST,         EDGE_TYPE,
-                                LABEL,         PDG_TYPE,     CONST_TYPE,
-                                CONST_VALUE_I, CONST_VALUE_F};
+        result["edgeHeader"] = {SRC,           DEST,          EDGE_TYPE,
+                                LABEL,         PDG_TYPE,      CONST_TYPE,
+                                CONST_VALUE_I, CONST_VALUE_F, AST_ORDER};
 
         _info->Writef("%s", result.dump(2).c_str());
     }

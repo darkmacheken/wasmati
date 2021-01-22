@@ -31,6 +31,7 @@
 #define DEST "dest"
 #define EDGE_TYPE "edgeType"
 #define PDG_TYPE "pdgType"
+#define AST_ORDER "astOrder"
 
 using namespace wabt;
 using nlohmann::json;
@@ -52,8 +53,8 @@ struct Utils {
 #undef WASMATI_PREDICATE_VALUES_I
 #undef WASMATI_PREDICATE_VALUES_F
 
-    static std::string writeConstType(const Const& _const) {
-        switch (_const.type) {
+    static std::string writeConstType(const Type type) {
+        switch (type) {
         case Type::I32:
             return "i32";
         case Type::I64:
@@ -70,6 +71,10 @@ struct Utils {
             assert(false);
             break;
         }
+    }
+
+    static std::string writeConstType(const Const& _const) {
+        return writeConstType(_const.type);
     }
 
     static std::string writeConst(const Const& _const, bool prefix = true) {

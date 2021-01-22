@@ -3,22 +3,23 @@
 
 #include <string>
 #include <vector>
-
-// forward declaration
-class Context;
+#include "src/interpreter/nodes.h"
 
 namespace wasmati {
 
-/** The Interpreter class brings together all components. It creates an instance of
- * the Parser and Scanner classes and connects them. Then the input stream is
+/** The Interpreter class brings together all components. It creates an instance
+ * of the Parser and Scanner classes and connects them. Then the input stream is
  * fed into the scanner object and the parser gets it's token
- * sequence. Furthermore the interpreter object is available in the grammar rules as
- * a parameter. Therefore the interpreter class contains a reference to the
- * structure into which the parsed data is saved. */
+ * sequence. Furthermore the interpreter object is available in the grammar
+ * rules as a parameter. Therefore the interpreter class contains a reference to
+ * the structure into which the parsed data is saved. */
 class Interpreter {
+    BasicNode* _ast;
+
 public:
     /// construct a new parser interpreter context
-    Interpreter(class Context& calc);
+    Interpreter()
+        : _ast(nullptr), trace_scanning(false), trace_parsing(false) {}
 
     /// enable debug output in the flex scanner
     bool trace_scanning;
@@ -52,6 +53,8 @@ public:
      */
     bool parse_file(const std::string& filename);
 
+    int lineno() const;
+
     // To demonstrate pure handling of parse errors, instead of
     // simply dumping them on the standard error output, we will pass
     // them to the interpreter using the following two member functions.
@@ -68,11 +71,13 @@ public:
      * parser to the scanner. It is used in the yylex macro. */
     class Scanner* lexer;
 
-    /** Reference to the calculator context filled during parsing of the
-     * expressions. */
-    class Context& context;
+public:
+    BasicNode* ast() { return _ast; }
+    void ast(BasicNode* ast) { _ast = ast; }
+
+    int64_t evaluate(Visitor* visitor);
 };
 
-}  // namespace example
+}  // namespace wasmati
 
 #endif  // WASMATI_INTERPRETER_H

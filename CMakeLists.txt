@@ -286,9 +286,12 @@ add_library(wasmatilib STATIC
 	  src/interpreter/interpreter.h 
 	  src/interpreter/interpreter.cc 
 	  src/interpreter/nodes.h
-	  src/interpreter/y.tab.h)
+	  src/interpreter/y.tab.h 
+      src/interpreter/evaluator.h
+      src/interpreter/evaluator.cc
+      src/interpreter/symbol-table.h)
 
-add_dependencies(wasmatilib ${EXE_NAME} libzip)
+#add_dependencies(wasmatilib libzip)
 
 if (NOT EMSCRIPTEN)
   if (CODE_COVERAGE)

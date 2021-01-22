@@ -1,4 +1,7 @@
+#include <string>
 #include "src/common.h"
+#include "src/interpreter/evaluator.h"
+#include "src/interpreter/interpreter.h"
 #include "src/option-parser.h"
 #include "src/options.h"
 #include "src/readers/csv-reader.h"
@@ -9,6 +12,7 @@ using namespace wabt;
 using namespace wasmati;
 
 bool native = false;
+bool interative = false;
 static std::string s_configfile;
 static std::string s_infile;
 static std::string s_outfile;
@@ -31,6 +35,8 @@ static void ParseOptions(int argc, char** argv) {
             s_outfile = argument;
             ConvertBackslashToSlash(&s_outfile);
         });
+    parser.AddOption('i', "interative", "Activate interative mode.",
+                     []() { interative = true; });
     parser.AddOption('q', "query", "FILENAME", "Load DSL query.",
                      [](const char* argument) {
                          s_infile = argument;
@@ -68,10 +74,45 @@ int ProgramMain(int argc, char** argv) {
 
     graph = new Graph();
     if (!s_zipfile.empty()) {
+        auto start = std::chrono::high_resolution_clock::now();
         CSVReader reader(s_zipfile, graph);
-        reader.readGraph();
+        auto stat = reader.readGraph();
+        auto end = std::chrono::high_resolution_clock::now();
+        auto loadDuration =
+            std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
+                .count();
+        if (interative) {
+            std::cout << "Loaded " << stat.first << " nodes and " << stat.second
+                      << " edges in " << loadDuration << " ms." << std::endl
+                      << std::endl;
+        }
     }
     Query::setGraph(graph);
+
+    // Evaluate file if provided
+    Evaluator evaluator;
+    Interpreter interp = Interpreter();
+    if (!s_infile.empty()) {
+        assert(interp.parse_file(s_infile));
+        auto time = interp.evaluate(&evaluator);
+        std::cout << "\nTime: " << time << " ms" << std::endl;
+    }
+
+    while (interative) {
+        std::cout << ">>> ";
+        std::string line;
+        std::getline(std::cin, line);
+        if (line == "exit") {
+            break;
+        }
+        line += std::char_traits<char>::eof();
+        if (!interp.parse_string(line)) {
+            continue;
+        }
+        auto time = interp.evaluate(&evaluator);
+        std::cout << evaluator.resultToString() << std::endl;
+        // std::cout << "\nTime: " << time << " ms" << std::endl;
+    }
 
     // Check vulnerabilities
     if (native) {
