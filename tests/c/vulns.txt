@@ -1,0 +1,11 @@
+1 - Format strings
+2 - Insecure arguments 
+3 - Memory leaks
+4 - Use after free
+5 - Sources - NO SANITIZATION - sinks
+6 - Buffer Overflow
+7 - Type truncation
+8 - Integer Overflow
+
+
+int x = long y

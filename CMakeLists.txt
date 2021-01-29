@@ -1,12 +1,9 @@
-cmake_minimum_required(VERSION 3.0.0)
+cmake_minimum_required(VERSION 3.14.0)
 project(WASMATI VERSION 0.1.1)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_PROJECT_VERSION "${CMAKE_PROJECT_VERSION} (${GIT_VERSION})")
 
-option(BUILD_TESTS "Build GTest-based tests" ON)
-option(USE_SYSTEM_GTEST "Use system GTest, instead of building" OFF)
-option(BUILD_TOOLS "Build wabt commandline tools" ON)
 option(USE_ASAN "Use address sanitizer" OFF)
 option(USE_MSAN "Use memory sanitizer" OFF)
 option(USE_LSAN "Use leak sanitizer" OFF)
@@ -16,7 +13,11 @@ option(WITH_EXCEPTIONS "Build with exceptions enabled" OFF)
 option(WERROR "Build with warnings as errors" OFF)
 option(WIP_TOOLS "Build Work-In-Progress functionality" OFF)
 
-if (CMAKE_C_COMPILER_ID MATCHES "Clang")
+if (MSVC)
+  set(COMPILER_IS_CLANG 0)
+  set(COMPILER_IS_GNU 0)
+  set(COMPILER_IS_MSVC 1)
+elseif (CMAKE_C_COMPILER_ID MATCHES "Clang")
   set(COMPILER_IS_CLANG 1)
   set(COMPILER_IS_GNU 0)
   set(COMPILER_IS_MSVC 0)
@@ -24,10 +25,6 @@ elseif (CMAKE_C_COMPILER_ID STREQUAL "GNU")
   set(COMPILER_IS_CLANG 0)
   set(COMPILER_IS_GNU 1)
   set(COMPILER_IS_MSVC 0)
-elseif (MSVC)
-  set(COMPILER_IS_CLANG 0)
-  set(COMPILER_IS_GNU 0)
-  set(COMPILER_IS_MSVC 1)
 elseif (CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
   set(COMPILER_IS_CLANG 1)
   set(COMPILER_IS_GNU 0)
@@ -40,6 +37,7 @@ endif ()
 
 include(CheckIncludeFile)
 include(CheckSymbolExists)
+include(FetchContent)
 
 check_include_file("alloca.h" HAVE_ALLOCA_H)
 check_include_file("unistd.h" HAVE_UNISTD_H)
@@ -55,28 +53,12 @@ include(CheckTypeSize)
 check_type_size(ssize_t SSIZE_T)
 check_type_size(size_t SIZEOF_SIZE_T)
 
-FIND_PACKAGE(Git QUIET REQUIRED)
-EXECUTE_PROCESS(COMMAND
-        "${GIT_EXECUTABLE}" --git-dir=${CMAKE_CURRENT_SOURCE_DIR}/third_party/wabt/.git describe --tags
-        RESULT_VARIABLE
-            GIT_HASH_RESULT
-        OUTPUT_VARIABLE
-            GIT_HASH
-        OUTPUT_STRIP_TRAILING_WHITESPACE)
-
-IF(${GIT_HASH_RESULT})
-    MESSAGE(WARNING "Error running git describe to determine version")
-    SET(WABT_VERSION_INFO "(unable to determine version)")
-ELSE()
-    SET(WABT_VERSION_INFO "${GIT_HASH}")
-ENDIF()
-
 configure_file(
   ${WASMATI_SOURCE_DIR}/src/config/config.h.in
   ${WASMATI_BINARY_DIR}/config.h
 )
 
-include_directories(${WASMATI_SOURCE_DIR} ${WASMATI_BINARY_DIR})
+include_directories(${WASMATI_SOURCE_DIR} ${WASMATI_BINARY_DIR} ${WASMATI_SOURCE_DIR}/config)
 
 if (COMPILER_IS_MSVC)
   # disable warning C4018: signed/unsigned mismatch
@@ -109,9 +91,9 @@ else ()
     add_definitions(-Werror)
   endif ()
 
-  if (NOT WITH_EXCEPTIONS)
-    add_definitions(-fno-exceptions)
-  endif ()
+# if (NOT WITH_EXCEPTIONS)
+#   add_definitions(-fno-exceptions)
+# endif ()
 
   # Need to define __STDC_*_MACROS because C99 specifies that C++ shouldn't
   # define format (e.g. PRIu64) or limit (e.g. UINT32_MAX) macros without the
@@ -210,36 +192,66 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${WASMATI_SOURCE_DIR}/cmake)
 
 add_custom_target(everything_wasm)
 
-if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/third_party/wabt)
-    # we couldn't find the header files for FOO or they don't exist
-    message("Unable to find wabt.")
+FetchContent_Declare(
+  wabt
+  GIT_REPOSITORY "https://github.com/WebAssembly/wabt"
+  GIT_TAG "4ba97c116d1417b2fb516299a37965820b93ced3"
+)
 
-    # we have a submodule setup for wabt
-    # now we need to clone this submodule
-    execute_process(COMMAND git submodule update --init -- third_party/wabt
-                    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+FetchContent_Declare(json
+  GIT_REPOSITORY https://github.com/ArthurSonzogni/nlohmann_json_cmake_fetchcontent
+  GIT_TAG v3.9.1
+)
 
-    # set WABT_INCLUDE_DIR properly
-    set(WABT_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/wabt
-        CACHE PATH "WABT include directory")
+FetchContent_Declare(csv
+  GIT_REPOSITORY https://github.com/p-ranav/csv2
+  GIT_TAG "a20992f7a1b75215609037c4cc66f690e8691aab"
+  )
 
-endif()
+FetchContent_MakeAvailable(wabt json csv)
+include_directories(${wabt_SOURCE_DIR} ${json_SOURCE_DIR} ${csv_SOURCE_DIR})
 
-add_subdirectory(third_party/wabt)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/wabt)
+#FetchContent_GetProperties(json)
+#if(NOT json_POPULATED)
+#  FetchContent_Populate(json)
+#  add_subdirectory(${json_SOURCE_DIR} ${json_BINARY_DIR} EXCLUDE_FROM_ALL)
+#endif()
 
-add_library(wasmati STATIC
+add_library(wasmatilib STATIC
   src/config/config.h
   src/config/config.cc
+  src/options.h
+  src/options.cc
   src/graph.h
   src/graph.cc
-  src/graph-visitor.h
-  src/graph-visitor.cc
-  src/dot-writer.h
-  src/dot-writer.cc
-  src/cfg-visitor.h
-  src/cfg-visitor.cc
-)
+  src/ast-builder.h
+  src/ast-builder.cc
+  src/cfg-builder.h
+  src/cfg-builder.cc
+  src/pdg-builder.h
+  src/pdg-builder.cc
+  src/query.h
+  src/query.cc
+  src/utils.h
+  src/vulns.h
+  #writters
+  src/writers/csv-writer.h
+  src/writers/datalog-writer.h
+  src/writers/dot-writer.h
+  src/writers/json-writer.h
+  # Queries
+  src/queries/boBuffsStatic.cc
+  src/queries/boMemcpy.cc
+  src/queries/boScanfLoops.cc
+  src/queries/bufferSizes.cc
+  src/queries/dangerousFunctions.cc
+  src/queries/formatStrings.cc
+  src/queries/isTainted.cc
+  src/queries/taintedFuncToFunc.cc
+  src/queries/taintedLocalToFunc.cc
+  src/queries/unreachable.cc
+  src/queries/useAfterFree.cc
+ )
 
 if (NOT EMSCRIPTEN)
   if (CODE_COVERAGE)
@@ -254,17 +266,17 @@ if (NOT EMSCRIPTEN)
   function(wasmati_executable)
     cmake_parse_arguments(EXE "WITH_LIBM;INSTALL" "NAME" "SOURCES;LIBS" ${ARGN})
 
-    # Always link libwabt.
-    set(EXE_LIBS "${EXE_LIBS};wasmati")
+    # Always link wasmatilib.
+    set(EXE_LIBS "${EXE_LIBS};wasmatilib")
 
     # Optionally link libm.
     if (EXE_WITH_LIBM AND (COMPILER_IS_CLANG OR COMPILER_IS_GNU))
       set(EXE_LIBS "${EXE_LIBS};m")
     endif ()
 
-    add_executable(${EXE_NAME} ${EXE_SOURCES})
+    add_executable(${EXE_NAME} ${EXE_SOURCES} )
     add_dependencies(everything_wasm ${EXE_NAME})
-    target_link_libraries(${EXE_NAME} ${EXE_LIBS} wabt)
+    target_link_libraries(${EXE_NAME} PRIVATE ${EXE_LIBS} wabt nlohmann_json::nlohmann_json csv2::csv2)
     set_property(TARGET ${EXE_NAME} PROPERTY CXX_STANDARD 11)
     set_property(TARGET ${EXE_NAME} PROPERTY CXX_STANDARD_REQUIRED ON)
 
@@ -281,17 +293,10 @@ if (NOT EMSCRIPTEN)
   endfunction()
 
   if (BUILD_TOOLS)
-    # wasm2cpg
+    # wasmati
     wasmati_executable(
-      NAME wasm2cpg
-      SOURCES src/tools/wasm2cpg.cc
-      INSTALL
-    )
-
-    # wat2cpg
-    wasmati_executable(
-      NAME wat2cpg
-      SOURCES src/tools/wat2cpg.cc
+      NAME wasmati
+      SOURCES src/tools/wasmati.cc
       INSTALL
     )
   endif ()

@@ -1,0 +1,63 @@
+{
+	"importAsSources": true,
+	"importAsSinks": true,
+	"exportedAsSinks": true,
+	"ignore": [
+		"$fgets",
+		"$__stdio_read",
+		"$__stdio_write",
+		"$__stdio_seek",
+		"$__fwritex",
+		"$exit",
+		"$dlmalloc",
+		"$dlfree",
+		"$dlrealloc",
+		"$setenv",
+		"$decfloat",
+		"$sn_write",
+		"$sbrk",
+		"$__strdup",
+		"$__expand_heap",
+		"$raise",
+		"$emscripten_memcpy_big",
+		"$emscripten_resize_heap"
+	],
+	"whiteList": [],
+	"sources": [],
+	"sinks": [],
+	"tainted": {
+		"$main": { "params": [ 0, 1 ] },
+		"$bof": { "params": [ 1 ] }
+	},
+	"bufferOverflow": {
+		"$read": {
+			"buffer": 1,
+			"size": 2
+		},
+		"$fgets": {
+			"buffer": 0,
+			"size": 1
+		}
+	},
+	"boMemcpy": [ "$strcpy", "$__stpcpy", "$memcpy" ],
+	"dangerousFunctions": [ "$gets" ],
+	"formatString": {
+		"$fprintf": 1,
+		"$printf": 0,
+		"$iprintf": 0,
+		"$sprintf": 1,
+		"$snprintf": 2,
+		"$vfprintf": 1,
+		"$vprintf": 0,
+		"$vsprintf": 1,
+		"$vsnprintf": 2,
+		"$syslog": 1,
+		"$vsyslog": 1
+	},
+	"controlFlow": [
+		{
+			"source": "$malloc",
+			"dest": "$free"
+		}
+	]
+}
