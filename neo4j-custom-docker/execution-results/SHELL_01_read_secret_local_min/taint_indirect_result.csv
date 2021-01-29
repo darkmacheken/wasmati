@@ -1,0 +1,2 @@
+source, sink, function
+"$read_bytes_to_mmap_memory", "$__indirect_function_table", "$__original_main"

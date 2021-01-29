@@ -11,3 +11,4 @@
 CMakeSettings.json
 
 .vs/
+neo4j-custom-docker/.config
