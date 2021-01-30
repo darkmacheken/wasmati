@@ -1,44 +1,61 @@
 #ifndef WASMATI_EVALUATOR_H
 #define WASMATI_EVALUATOR_H
-#define ASSERT_EXPR_NOT_NULL                                            \
-    if (_resultVisit == nullptr) {                                      \
-        std::cerr << "Unknown error evaluating line " << node->lineno() \
-                  << std::endl;                                         \
-        exit(1);                                                        \
+#include <exception>
+#include "src/interpreter/interpreter.h"
+#define ASSERT_EXPR_TYPE(TYPE)                                        \
+    if (_resultVisit->type() != TYPE) {                               \
+        throw InterpreterException(                                   \
+            "Expected " + LITERAL_TYPE_MAP.at(TYPE) + " but got " +   \
+            LITERAL_TYPE_MAP.at(_resultVisit->type()) + " in line " + \
+            std::to_string(node->lineno()));                          \
     }
 
-#define ASSERT_EXPR_TYPE(TYPE)                                             \
-    ASSERT_EXPR_NOT_NULL                                                   \
-    if (_resultVisit->type() != TYPE) {                                    \
-        std::cerr << "Expected " << EXPR_TYPE_MAP.at(TYPE) << " but got "  \
-                  << EXPR_TYPE_MAP.at(_resultVisit->type()) << " in line " \
-                  << node->lineno() << std::endl;                          \
-        exit(1);                                                           \
+#define ASSERT_EXPR_TYPE_(EXPR, TYPE)                               \
+    if (EXPR->type() != TYPE) {                                     \
+        throw InterpreterException(                                 \
+            "Expected " + LITERAL_TYPE_MAP.at(TYPE) + " but got " + \
+            LITERAL_TYPE_MAP.at(EXPR->type()) + " in line " +       \
+            std::to_string(EXPR->lineno()));                        \
     }
 
-#define ASSERT_EXPR_NOT_NULL_(EXPR)                                     \
-    if (EXPR == nullptr) {                                              \
-        std::cerr << "Unknown error evaluating line " << EXPR->lineno() \
-                  << std::endl;                                         \
-        exit(1);                                                        \
+#define ASSERT_NUM_ARGS_(args, NARGS)                                   \
+    if (args->value()->size() < NARGS) {                                \
+        throw InterpreterException(                                     \
+            "Expected atleast " + std::to_string(NARGS) + " but got " + \
+            std::to_string(args->value()->size()) + " in line " +       \
+            std::to_string(args->lineno()));                            \
     }
 
-#define ASSERT_EXPR_TYPE_(EXPR, TYPE)                                     \
-    ASSERT_EXPR_NOT_NULL_(EXPR)                                           \
-    if (EXPR->type() != TYPE) {                                           \
-        std::cerr << "Expected " << EXPR_TYPE_MAP.at(TYPE) << " but got " \
-                  << EXPR_TYPE_MAP.at(EXPR->type()) << " in line "        \
-                  << EXPR->lineno() << std::endl;                         \
-        exit(1);                                                          \
-    }
+#define RETURN(ret)     \
+    _resultVisit = ret; \
+    return true;
 
-#define ASSERT_NUM_ARGS_(NARGS)                                    \
-    if (args->size() < NARGS) {                                    \
-        std::cerr << "Expected atleast " << NARGS << " but got "   \
-                  << args->size() << " in line " << args->lineno() \
-                  << std::endl;                                    \
-        exit(1);                                                   \
-    }
+#define NONE(line) std::make_shared<NoneNode>(line);
+#define NIL(line) std::make_shared<NilNode>(line);
+
+#define BINARY_OP(OP)                                                         \
+    node->left()->accept(this);                                               \
+    auto left = _resultVisit;                                                 \
+    node->right()->accept(this);                                              \
+    auto right = _resultVisit;                                                \
+    if (operatorsMap[left->type()].count(OP) == 0) {                          \
+        throw InterpreterException(                                           \
+            LITERAL_TYPE_MAP.at(left->type()) + " does not have operator '" + \
+            OP + "' in line " + std::to_string(node->lineno()));              \
+    }                                                                         \
+    RETURN(operatorsMap[left->type()][OP](node->lineno(), left, right));
+
+#define BINARY_OP_R(OP)                                                        \
+    node->left()->accept(this);                                                \
+    auto left = _resultVisit;                                                  \
+    node->right()->accept(this);                                               \
+    auto right = _resultVisit;                                                 \
+    if (operatorsMap[right->type()].count(OP) == 0) {                          \
+        throw InterpreterException(                                            \
+            LITERAL_TYPE_MAP.at(right->type()) + " does not have operator '" + \
+            OP + "' in line " + std::to_string(node->lineno()));               \
+    }                                                                          \
+    RETURN(operatorsMap[right->type()][OP](node->lineno(), right, left));
 
 #include <iostream>
 #include "src/interpreter/nodes.h"
@@ -46,77 +63,170 @@
 #include "src/query.h"
 
 namespace wasmati {
-extern const std::map<ExprType, std::string> EXPR_TYPE_MAP;
-extern std::map<
-    std::string,
-    std::function<std::shared_ptr<LiteralNode>(int, std::shared_ptr<ListNode>)>>
-    functionsMap;
+extern const std::map<LiteralType, std::string> LITERAL_TYPE_MAP;
+extern const std::map<BinopType, std::string> BINARY_TYPE_MAP;
+extern const std::map<UnopType, std::string> UNARY_TYPE_MAP;
 
-class Printer : public VisitorTemplate<std::string> {
+typedef std::function<std::shared_ptr<LiteralNode>(
+    int,
+    std::shared_ptr<LiteralNode>,
+    std::shared_ptr<LiteralNode>)>
+    OperatorsFunction;
+typedef std::function<
+    std::shared_ptr<LiteralNode>(int, std::shared_ptr<LiteralNode>)>
+    AttributeFunction;
+typedef std::function<std::shared_ptr<LiteralNode>(int,
+                                                   std::shared_ptr<LiteralNode>,
+                                                   std::shared_ptr<ListNode>)>
+    MemberFunction;
+
+typedef std::function<std::shared_ptr<LiteralNode>(int,
+                                                   std::shared_ptr<ListNode>)>
+    Func;
+
+extern std::map<LiteralType, std::map<std::string, OperatorsFunction>>
+    operatorsMap;
+
+extern std::map<LiteralType, std::map<std::string, AttributeFunction>>
+    attributesMap;
+
+extern std::map<LiteralType, std::map<std::string, MemberFunction>>
+    memberFunctionsMap;
+
+extern std::map<std::string, Func> functionsMap;
+
+class InterpreterException : public std::exception {
+    std::string _msg;
+
+public:
+    InterpreterException(std::string msg) : _msg(msg) {}
+
+    virtual const char* what() const throw() { return _msg.c_str(); }
+};
+
+class Printer : public Visitor {
+    bool _strWithQuotes;
+    std::string _resultVisit;
+
+public:
+    Printer(bool strWithQuotes = true) : _strWithQuotes(strWithQuotes) {}
+
 public:
     std::string toString() { return _resultVisit; }
-    void visitSequenceNode(SequenceNode* node) {}
-    void visitBlockNode(BlockNode* node) {}
+    // Statements
+    bool visitBlockNode(BlockNode* node) override { RETURN(""); }
+    bool visitForeach(Foreach* node) override { RETURN(""); }
+    bool visitIfNode(IfNode* node) override { RETURN(""); }
+    bool visitIfElseNode(IfElseNode* node) override { RETURN(""); }
+    bool visitFunction(FunctionNode* node) override { RETURN(""); }
+    bool visitReturnNode(ReturnNode* node) override { RETURN(""); }
+    bool visitImportNode(ImportNode* node) override { RETURN(""); }
 
-    void visitIdentifierNode(IdentifierNode* node) {}
+    // basic expr
+    bool visitAssignExpr(AssignExpr* node) override { RETURN(""); }
+    bool visitRValueNode(RValueNode* node) override { RETURN(""); }
+    bool visitFunctionCall(FunctionCall* node) override { RETURN(""); }
+    bool visitAttributeCall(AttributeCall* node) { RETURN(""); }
+    bool visitMemberFunctionCall(MemberFunctionCall* node) { RETURN(""); }
+    bool visitFilterExprNode(FilterExprNode* node) override { RETURN(""); }
+    bool visitAtNode(AtNode* node) override { RETURN(""); }
+    bool visitTimeNode(TimeNode* node) override { RETURN(""); }
 
-    void visitForeach(Foreach* node) {}
-
-    void visitIfNode(IfNode* node) {}
-
-    void visitIfElseNode(IfElseNode* node) {}
-
-    void visitAssignNode(AssignNode* node) {}
-
-    std::string visitRValueNode(RValueNode* node) { return ""; }
-    std::string visitFunctionCall(FunctionCall* node) { return ""; }
-    std::string visitRangeExprNode(RangeExprNode* node) { return ""; }
-    std::string visitAtNode(AtNode* node) { return ""; }
-    std::string visitIntNode(IntNode* node) {
-        return std::to_string(node->value());
+    // objects
+    bool visitNodePointer(NodePointer* node) override {
+        RETURN("[Node::" + NODE_TYPE_MAP.at(node->value()->type()) + "_" +
+               std::to_string(node->value()->id()) + "]");
     }
-    std::string visitFloatNode(FloatNode* node) {
-        return std::to_string(node->value());
+    bool visitEdgePointer(EdgePointer* node) override {
+        RETURN("[EDGE::" + EDGE_TYPES_MAP.at(node->value()->type()) + "_" +
+               std::to_string(node->value()->src()->id()) + "->" +
+               std::to_string(node->value()->dest()->id()) + "]");
     }
-    std::string visitStringNode(StringNode* node) { return node->value(); }
-    std::string visitBoolNode(BoolNode* node) {
-        return node->value() ? "true" : "false";
+
+    // literals
+    bool visitIntNode(IntNode* node) override {
+        RETURN(std::to_string(node->value()));
     }
-    std::string visitListNode(ListNode* node) {
+    bool visitFloatNode(FloatNode* node) override {
+        RETURN(std::to_string(node->value()));
+    }
+    bool visitStringNode(StringNode* node) override {
+        if (_strWithQuotes) {
+            RETURN('"' + node->value() + '"');
+        }
+        RETURN(node->value());
+    }
+    bool visitBoolNode(BoolNode* node) override {
+        RETURN(node->value() ? "true" : "false");
+    }
+    bool visitListNode(ListNode* node) override {
         std::string res = "[";
-        for (auto lit : node->nodes()) {
+        for (auto lit : node->value()->nodes()) {
             lit->accept(this);
             res += _resultVisit + ",";
         }
+        if (res.size() > 1) {
+            res.pop_back();
+        }
         res += "]";
-        return res;
+        RETURN(res);
     }
+    bool visitMapNode(MapNode* node) override {
+        std::string res = "{";
+        for (auto kv : node->value()) {
+            res += '"' + kv.first + "\": ";
+            kv.second->accept(this);
+            res += _resultVisit + ",";
+        }
+        if (res.size() > 1) {
+            res.pop_back();
+        }
+        res += "}";
+        RETURN(res);
+    }
+    bool visitNilNode(NilNode* node) override { RETURN("nil"); }
+    bool visitNoneNode(NoneNode* node) override { RETURN(""); }
 
-    std::string visitNilNode(NilNode* node) { return "nil"; }
-    std::string visitNodePointer(NodePointer* node) {
-        return "[Node::" + NODE_TYPE_MAP.at(node->value()->type()) + "_" +
-               std::to_string(node->value()->id()) + "]";
-    }
-    std::string visitEdgePointer(EdgePointer* node) {
-        return "[EDGE::" + EDGE_TYPES_MAP.at(node->value()->type()) + "_" +
-               std::to_string(node->value()->src()->id()) + "->" +
-               std::to_string(node->value()->dest()->id()) + "]";
-    }
-    std::string visitEqualNode(EqualNode* node) { return ""; }
-    std::string visitNotEqualNode(NotEqualNode* node) { return ""; }
-    std::string visitAndNode(AndNode* node) { return ""; }
-    std::string visitOrNode(OrNode* node) { return ""; }
-    std::string visitInNode(InNode* node) { return ""; }
-    std::string visitNotNode(NotNode* node) { return ""; }
-    std::string visitSequenceExprNode(SequenceExprNode* node) { return ""; }
-    std::string visitSequenceLiteralNode(SequenceLiteralNode* node) {
-        return "";
+    // binary expr
+    bool visitEqualNode(EqualNode* node) override { RETURN(""); }
+    bool visitNotEqualNode(NotEqualNode* node) override { RETURN(""); }
+    bool visitAndNode(AndNode* node) override { RETURN(""); }
+    bool visitOrNode(OrNode* node) override { RETURN(""); }
+    bool visitInNode(InNode* node) override { RETURN(""); }
+    bool visitLessNode(LessNode* node) { RETURN(""); }
+    bool visitLessEqualNode(LessEqualNode* node) { RETURN(""); }
+    bool visitGreaterNode(GreaterNode* node) { RETURN(""); }
+    bool visitGreaterEqualNode(GreaterEqualNode* node) { RETURN(""); }
+    bool visitAddNode(AddNode* node) { RETURN(""); }
+    bool visitSubNode(SubNode* node) { RETURN(""); }
+    bool visitMulNode(MulNode* node) { RETURN(""); }
+    bool visitDivNode(DivNode* node) { RETURN(""); }
+    bool visitModNode(ModNode* node) { RETURN(""); }
+
+    // unary expr
+    bool visitNotNode(NotNode* node) override { RETURN(""); }
+
+    // sequences
+    bool visitSequenceNode(SequenceNode* node) override { RETURN(""); }
+    bool visitSequenceExprNode(SequenceExprNode* node) override { RETURN(""); }
+    bool visitSequenceLiteralNode(SequenceLiteralNode* node) override {
+        RETURN("");
     }
 };
 
-class Evaluator : public VisitorTemplate<std::shared_ptr<LiteralNode>> {
-    SymbolTable _symTab;
+class Evaluator : public Visitor {
+    Path _file;
+
+    std::shared_ptr<LiteralNode> _resultVisit;
+
+    SymbolTable<std::shared_ptr<LiteralNode>> _symTab;
+    SymbolTable<Func> _funcTab;
     std::string _lookUp;
+
+public:
+    Evaluator(json& config, std::string file = "") : _file(Path(file)) {
+        _symTab.insert("config", jsonToLiteral(config));
+    }
 
 public:
     std::string resultToString() {
@@ -125,22 +235,19 @@ public:
         return printer.toString();
     }
 
-    void visitSequenceNode(SequenceNode* node) {
-        for (auto basicNode : node->nodes()) {
-            basicNode->accept(this);
-        }
-    }
-    void visitBlockNode(BlockNode* node) {
+    // statements
+    bool visitBlockNode(BlockNode* node) override {
+        _funcTab.push();
         _symTab.push();
         node->statements()->accept(this);
         _symTab.pop();
+        _funcTab.pop();
+        RETURN(NONE(node->lineno()));
     }
 
-    void visitIdentifierNode(IdentifierNode* node) { _lookUp = node->name(); }
-
-    void visitForeach(Foreach* node) {
+    bool visitForeach(Foreach* node) override {
         node->expr()->accept(this);
-        ASSERT_EXPR_TYPE(ExprType::List);
+        ASSERT_EXPR_TYPE(LiteralType::List);
         auto list = std::dynamic_pointer_cast<ListNode>(_resultVisit);
         _symTab.push();
         _symTab.insert(node->identifier(),
@@ -151,61 +258,146 @@ public:
             node->insts()->accept(this);
         }
         _symTab.pop();
+        RETURN(NONE(node->lineno()));
     }
 
-    void visitIfNode(IfNode* node) {
+    bool visitIfNode(IfNode* node) override {
         node->condition()->accept(this);
-        ASSERT_EXPR_TYPE(ExprType::Bool);
+        ASSERT_EXPR_TYPE(LiteralType::Bool);
         auto cond = std::dynamic_pointer_cast<BoolNode>(_resultVisit);
         if (cond->value()) {
             node->block()->accept(this);
         }
+        RETURN(NONE(node->lineno()));
     }
 
-    void visitIfElseNode(IfElseNode* node) {
+    bool visitIfElseNode(IfElseNode* node) override {
         node->condition()->accept(this);
-        ASSERT_EXPR_TYPE(ExprType::Bool);
+        ASSERT_EXPR_TYPE(LiteralType::Bool);
         auto cond = std::dynamic_pointer_cast<BoolNode>(_resultVisit);
         if (cond->value()) {
             node->thenblock()->accept(this);
         } else {
             node->elseblock()->accept(this);
         }
+        RETURN(NONE(node->lineno()));
     }
 
-    void visitAssignNode(AssignNode* node) {
-        node->rvalue()->accept(this);
-        ASSERT_EXPR_NOT_NULL;
-        node->lvalue()->accept(this);
-        if (!_symTab.replace(_lookUp, _resultVisit)) {
-            _symTab.insert(_lookUp, _resultVisit);
+    bool visitFunction(FunctionNode* node) override {
+        auto identifiers = node->identifiers();
+        auto block = node->block();
+        Func func = [&, identifiers, block](int lineno,
+                                            std::shared_ptr<ListNode> args) {
+            ASSERT_NUM_ARGS_(args, identifiers.size());
+            for (size_t i = 0; i < identifiers.size(); i++) {
+                if (!_symTab.insert(identifiers[i], args->value()->node(i))) {
+                    _symTab.replace(identifiers[i], args->value()->node(i));
+                }
+            }
+            try {
+                block->accept(this);
+
+            } catch (std::shared_ptr<LiteralNode>& res) {
+                return res;
+            }
+            return _resultVisit;
+        };
+        if (!_funcTab.insert(node->name(), func)) {
+            _funcTab.replace(node->name(), func);
         }
+        RETURN(NONE(node->lineno()));
     }
 
-    std::shared_ptr<LiteralNode> visitRValueNode(RValueNode* node) {
-        node->lvalue()->accept(this);
-        auto lit = _symTab.find(_lookUp);
-        if (_symTab.find(_lookUp) == nullptr) {
-            std::cerr << "Unbounded variable " << _lookUp << " in line "
-                      << node->lineno() << std::endl;
-            return std::make_shared<NilNode>(node->lineno());
+    bool visitReturnNode(ReturnNode* node) override {
+        if (node->expr() == nullptr) {
+            throw NIL(node->lineno());
         }
-        return lit;
+        node->expr()->accept(this);
+        throw _resultVisit;
+        RETURN(NONE(node->lineno()));
     }
-    std::shared_ptr<LiteralNode> visitFunctionCall(FunctionCall* node) {
-        if (functionsMap.count(node->identifier()) == 0) {
-            std::cerr << "Unbounded function " << node->identifier()
-                      << " in line " << node->lineno() << std::endl;
-            return std::make_shared<NilNode>(node->lineno());
+    bool visitImportNode(ImportNode* node) override {
+        std::string directory;
+        if (_file.empty()) {
+            directory = Path::getCurrentDir();
+        } else {
+            directory = _file.directory();
+        }
+
+        Interpreter interp;
+        bool res = interp.parse_file(directory + "/" + node->file());
+        interp.evaluate(this);
+        RETURN(std::make_shared<BoolNode>(node->lineno(), res));
+    }
+
+    // expr
+    bool visitAssignExpr(AssignExpr* node) override {
+        node->expr()->accept(this);
+        if (!_symTab.replace(node->identifier(), _resultVisit)) {
+            _symTab.insert(node->identifier(), _resultVisit);
+        }
+        RETURN(_resultVisit);
+    }
+
+    bool visitRValueNode(RValueNode* node) override {
+        auto lit = _symTab.find(node->name());
+        if (_symTab.find(node->name()) == nullptr) {
+            throw InterpreterException("Unbounded variable " + node->name() +
+                                       " in line " +
+                                       std::to_string(node->lineno()));
+        }
+        RETURN(lit);
+    }
+    bool visitFunctionCall(FunctionCall* node) override {
+        auto func = functionsMap.count(node->name()) == 1
+                        ? functionsMap[node->name()]
+                        : _funcTab.find(node->name());
+        if (func == nullptr) {
+            throw InterpreterException("Unbounded function " + node->name() +
+                                       " in line " +
+                                       std::to_string(node->lineno()));
         }
         node->parameters()->accept(this);
-        ASSERT_EXPR_TYPE(ExprType::List);
-        auto list = std::dynamic_pointer_cast<ListNode>(_resultVisit);
-        return functionsMap[node->identifier()](node->lineno(), list);
+        ASSERT_EXPR_TYPE(LiteralType::List);
+        auto args = std::dynamic_pointer_cast<ListNode>(_resultVisit);
+        _symTab.push();
+        auto res = func(node->lineno(), args);
+        _symTab.pop();
+        RETURN(res);
     }
-    std::shared_ptr<LiteralNode> visitRangeExprNode(RangeExprNode* node) {
+
+    bool visitAttributeCall(AttributeCall* node) {
+        node->expr()->accept(this);
+        auto expr = _resultVisit;
+        if (attributesMap[expr->type()].count(node->name()) == 0) {
+            throw InterpreterException(LITERAL_TYPE_MAP.at(expr->type()) +
+                                       " does not have attribute " +
+                                       node->name() + " in line " +
+                                       std::to_string(node->lineno()));
+        }
+        RETURN(attributesMap[expr->type()][node->name()](node->lineno(), expr));
+    }
+
+    bool visitMemberFunctionCall(MemberFunctionCall* node) {
+        node->expr()->accept(this);
+        auto expr = _resultVisit;
+        if (memberFunctionsMap[expr->type()].count(node->name()) == 0) {
+            throw InterpreterException(LITERAL_TYPE_MAP.at(expr->type()) +
+                                       " does not have member function " +
+                                       node->name() + " in line " +
+                                       std::to_string(node->lineno()));
+            RETURN(std::make_shared<NilNode>(node->lineno()));
+        }
+        node->parameters()->accept(this);
+        ASSERT_EXPR_TYPE(LiteralType::List);
+        auto parameters = std::dynamic_pointer_cast<ListNode>(_resultVisit);
+        RETURN(memberFunctionsMap[expr->type()][node->name()](
+            node->lineno(), expr, parameters));
+    }
+
+    bool visitFilterExprNode(FilterExprNode* node) override {
         node->domain()->accept(this);
-        ASSERT_EXPR_TYPE(ExprType::List);
+        ASSERT_EXPR_TYPE(LiteralType::List);
         auto list = std::dynamic_pointer_cast<ListNode>(_resultVisit);
         auto result = std::make_shared<SequenceLiteralNode>(node->lineno());
 
@@ -214,398 +406,188 @@ public:
         for (auto lit : list->value()->nodes()) {
             _symTab.replace(node->var(), lit);
             node->predicate()->accept(this);
-            ASSERT_EXPR_TYPE(ExprType::Bool);
+            ASSERT_EXPR_TYPE(LiteralType::Bool);
             auto pred = std::dynamic_pointer_cast<BoolNode>(_resultVisit);
             if (pred->value()) {
                 result->insert(lit);
             }
         }
         _symTab.pop();
-        return std::make_shared<ListNode>(node->lineno(), result);
+        RETURN(std::make_shared<ListNode>(node->lineno(), result));
     }
-    std::shared_ptr<LiteralNode> visitAtNode(AtNode* node) {
+    bool visitAtNode(AtNode* node) override {
         node->expr()->accept(this);
-        ASSERT_EXPR_TYPE(ExprType::List);
-        auto list = std::dynamic_pointer_cast<ListNode>(_resultVisit);
-
+        auto expr = _resultVisit;
         node->index()->accept(this);
-        ASSERT_EXPR_TYPE(ExprType::Int);
-        auto index = std::dynamic_pointer_cast<IntNode>(_resultVisit);
-
-        if (static_cast<size_t>(index->value()) >= list->size()) {
-            std::cout << "Index out of bounds in line " << node->lineno()
-                      << std::endl;
-            return std::make_shared<NilNode>(node->lineno(), node);
+        auto index = _resultVisit;
+        if (operatorsMap[expr->type()].count("[]") == 0) {
+            throw InterpreterException(LITERAL_TYPE_MAP.at(expr->type()) +
+                                       " does not have operator '[]' in line " +
+                                       std::to_string(node->lineno()));
         }
-        return list->node(index->value());
+        RETURN(operatorsMap[expr->type()]["[]"](node->lineno(), expr, index));
     }
-    std::shared_ptr<LiteralNode> visitIntNode(IntNode* node) {
-        return std::make_shared<IntNode>(node->lineno(), node);
+
+    bool visitTimeNode(TimeNode* node) override {
+        auto start = std::chrono::high_resolution_clock::now();
+        node->expr()->accept(this);
+        auto end = std::chrono::high_resolution_clock::now();
+        RETURN(std::make_shared<IntNode>(
+            node->lineno(),
+            std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
+                .count()));
     }
-    std::shared_ptr<LiteralNode> visitFloatNode(FloatNode* node) {
-        return std::make_shared<FloatNode>(node->lineno(), node);
+
+    // objects
+    bool visitNodePointer(NodePointer* node) override {
+        RETURN(std::make_shared<NodePointer>(node->lineno(), node));
     }
-    std::shared_ptr<LiteralNode> visitStringNode(StringNode* node) {
-        return std::make_shared<StringNode>(node->lineno(), node);
+    bool visitEdgePointer(EdgePointer* node) override {
+        RETURN(std::make_shared<EdgePointer>(node->lineno(), node));
     }
-    std::shared_ptr<LiteralNode> visitBoolNode(BoolNode* node) {
-        return std::make_shared<BoolNode>(node->lineno(), node);
+
+    // literals
+    bool visitIntNode(IntNode* node) override {
+        RETURN(std::make_shared<IntNode>(node->lineno(), node));
     }
-    std::shared_ptr<LiteralNode> visitListNode(ListNode* node) {
-        return std::make_shared<ListNode>(node->lineno(), node);
+    bool visitFloatNode(FloatNode* node) override {
+        RETURN(std::make_shared<FloatNode>(node->lineno(), node));
     }
-    std::shared_ptr<LiteralNode> visitNilNode(NilNode* node) {
-        return std::make_shared<NilNode>(node->lineno(), node);
+    bool visitStringNode(StringNode* node) override {
+        RETURN(std::make_shared<StringNode>(node->lineno(), node));
     }
-    std::shared_ptr<LiteralNode> visitNodePointer(NodePointer* node) {
-        return std::make_shared<NodePointer>(node->lineno(), node);
+    bool visitBoolNode(BoolNode* node) override {
+        RETURN(std::make_shared<BoolNode>(node->lineno(), node));
     }
-    std::shared_ptr<LiteralNode> visitEdgePointer(EdgePointer* node) {
-        return std::make_shared<EdgePointer>(node->lineno(), node);
+    bool visitListNode(ListNode* node) override {
+        RETURN(std::make_shared<ListNode>(node->lineno(), node));
     }
-    std::shared_ptr<LiteralNode> visitEqualNode(EqualNode* node) {
+    bool visitMapNode(MapNode* node) override {
+        RETURN(std::make_shared<MapNode>(node->lineno(), node));
+    }
+    bool visitNilNode(NilNode* node) override {
+        RETURN(std::make_shared<NilNode>(node->lineno(), node));
+    }
+    bool visitNoneNode(NoneNode* node) override {
+        RETURN(std::make_shared<NoneNode>(node->lineno(), node));
+    }
+
+    // binary expr
+    bool visitEqualNode(EqualNode* node) override {
         node->left()->accept(this);
-        ASSERT_EXPR_NOT_NULL;
         auto left = _resultVisit;
         node->right()->accept(this);
-        ASSERT_EXPR_NOT_NULL;
         auto right = _resultVisit;
-        return std::make_shared<BoolNode>(node->lineno(), left->equals(right));
+        RETURN(std::make_shared<BoolNode>(node->lineno(), left->equals(right)));
     }
-    std::shared_ptr<LiteralNode> visitNotEqualNode(NotEqualNode* node) {
+    bool visitNotEqualNode(NotEqualNode* node) override {
         node->left()->accept(this);
-        ASSERT_EXPR_NOT_NULL;
         auto left = _resultVisit;
         node->right()->accept(this);
-        ASSERT_EXPR_NOT_NULL;
         auto right = _resultVisit;
-        return std::make_shared<BoolNode>(node->lineno(), !left->equals(right));
+        RETURN(
+            std::make_shared<BoolNode>(node->lineno(), !left->equals(right)));
     }
-    std::shared_ptr<LiteralNode> visitAndNode(AndNode* node) {
+    bool visitAndNode(AndNode* node) override {
         node->left()->accept(this);
-        ASSERT_EXPR_TYPE(ExprType::Bool);
+        ASSERT_EXPR_TYPE(LiteralType::Bool);
         auto left = std::dynamic_pointer_cast<BoolNode>(_resultVisit);
         if (!left->value()) {
-            return std::make_shared<BoolNode>(node->lineno(), false);
+            RETURN(std::make_shared<BoolNode>(node->lineno(), false));
         }
         node->right()->accept(this);
-        ASSERT_EXPR_TYPE(ExprType::Bool);
+        ASSERT_EXPR_TYPE(LiteralType::Bool);
         auto right = std::dynamic_pointer_cast<BoolNode>(_resultVisit);
-        return std::make_shared<BoolNode>(node->lineno(),
-                                          left->value() && right->value());
+        RETURN(std::make_shared<BoolNode>(node->lineno(),
+                                          left->value() && right->value()));
     }
-    std::shared_ptr<LiteralNode> visitOrNode(OrNode* node) {
+    bool visitOrNode(OrNode* node) override {
         node->left()->accept(this);
-        ASSERT_EXPR_TYPE(ExprType::Bool);
+        ASSERT_EXPR_TYPE(LiteralType::Bool);
         auto left = std::dynamic_pointer_cast<BoolNode>(_resultVisit);
         node->right()->accept(this);
-        ASSERT_EXPR_TYPE(ExprType::Bool);
+        ASSERT_EXPR_TYPE(LiteralType::Bool);
         auto right = std::dynamic_pointer_cast<BoolNode>(_resultVisit);
-        return std::make_shared<BoolNode>(node->lineno(),
-                                          left->value() || right->value());
+        RETURN(std::make_shared<BoolNode>(node->lineno(),
+                                          left->value() || right->value()));
     }
-    std::shared_ptr<LiteralNode> visitInNode(InNode* node) {
-        node->left()->accept(this);
-        ASSERT_EXPR_NOT_NULL;
-        auto left = _resultVisit;
-        node->right()->accept(this);
-        ASSERT_EXPR_TYPE(ExprType::List);
-        auto right = std::dynamic_pointer_cast<ListNode>(_resultVisit);
+    bool visitInNode(InNode* node) override { BINARY_OP_R("in"); }
 
-        for (auto lit : right->value()->nodes()) {
-            if (left->equals(lit)) {
-                return std::make_shared<BoolNode>(node->lineno(), true);
-            }
-        }
+    bool visitLessNode(LessNode* node) { BINARY_OP("<"); }
+    bool visitLessEqualNode(LessEqualNode* node) { BINARY_OP("<="); }
+    bool visitGreaterNode(GreaterNode* node) { BINARY_OP(">"); }
+    bool visitGreaterEqualNode(GreaterEqualNode* node) { BINARY_OP(">="); }
+    bool visitAddNode(AddNode* node) { BINARY_OP("+"); }
+    bool visitSubNode(SubNode* node) { BINARY_OP("-"); }
+    bool visitMulNode(MulNode* node) { BINARY_OP("*"); }
+    bool visitDivNode(DivNode* node) { BINARY_OP("/"); }
+    bool visitModNode(ModNode* node) { BINARY_OP("%"); }
 
-        return std::make_shared<BoolNode>(node->lineno(), false);
-    }
-    std::shared_ptr<LiteralNode> visitNotNode(NotNode* node) {
+    // unary expr
+    bool visitNotNode(NotNode* node) override {
         node->argument()->accept(this);
-        ASSERT_EXPR_TYPE(ExprType::Bool);
+        ASSERT_EXPR_TYPE(LiteralType::Bool);
         auto arg = std::dynamic_pointer_cast<BoolNode>(_resultVisit);
-        return std::make_shared<BoolNode>(node->lineno(), !arg->value());
+        RETURN(std::make_shared<BoolNode>(node->lineno(), !arg->value()));
     }
-    std::shared_ptr<LiteralNode> visitSequenceExprNode(SequenceExprNode* node) {
+
+    // sequences
+    bool visitSequenceNode(SequenceNode* node) override {
+        for (auto basicNode : node->nodes()) {
+            if (basicNode == nullptr) {
+                continue;
+            }
+            basicNode->accept(this);
+        }
+        RETURN(NONE(node->lineno()));
+    }
+
+    bool visitSequenceExprNode(SequenceExprNode* node) {
         auto seq = std::make_shared<SequenceLiteralNode>(node->lineno());
         for (auto expr : node->nodes()) {
             expr->accept(this);
-            ASSERT_EXPR_NOT_NULL;
             seq->insert(_resultVisit);
         }
-        return std::make_shared<ListNode>(node->lineno(), seq);
+        RETURN(std::make_shared<ListNode>(node->lineno(), seq));
     }
-    std::shared_ptr<LiteralNode> visitSequenceLiteralNode(
-        SequenceLiteralNode* node) {
-        return std::make_shared<ListNode>(
-            node->lineno(), std::shared_ptr<SequenceLiteralNode>(node));
+    bool visitSequenceLiteralNode(SequenceLiteralNode* node) override {
+        RETURN(std::make_shared<ListNode>(
+            node->lineno(), std::shared_ptr<SequenceLiteralNode>(node)));
+    }
+
+private:
+    std::shared_ptr<LiteralNode> jsonToLiteral(json& object) {
+        switch (object.type()) {
+        case json::value_t::number_integer:
+        case json::value_t::number_unsigned:
+            return std::make_shared<IntNode>(0, object);
+        case json::value_t::number_float:
+            return std::make_shared<FloatNode>(0, object);
+        case json::value_t::boolean:
+            return std::make_shared<BoolNode>(0, object);
+        case json::value_t::string:
+            return std::make_shared<StringNode>(0, object);
+        case json::value_t::array: {
+            SequenceLiteralNode::SequenceType list;
+            for (auto item : object) {
+                list.push_back(jsonToLiteral(item));
+            }
+            return std::make_shared<ListNode>(
+                0, std::make_shared<SequenceLiteralNode>(0, list));
+        }
+        case json::value_t::object: {
+            auto res = std::make_shared<MapNode>(0);
+            for (auto it = object.begin(); it != object.end(); it++) {
+                res->value()[it.key()] = jsonToLiteral(object.at(it.key()));
+            }
+            return res;
+        }
+        default:
+            return NIL(0);
+        }
     }
 };
 
-struct Functions {
-    static std::shared_ptr<ListNode> nodeSetToList(int lineno, NodeSet& nodes) {
-        auto list = Query::map<std::shared_ptr<LiteralNode>>(
-            nodes,
-            [](Node* node) { return std::make_shared<NodePointer>(0, node); });
-        auto seq = std::make_shared<SequenceLiteralNode>(lineno, list);
-        return std::make_shared<ListNode>(lineno, seq);
-    }
-
-    static std::shared_ptr<LiteralNode> functions(
-        int lineno,
-        std::shared_ptr<ListNode> args) {
-        auto nodes = Query::functions();
-        return nodeSetToList(lineno, nodes);
-    }
-
-    static std::shared_ptr<LiteralNode> instructions(
-        int lineno,
-        std::shared_ptr<ListNode> args) {
-        ASSERT_NUM_ARGS_(1);
-        ASSERT_EXPR_TYPE_(args->node(0), ExprType::Node);
-        auto node = std::dynamic_pointer_cast<NodePointer>(args->node(0));
-
-        auto nodes = Query::instructions({node->value()}, Query::ALL_NODES);
-        return nodeSetToList(lineno, nodes);
-    }
-
-    static std::shared_ptr<LiteralNode> name(int lineno,
-                                             std::shared_ptr<ListNode> args) {
-        ASSERT_NUM_ARGS_(1);
-        ASSERT_EXPR_TYPE_(args->node(0), ExprType::Node);
-        auto node = std::dynamic_pointer_cast<NodePointer>(args->node(0));
-
-        return std::make_shared<StringNode>(lineno, node->value()->name());
-    }
-
-    static std::shared_ptr<LiteralNode> index(int lineno,
-                                              std::shared_ptr<ListNode> args) {
-        ASSERT_NUM_ARGS_(1);
-        ASSERT_EXPR_TYPE_(args->node(0), ExprType::Node);
-        auto node = std::dynamic_pointer_cast<NodePointer>(args->node(0));
-
-        return std::make_shared<IntNode>(lineno, node->value()->index());
-    }
-
-    static std::shared_ptr<LiteralNode> nargs(int lineno,
-                                              std::shared_ptr<ListNode> args) {
-        ASSERT_NUM_ARGS_(1);
-        ASSERT_EXPR_TYPE_(args->node(0), ExprType::Node);
-        auto node = std::dynamic_pointer_cast<NodePointer>(args->node(0));
-
-        return std::make_shared<IntNode>(lineno, node->value()->nargs());
-    }
-
-    static std::shared_ptr<LiteralNode> nlocals(
-        int lineno,
-        std::shared_ptr<ListNode> args) {
-        ASSERT_NUM_ARGS_(1);
-        ASSERT_EXPR_TYPE_(args->node(0), ExprType::Node);
-        auto node = std::dynamic_pointer_cast<NodePointer>(args->node(0));
-
-        return std::make_shared<IntNode>(lineno, node->value()->nlocals());
-    }
-
-    static std::shared_ptr<LiteralNode> nresults(
-        int lineno,
-        std::shared_ptr<ListNode> args) {
-        ASSERT_NUM_ARGS_(1);
-        ASSERT_EXPR_TYPE_(args->node(0), ExprType::Node);
-        auto node = std::dynamic_pointer_cast<NodePointer>(args->node(0));
-
-        return std::make_shared<IntNode>(lineno, node->value()->nresults());
-    }
-
-    static std::shared_ptr<LiteralNode> isImport(
-        int lineno,
-        std::shared_ptr<ListNode> args) {
-        ASSERT_NUM_ARGS_(1);
-        ASSERT_EXPR_TYPE_(args->node(0), ExprType::Node);
-        auto node = std::dynamic_pointer_cast<NodePointer>(args->node(0));
-
-        return std::make_shared<BoolNode>(lineno, node->value()->isImport());
-    }
-
-    static std::shared_ptr<LiteralNode> isExport(
-        int lineno,
-        std::shared_ptr<ListNode> args) {
-        ASSERT_NUM_ARGS_(1);
-        ASSERT_EXPR_TYPE_(args->node(0), ExprType::Node);
-        auto node = std::dynamic_pointer_cast<NodePointer>(args->node(0));
-
-        return std::make_shared<BoolNode>(lineno, node->value()->isExport());
-    }
-
-    static std::shared_ptr<LiteralNode> varType(
-        int lineno,
-        std::shared_ptr<ListNode> args) {
-        ASSERT_NUM_ARGS_(1);
-        ASSERT_EXPR_TYPE_(args->node(0), ExprType::Node);
-        auto node = std::dynamic_pointer_cast<NodePointer>(args->node(0));
-
-        return std::make_shared<StringNode>(
-            lineno, Utils::writeConstType(node->value()->varType()));
-    }
-
-    static std::shared_ptr<LiteralNode> opcode(int lineno,
-                                               std::shared_ptr<ListNode> args) {
-        ASSERT_NUM_ARGS_(1);
-        ASSERT_EXPR_TYPE_(args->node(0), ExprType::Node);
-        auto node = std::dynamic_pointer_cast<NodePointer>(args->node(0));
-
-        return std::make_shared<StringNode>(lineno,
-                                            node->value()->opcode().GetName());
-    }
-
-    static std::shared_ptr<LiteralNode> hasElse(
-        int lineno,
-        std::shared_ptr<ListNode> args) {
-        ASSERT_NUM_ARGS_(1);
-        ASSERT_EXPR_TYPE_(args->node(0), ExprType::Node);
-        auto node = std::dynamic_pointer_cast<NodePointer>(args->node(0));
-
-        return std::make_shared<BoolNode>(lineno, node->value()->hasElse());
-    }
-
-    static std::shared_ptr<LiteralNode> offset(int lineno,
-        std::shared_ptr<ListNode> args) {
-        ASSERT_NUM_ARGS_(1);
-        ASSERT_EXPR_TYPE_(args->node(0), ExprType::Node);
-        auto node = std::dynamic_pointer_cast<NodePointer>(args->node(0));
-
-        return std::make_shared<IntNode>(lineno, node->value()->offset());
-    }
-
-    static std::shared_ptr<LiteralNode> instType(
-        int lineno,
-        std::shared_ptr<ListNode> args) {
-        ASSERT_NUM_ARGS_(1);
-        ASSERT_EXPR_TYPE_(args->node(0), ExprType::Node);
-        auto node = std::dynamic_pointer_cast<NodePointer>(args->node(0));
-
-        return std::make_shared<StringNode>(
-            lineno, INST_TYPE_MAP.at(node->value()->instType()));
-    }
-
-    static std::shared_ptr<LiteralNode> label(int lineno,
-                                              std::shared_ptr<ListNode> args) {
-        ASSERT_NUM_ARGS_(1);
-        ASSERT_EXPR_TYPE_(args->node(0), ExprType::Node);
-        auto node = std::dynamic_pointer_cast<NodePointer>(args->node(0));
-
-        return std::make_shared<StringNode>(lineno, node->value()->label());
-    }
-
-    static std::shared_ptr<LiteralNode> child(int lineno,
-                                              std::shared_ptr<ListNode> args) {
-        ASSERT_NUM_ARGS_(3);
-        ASSERT_EXPR_TYPE_(args->node(0), ExprType::Node);
-        ASSERT_EXPR_TYPE_(args->node(1), ExprType::Int);
-        ASSERT_EXPR_TYPE_(args->node(2), ExprType::String);
-        auto node = std::dynamic_pointer_cast<NodePointer>(args->node(0));
-        auto i = std::dynamic_pointer_cast<IntNode>(args->node(1));
-        auto edgeType = std::dynamic_pointer_cast<StringNode>(args->node(2));
-
-        auto child =
-            NodeStream(node->value())
-                .child(i->value(), EDGE_TYPES_MAP_R.at(edgeType->value()))
-                .findFirst();
-
-        if (child.isPresent()) {
-            return std::make_shared<NodePointer>(lineno, child.get());
-        }
-
-        return std::make_shared<NilNode>(lineno);
-    }
-
-    static std::shared_ptr<LiteralNode> PDGEdge(
-        int lineno,
-        std::shared_ptr<ListNode> args) {
-        ASSERT_NUM_ARGS_(3);
-        ASSERT_EXPR_TYPE_(args->node(0), ExprType::Node);
-        ASSERT_EXPR_TYPE_(args->node(1), ExprType::Node);
-        ASSERT_EXPR_TYPE_(args->node(2), ExprType::String);
-        auto src = std::dynamic_pointer_cast<NodePointer>(args->node(0));
-        auto dest = std::dynamic_pointer_cast<NodePointer>(args->node(1));
-        auto pdgType = std::dynamic_pointer_cast<StringNode>(args->node(2));
-
-        auto edge = EdgeStream(src->value()->outEdges(EdgeType::PDG))
-                        .filter([&](Edge* e) {
-                            return e->dest()->id() == dest->value()->id();
-                        })
-                        .filterPDG(PDG_TYPE_MAP_R.at(pdgType->value()))
-                        .findFirst();
-
-        if (edge.isPresent()) {
-            std::make_shared<EdgePointer>(lineno, edge.get());
-        }
-        return std::make_shared<NilNode>(lineno);
-    }
-
-    static std::shared_ptr<LiteralNode> descendantsCFG(
-        int lineno,
-        std::shared_ptr<ListNode> args) {
-        ASSERT_NUM_ARGS_(1);
-        ASSERT_EXPR_TYPE_(args->node(0), ExprType::Node);
-        auto node = std::dynamic_pointer_cast<NodePointer>(args->node(0));
-
-        auto nodes =
-            Query::BFS({node->value()}, Query::ALL_NODES, Query::CFG_EDGES);
-        return nodeSetToList(lineno, nodes);
-    }
-
-    static std::shared_ptr<LiteralNode> reachesPDG(
-        int lineno,
-        std::shared_ptr<ListNode> args) {
-        ASSERT_NUM_ARGS_(4);
-        ASSERT_EXPR_TYPE_(args->node(0), ExprType::Node);
-        ASSERT_EXPR_TYPE_(args->node(1), ExprType::Node);
-        ASSERT_EXPR_TYPE_(args->node(2), ExprType::String);
-        ASSERT_EXPR_TYPE_(args->node(3), ExprType::String);
-        auto src = std::dynamic_pointer_cast<NodePointer>(args->node(0));
-        auto dest = std::dynamic_pointer_cast<NodePointer>(args->node(1));
-        auto pdgType = std::dynamic_pointer_cast<StringNode>(args->node(2));
-        auto label = std::dynamic_pointer_cast<StringNode>(args->node(3));
-
-        bool isPresent =
-            NodeStream(src->value())
-                .BFS(Predicate().id(dest->value()->id()),
-                     [&](Edge* e) {
-                         return e->type() == EdgeType::PDG &&
-                                e->pdgType() ==
-                                    PDG_TYPE_MAP_R.at(pdgType->value()) &&
-                                e->label() == label->value();
-                     })
-                .findFirst()
-                .isPresent();
-        return std::make_shared<BoolNode>(lineno, isPresent);
-    }
-
-    static std::shared_ptr<LiteralNode> vulnerability(
-        int lineno,
-        std::shared_ptr<ListNode> args) {
-        ASSERT_NUM_ARGS_(1);
-        json vuln;
-        Printer printer;
-        args->node(0)->accept(&printer);
-        vuln["type"] = printer.toString();
-
-        if (args->size() >= 2) {
-            args->node(1)->accept(&printer);
-            vuln["function"] = printer.toString();
-        }
-        if (args->size() >= 3) {
-            args->node(2)->accept(&printer);
-            vuln["caller"] = printer.toString();
-        }
-        if (args->size() >= 4) {
-            args->node(3)->accept(&printer);
-            vuln["description"] = printer.toString();
-        }
-        std::cout << vuln.dump(2) << std::endl;
-        return std::make_shared<NilNode>(lineno);
-    }
-};
 }  // namespace wasmati
 
 #endif

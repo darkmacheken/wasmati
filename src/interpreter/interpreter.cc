@@ -20,6 +20,7 @@ bool Interpreter::parse_stream(std::istream& in, const std::string& sname) {
 }
 
 bool Interpreter::parse_file(const std::string& filename) {
+    _file = filename;
     std::ifstream in(filename.c_str());
     if (!in.good())
         return false;
@@ -46,7 +47,9 @@ void Interpreter::error(const std::string& m) {
 
 int64_t Interpreter::evaluate(Visitor* visitor) {
     auto start = std::chrono::high_resolution_clock::now();
-    _ast->accept(visitor);
+    if (!_ast.empty()) {
+        _ast.back()->accept(visitor);
+    }
     auto end = std::chrono::high_resolution_clock::now();
     return std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
         .count();

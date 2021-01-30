@@ -57,54 +57,51 @@
 	int                   i;	/* integer value */
 	double                r;      /* double value */
     std::string          *s;	/* symbol name or string literal */;
-    wasmati::BasicNode             *node;	/* node pointer */  
-    wasmati::SequenceNode          *sequence;
-    wasmati::SequenceExprNode      *sequenceExpr;
-    wasmati::SequenceLiteralNode   *sequenceLiteral;
-    wasmati::ExpressionNode        *expression; /* expression nodes */
-    wasmati::LiteralNode           *literal; /* expression nodes */
-    wasmati::StringNode            *string;
-    wasmati::IntNode               *integerNode;
-    wasmati::FloatNode             *doubleNode;
-    wasmati::ListNode              *listNode;
-    wasmati::LValueNode            *lvalue;
-    wasmati::BlockNode             *block;
+    BasicNode             *node;	/* node pointer */  
+    BlockNode             *block;	
+    SequenceNode          *sequence;
+    SequenceExprNode      *sequenceExpr;
+    SequenceLiteralNode   *sequenceLiteral;
+    ExpressionNode        *expression; /* expression nodes */
+    std::vector<std::string> *identifiers;
 }
 
 %token <i> INT
-%token <r> DOUBLE
+%token <r> FLOAT
 %token <s> IDENTIFIER STRING
-%token END 0 "end of file"
-%token OR EQUAL NEQUAL ASSIGN AND IN NOT FALSE TRUE
+%token END 0 "End of file"
+%token LBRACE "(" RBRACE ")" LBRACKET "[" RBRACKET "]" CLBRACKET "{" CRBRACKET "}"
+%token DOT "." COMMA "," COLON ":" SEMICOLON ";"
+%token NOT "!"
+%token EQ_OP "=" NE_OP "!="
+%token AND_OP "&&" OR_OP "||"
+%token ASSIGN ":=" IN 
+%token LT_OP "<" LE_OP "<=" GT_OP ">" GE_OP ">="
+%token PLUS "+" SUB "-"
+%token MUL "*" DIV "/" MOD "%"
+%token FALSE TRUE
 %token ELSE FOREACH NIL
 %token IF
-%token LBRACE RBRACE LBRACKET RBRACKET CLBRACKET CRBRACKET DOT COMMA COLON SEMICOLON VERT
+%token FUNCTION RETURN TIME IMPORT
 
-%nonassoc IF 
-%nonassoc ELSE
-%left OR
-%left AND
-%nonassoc IN DOT
-%nonassoc NOT INT DOUBLE STRING IDENTIFIER
-%left EQUAL NEQUAL
-%left '<' '>'
-%left '+' '-'
-%left '*' '/' '%'
-%nonassoc tUNARY
-%nonassoc tCALL
-%nonassoc tINDEXING
+%precedence THEN
+%precedence ELSE
+%nonassoc NOT INT STRING IDENTIFIER
+%left OR_OP 
+%left AND_OP
+%left IN 
+%left EQ_OP NE_OP
+%left LT_OP LE_OP GT_OP GE_OP
+%left PLUS SUB
+%left MUL DIV MOD
+%left LBRACE LBRACKET DOT
 
-%type <node> stmt 
+%type <node> stmt if_stmt iteration_stmt function
+%type <block> block
 %type <sequence> stmts
 %type <sequenceExpr> exprs
-%type <sequenceLiteral> literals
-%type <literal> literal
-%type <expression> expr
-%type <lvalue> lval
-%type <integerNode> integer
-%type <doubleNode> double
-%type <string> string
-%type <listNode> list
+%type <expression> expr binop unop boolean literal integer float string call
+%type <identifiers> identifiers
 
  /*** END EXAMPLE - Change the example grammar's tokens above ***/
 
@@ -123,75 +120,117 @@
 
 %% /*** Grammar Rules ***/
 
- /*** BEGIN EXAMPLE - Change the example grammar rules below ***/
-
-prog_target : END           {driver.ast(new SequenceNode(LINE));}
+prog_target : END           {/* ignore */}
             | stmts END     {driver.ast($1);}
             | expr END      {driver.ast($1);}
             ;
 
+stmts 
+     : stmt                                       {$$ = new SequenceNode(LINE, $1);}   
+     | stmts stmt                                 {$$ = new SequenceNode(LINE, $2, $1);}
 
-stmts : stmt            {$$ = new SequenceNode(LINE, $1);}   
-      | stmts stmt      {$$ = new SequenceNode(LINE, $2, $1);}
-
-stmt : FOREACH IDENTIFIER IN expr stmts             {$$ = new Foreach(LINE, $2, $4, $5);}
-     | lval ASSIGN expr SEMICOLON                   {$$ = new AssignNode(LINE, $1, $3);}
-     | IF LBRACE expr RBRACE stmts                  {$$ = new IfNode(LINE, $3, $5);}
-     | IF LBRACE expr RBRACE stmts ELSE stmts       {$$ = new IfElseNode(LINE, $3, $5, $7);}
-     | CLBRACKET stmts CRBRACKET                    {$$ = new BlockNode(LINE, $2);}
-     | CLBRACKET CRBRACKET                          {$$ = new BlockNode(LINE, new SequenceNode(LINE));}
-     | expr SEMICOLON                               {$$ = $1;};   
+stmt 
+     : iteration_stmt                             {$$ = $1;}
+     | if_stmt                                    {$$ = $1;}
+     | block                                      {$$ = $1;}
+     | function                                   {$$ = $1;}
+     | expr ";"                                   {$$ = $1;}   
+     | ";"                                        {/* ignore */}
+     | RETURN ";"                                 {$$ = new ReturnNode(LINE);}
+     | RETURN expr ";"                            {$$ = new ReturnNode(LINE, $2);}
+     | IMPORT STRING                              {$$ = new ImportNode(LINE, $2);}
      ;
 
-expr : LBRACKET expr VERT IDENTIFIER IN expr COLON expr RBRACKET    {$$ = new RangeExprNode(LINE, $2, $4, $6, $8);}
-     | expr DOT IDENTIFIER %prec tCALL                              {$$ = new FunctionCall(LINE, $3, $1);}
-     | expr EQUAL expr                                              {$$ = new EqualNode(LINE, $1, $3);}
-     | expr NEQUAL expr                                             {$$ = new NotEqualNode(LINE, $1, $3);}
-     | expr AND expr                                                {$$ = new AndNode(LINE, $1, $3);}
-     | expr OR expr                                                 {$$ = new OrNode(LINE, $1, $3);}
-     | expr IN expr                                                 {$$ = new InNode(LINE, $1, $3);}
-     | NOT expr %prec tUNARY                                        {$$ = new NotNode(LINE, $2);}
-     | IDENTIFIER                                                   {$$ = new RValueNode(LINE, new IdentifierNode(LINE, $1)); delete $1;}
-     | literal                                                      {$$ = $1;}
-     | IDENTIFIER LBRACE exprs RBRACE %prec tCALL                   {$$ = new FunctionCall(LINE, $1, $3);}
-     | IDENTIFIER LBRACE RBRACE %prec tCALL                         {$$ = new FunctionCall(LINE, $1, new SequenceExprNode(LINE));}
-     | LBRACE expr RBRACE                                           {$$ = $2;}
-     | FALSE                                                        {$$ = new BoolNode(LINE, false);}
-     | TRUE                                                         {$$ = new BoolNode(LINE, true);}
-     | expr LBRACKET expr RBRACKET %prec tINDEXING                  {$$ = new AtNode(LINE, $1, $3);}
+block
+     : "{" "}"                                    {$$ = new BlockNode(LINE, new SequenceNode(LINE));}
+     | "{" stmts "}"                              {$$ = new BlockNode(LINE, $2);}
      ;
 
-lval : IDENTIFIER                       { $$ = new IdentifierNode(LINE, $1); delete $1; }
+if_stmt
+     : IF "(" expr ")" stmt %prec THEN            {$$ = new IfNode(LINE, $3, $5);}
+     | IF "(" expr ")" stmt ELSE stmt             {$$ = new IfElseNode(LINE, $3, $5, $7);}
      ;
 
-exprs : expr                              { $$ = new SequenceExprNode(LINE, $1); }
-      | exprs COMMA expr                  { $$ = new SequenceExprNode(LINE, $3, $1); }
+iteration_stmt
+     : FOREACH IDENTIFIER IN expr stmt            {$$ = new Foreach(LINE, $2, $4, $5);}
+     ;
+
+function
+     : FUNCTION IDENTIFIER "(" ")" block               {$$ = new FunctionNode(LINE, $2, $5);}
+     | FUNCTION IDENTIFIER "(" identifiers ")" block   {$$ = new FunctionNode(LINE, $2, $6, $4);}
+     ;
+
+identifiers
+     : IDENTIFIER                                 {$$ = new std::vector<std::string>(); $$->push_back(*$1);}
+     | identifiers "," IDENTIFIER                 {$1->push_back(*$3); $$ = $1;}
+     ;
+
+expr : "[" IDENTIFIER IN expr ":" expr "]"        {$$ = new FilterExprNode(LINE, $2, $4, $6);}
+     | IDENTIFIER ":=" expr                       {$$ = new AssignExpr(LINE, $1, $3);}
+     | binop                                      {$$ = $1;}
+     | unop                                       {$$ = $1;}
+     | IDENTIFIER                                 {$$ = new RValueNode(LINE, $1); delete $1;}
+     | literal                                    {$$ = $1;}
+     | call                                       {$$ = $1;}
+     | "(" expr ")"                               {$$ = $2;}
+     | expr "[" expr "]"                          {$$ = new AtNode(LINE, $1, $3);}
+     | TIME "(" expr ")"                          {$$ = new TimeNode(LINE, $3);}
+     ;
+
+binop 
+     : expr "=" expr                              {$$ = new EqualNode(LINE, $1, $3);}
+     | expr "!=" expr                             {$$ = new NotEqualNode(LINE, $1, $3);}
+     | expr "&&" expr                             {$$ = new AndNode(LINE, $1, $3);}
+     | expr "||" expr                             {$$ = new OrNode(LINE, $1, $3);}
+     | expr IN expr                               {$$ = new InNode(LINE, $1, $3);}
+     | expr "<" expr                              {$$ = new LessNode(LINE, $1, $3);}
+     | expr "<=" expr                             {$$ = new LessEqualNode(LINE, $1, $3);}
+     | expr ">" expr                              {$$ = new GreaterNode(LINE, $1, $3);}
+     | expr ">=" expr                             {$$ = new GreaterEqualNode(LINE, $1, $3);}
+     | expr "+" expr                              {$$ = new AddNode(LINE, $1, $3);}
+     | expr "-" expr                              {$$ = new SubNode(LINE, $1, $3);}
+     | expr "*" expr                              {$$ = new MulNode(LINE, $1, $3);}
+     | expr "/" expr                              {$$ = new DivNode(LINE, $1, $3);}
+     | expr "%" expr                              {$$ = new ModNode(LINE, $1, $3);}
+     ;
+
+unop
+     : NOT expr                                   {$$ = new NotNode(LINE, $2);}
+     ;
+
+call 
+     : IDENTIFIER "(" ")"                         {$$ = new FunctionCall(LINE, $1);}
+     | IDENTIFIER "(" exprs ")"                   {$$ = new FunctionCall(LINE, $1, $3);}
+     | expr "." IDENTIFIER                        {$$ = new AttributeCall(LINE, $3, $1);}
+     | expr "." IDENTIFIER "(" ")"                {$$ = new MemberFunctionCall(LINE, $3, $1);}
+     | expr "." IDENTIFIER "(" exprs ")"          {$$ = new MemberFunctionCall(LINE, $3, $1, $5);}
+     ;
+
+exprs : expr                                      { $$ = new SequenceExprNode(LINE, $1); }
+      | exprs "," expr                            { $$ = new SequenceExprNode(LINE, $3, $1); }
       ; 
 
-literals : literal                                { $$ = new SequenceLiteralNode(LINE, $1); }
-         | literals COMMA literal                 { $$ = new SequenceLiteralNode(LINE, $3, $1); }
-         ; 
-
-literal : integer                       { $$ = $1; }
-        | double                        { $$ = $1; }
-        | string                        { $$ = $1; }
-        | list                          { $$ = $1; }
-        | NIL                           { $$ = new NilNode(LINE); }
+literal : integer                                 { $$ = $1; }
+        | float                                   { $$ = $1; }
+        | string                                  { $$ = $1; }
+        | boolean                                 { $$ = $1; }
+        | NIL                                     { $$ = new NilNode(LINE); }
         ;
 
-list : LBRACKET literals RBRACKET       {$$ = new ListNode(LINE, $2);}
-     | LBRACKET RBRACKET                {$$ = new ListNode(LINE, new SequenceLiteralNode(LINE));}
+integer : INT                                     { $$ = new IntNode(LINE, $1); }
+        ;
+
+float : 
+     FLOAT                                        { $$ = new FloatNode(LINE, $1); }
      ;
 
-integer : INT                          { $$ = new IntNode(LINE, $1); }
-        ;
-
-double : DOUBLE                        { $$ = new FloatNode(LINE, $1); }
+string : STRING                                   { $$ = new StringNode(LINE, *$1); delete $1;}
        ;
 
-string : STRING                          { $$ = new StringNode(LINE, *$1); delete $1;}
-       ;
- /*** END EXAMPLE - Change the example grammar rules above ***/
+boolean 
+     : FALSE                                      {$$ = new BoolNode(LINE, false);}
+     | TRUE                                       {$$ = new BoolNode(LINE, true);}
+     ;
 
 %% /*** Additional Code ***/
 

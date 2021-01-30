@@ -11,88 +11,83 @@
 #include <vector>
 
 namespace wasmati {
-class SequenceNode;
-class BlockNode;
-class IdentifierNode;
-class Foreach;
-class IfNode;
-class IfElseNode;
-class IfElseNode;
-class AssignNode;
-class ExpressionNode;
+class Visitor;
 class Node;
 class Edge;
 
-class Visitor {
-public:
-    virtual void visitSequenceNode(SequenceNode* node) = 0;
-    virtual void visitBlockNode(BlockNode* node) = 0;
-    virtual void visitIdentifierNode(IdentifierNode* node) = 0;
-    virtual void visitForeach(Foreach* node) = 0;
-    virtual void visitIfNode(IfNode* node) = 0;
-    virtual void visitIfElseNode(IfElseNode* node) = 0;
-    virtual void visitAssignNode(AssignNode* node) = 0;
-    virtual void visitExpressionNode(ExpressionNode* expr) = 0;
-};
-
-enum class ExprType {
-    RValue,
-    Sequence,
-    SequenceLiteral,
-    FunctionCall,
-    Range,
-    At,
+enum class LiteralType {
+    None,
     Int,
     Float,
     String,
     Bool,
     List,
+    Map,
     Nil,
     Node,
     Edge,
-    NotEqual,
+};
+
+enum class BinopType {
     Equal,
+    NotEqual,
     And,
     Or,
     In,
+    Less,
+    LessEqual,
+    Greater,
+    GreaterEqual,
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Mod,
+};
+
+enum class UnopType {
     Not,
 };
 
 class BasicNode {
-    int _lineno;  // source line
+    /// @brief source line
+    int _lineno;
 
 public:
-    /**
-     * Simple constructor.
-     *
-     * @param lineno the source code line number corresponding to the node
-     */
     BasicNode(int lineno) : _lineno(lineno) {}
 
     virtual ~BasicNode() {}
 
 public:
-    /** @return the line number of the corresponding source code */
     int lineno() const { return _lineno; }
 
-    /**
-     * @return the label of the node (i.e., it's class)
-     */
-    std::string label() const {
-        std::string fullname = typeid(*this).name();
-        int last = fullname.find_last_of("0123456789");
-        return fullname.substr(last + 1, fullname.length() - last - 1 - 1);
-    }
-
-    virtual void accept(Visitor* visitor) = 0;
+    virtual bool accept(Visitor* visitor) = 0;
 };
 
-class SequenceNode : public BasicNode {
-    typedef std::vector<std::shared_ptr<BasicNode>> SequenceType;
+class ExpressionNode : public BasicNode {
+protected:
+    ExpressionNode(int lineno) : BasicNode(lineno) {}
+};
+
+class LiteralNode : public ExpressionNode {
+protected:
+    LiteralNode(int lineno) : ExpressionNode(lineno) {}
+
+public:
+    virtual LiteralType type() = 0;
+    virtual bool equals(std::shared_ptr<LiteralNode> other) = 0;
+};
+
+template <typename Item, typename T>
+class Sequence : public T {
+public:
+    typedef std::vector<Item> SequenceType;
+
+private:
     SequenceType _nodes;
 
 public:
-    SequenceNode(int lineno) : BasicNode(lineno) {}
+    Sequence(int lineno) : T(lineno) {}
 
     /**
      * Example: constructor for a left recursive production node:
@@ -109,313 +104,319 @@ public:
      * @param item is the single element to be added to the sequence
      * @param sequence is a previous sequence (nodes will be imported)
      */
-    SequenceNode(int lineno, BasicNode* item, SequenceNode* sequence = nullptr)
-        : BasicNode(lineno) {
+    Sequence(int lineno, Item item, Sequence<Item, T>* sequence = nullptr)
+        : T(lineno) {
         if (sequence != nullptr)
             _nodes = sequence->nodes();
-        _nodes.push_back(std::shared_ptr<BasicNode>(item));
+        _nodes.push_back(item);
     }
 
-    SequenceNode(int lineno, SequenceType nodes)
-        : BasicNode(lineno), _nodes(nodes) {}
+    Sequence(int lineno, SequenceType& nodes) : T(lineno), _nodes(nodes) {}
+
+    Sequence(int lineno, std::list<Item> nodes)
+        : T(lineno), _nodes(SequenceType(nodes.begin(), nodes.end())) {}
 
 public:
-    std::shared_ptr<BasicNode> node(size_t i) { return _nodes[i]; }
-    SequenceType& nodes() { return _nodes; }
+    Item node(size_t i) { return _nodes[i]; }
+    Item last() { return _nodes.back(); }
+    const SequenceType& nodes() { return _nodes; }
     size_t size() { return _nodes.size(); }
-
-    void accept(Visitor* visitor) override { visitor->visitSequenceNode(this); }
+    void insert(Item item) { _nodes.push_back(item); }
+    void insert(const SequenceType& nodes) {
+        _nodes.insert(_nodes.end(), nodes.begin(), nodes.end());
+    }
+    virtual bool accept(Visitor* visitor) override;
 };
+
+typedef Sequence<BasicNode*, BasicNode> SequenceNode;
+typedef Sequence<ExpressionNode*, ExpressionNode> SequenceExprNode;
+typedef Sequence<std::shared_ptr<LiteralNode>, ExpressionNode>
+    SequenceLiteralNode;
 
 class BlockNode : public BasicNode {
-    std::shared_ptr<SequenceNode> _stmt;
+    SequenceNode* _stmts;
 
 public:
-    inline BlockNode(int lineno, SequenceNode* stmt)
-        : BasicNode(lineno), _stmt(std::shared_ptr<SequenceNode>(stmt)) {}
+    inline BlockNode(int lineno)
+        : BasicNode(lineno), _stmts(new SequenceNode(lineno)) {}
+
+    inline BlockNode(int lineno, SequenceNode* stmts)
+        : BasicNode(lineno), _stmts(stmts) {}
 
 public:
-    inline std::shared_ptr<SequenceNode> statements() { return _stmt; }
+    inline SequenceNode* statements() { return _stmts; }
 
-    void accept(Visitor* visitor) override { visitor->visitBlockNode(this); }
-};
-
-class LValueNode : public BasicNode {
-protected:
-    LValueNode(int lineno) : BasicNode(lineno) {}
-};
-
-class IdentifierNode : public LValueNode {
-    std::string _name;
-
-public:
-    IdentifierNode(int lineno, const char* s) : LValueNode(lineno), _name(s) {}
-    IdentifierNode(int lineno, const std::string& s)
-        : LValueNode(lineno), _name(s) {}
-    IdentifierNode(int lineno, const std::string* s)
-        : LValueNode(lineno), _name(*s) {}
-
-public:
-    const std::string& name() const { return _name; }
-
-    void accept(Visitor* visitor) override {
-        visitor->visitIdentifierNode(this);
-    }
-};
-
-class ExpressionNode : public BasicNode {
-protected:
-    /**
-     * @param lineno the source code line corresponding to the node
-     */
-    ExpressionNode(int lineno) : BasicNode(lineno) {}
-
-public:
-    virtual ExprType type() = 0;
-
-    void accept(Visitor* visitor) override {
-        visitor->visitExpressionNode(this);
-    }
+    bool accept(Visitor* visitor) override;
 };
 
 class Foreach : public BasicNode {
     std::string _identifier;
     ExpressionNode* _expr;
-    SequenceNode* _insts;
+    BasicNode* _stmt;
 
 public:
     inline Foreach(int lineno,
                    std::string* identifier,
                    ExpressionNode* expr,
-                   SequenceNode* insts)
+                   BasicNode* stmt)
         : BasicNode(lineno),
           _identifier(*identifier),
           _expr(expr),
-          _insts(insts) {}
+          _stmt(stmt) {}
 
 public:
     inline std::string identifier() { return _identifier; }
 
     inline ExpressionNode* expr() { return _expr; }
 
-    inline SequenceNode* insts() { return _insts; }
+    inline BasicNode* insts() { return _stmt; }
 
-    void accept(Visitor* visitor) override { visitor->visitForeach(this); }
+    bool accept(Visitor* visitor) override;
 };
 
 class IfNode : public BasicNode {
-    std::shared_ptr<ExpressionNode> _condition;
-    std::shared_ptr<BasicNode> _block;
+    ExpressionNode* _condition;
+    BasicNode* _thenStmt;
 
 public:
-    inline IfNode(int lineno, ExpressionNode* condition, BasicNode* block)
-        : BasicNode(lineno), _condition(condition), _block(block) {}
+    inline IfNode(int lineno, ExpressionNode* condition, BasicNode* thenStmt)
+        : BasicNode(lineno), _condition(condition), _thenStmt(thenStmt) {}
 
 public:
-    inline std::shared_ptr<ExpressionNode> condition() { return _condition; }
-    inline std::shared_ptr<BasicNode> block() { return _block; }
+    inline ExpressionNode* condition() { return _condition; }
+    inline BasicNode* block() { return _thenStmt; }
 
-    void accept(Visitor* visitor) override { visitor->visitIfNode(this); }
+    bool accept(Visitor* visitor) override;
 };
 
 class IfElseNode : public BasicNode {
-    std::shared_ptr<ExpressionNode> _condition;
-    std::shared_ptr<BasicNode> _thenblock, _elseblock;
+    ExpressionNode* _condition;
+    BasicNode *_thenStmt, *_elseStmt;
 
 public:
     inline IfElseNode(int lineno,
                       ExpressionNode* condition,
-                      BasicNode* thenblock,
-                      BasicNode* elseblock)
+                      BasicNode* thenStmt,
+                      BasicNode* elseStmt)
         : BasicNode(lineno),
           _condition(condition),
-          _thenblock(thenblock),
-          _elseblock(elseblock) {}
+          _thenStmt(thenStmt),
+          _elseStmt(elseStmt) {}
 
 public:
-    inline std::shared_ptr<ExpressionNode> condition() { return _condition; }
-    inline std::shared_ptr<BasicNode> thenblock() { return _thenblock; }
-    inline std::shared_ptr<BasicNode> elseblock() { return _elseblock; }
+    inline ExpressionNode* condition() { return _condition; }
+    inline BasicNode* thenblock() { return _thenStmt; }
+    inline BasicNode* elseblock() { return _elseStmt; }
 
-    void accept(Visitor* visitor) override { visitor->visitIfElseNode(this); }
+    bool accept(Visitor* visitor) override;
 };
 
-class AssignNode : public BasicNode {
-    std::shared_ptr<LValueNode> _lvalue;
-    std::shared_ptr<ExpressionNode> _rvalue;
+class FunctionNode : public BasicNode {
+    std::string _name;
+    BlockNode* _block;
+    std::vector<std::string> _identifiers;
 
 public:
-    AssignNode(int lineno, LValueNode* lvalue, ExpressionNode* rvalue)
-        : BasicNode(lineno), _lvalue(lvalue), _rvalue(rvalue) {}
+    inline FunctionNode(int lineno,
+                        std::string* name,
+                        BlockNode* block,
+                        std::vector<std::string>* identifiers = nullptr)
+        : BasicNode(lineno), _name(*name), _block(block) {
+        if (identifiers != nullptr) {
+            _identifiers = *identifiers;
+            delete identifiers;
+        }
+    }
 
 public:
-    std::shared_ptr<LValueNode> lvalue() { return _lvalue; }
-    std::shared_ptr<ExpressionNode> rvalue() { return _rvalue; }
+    inline std::string name() { return _name; }
+    inline BlockNode* block() { return _block; }
+    inline const std::vector<std::string>& identifiers() {
+        return _identifiers;
+    }
 
-    void accept(Visitor* visitor) override { visitor->visitAssignNode(this); }
+    bool accept(Visitor* visitor) override;
+};
+
+class ReturnNode : public BasicNode {
+    ExpressionNode* _expr;
+
+public:
+    inline ReturnNode(int lineno, ExpressionNode* expr = nullptr)
+        : BasicNode(lineno), _expr(expr) {}
+
+public:
+    inline ExpressionNode* expr() { return _expr; }
+
+    bool accept(Visitor* visitor) override;
+};
+
+class ImportNode : public BasicNode {
+    std::string _file;
+
+public:
+    inline ImportNode(int lineno, std::string* file)
+        : BasicNode(lineno), _file(*file) {}
+
+public:
+    inline std::string file() { return _file; }
+
+    bool accept(Visitor* visitor) override;
 };
 
 /*** Expressions ***/
-class SequenceExprNode : public ExpressionNode {
-    typedef std::vector<std::shared_ptr<ExpressionNode>> SequenceType;
-    SequenceType _nodes;
+class RValueNode : public ExpressionNode {
+    std::string _name;
 
 public:
-    SequenceExprNode(int lineno) : ExpressionNode(lineno) {}
-
-    SequenceExprNode(int lineno,
-                     ExpressionNode* item,
-                     SequenceExprNode* sequence = nullptr)
-        : ExpressionNode(lineno) {
-        if (sequence != nullptr)
-            _nodes = sequence->nodes();
-        _nodes.push_back(std::shared_ptr<ExpressionNode>(item));
-    }
-
-    SequenceExprNode(int lineno, SequenceType nodes)
-        : ExpressionNode(lineno), _nodes(nodes) {}
+    RValueNode(int lineno, std::string* name)
+        : ExpressionNode(lineno), _name(*name) {}
 
 public:
-    std::shared_ptr<ExpressionNode> node(size_t i) { return _nodes[i]; }
-    SequenceType& nodes() { return _nodes; }
-    size_t size() { return _nodes.size(); }
+    std::string name() { return _name; }
 
-    ExprType type() override { return ExprType::Sequence; }
+    bool accept(Visitor* visitor) override;
 };
 
-class RValueNode : public ExpressionNode {
-    std::shared_ptr<LValueNode> _lvalue;
+class AssignExpr : public ExpressionNode {
+    std::string _identifier;
+    ExpressionNode* _expr;
 
 public:
-    RValueNode(int lineno, LValueNode* lvalue)
-        : ExpressionNode(lineno), _lvalue(lvalue) {}
+    AssignExpr(int lineno, std::string* identifier, ExpressionNode* expr)
+        : ExpressionNode(lineno), _identifier(*identifier), _expr(expr) {}
 
 public:
-    std::shared_ptr<LValueNode> lvalue() { return _lvalue; }
+    std::string identifier() { return _identifier; }
+    ExpressionNode* expr() { return _expr; }
 
-    ExprType type() override { return ExprType::RValue; }
+    bool accept(Visitor* visitor) override;
 };
 
 class FunctionCall : public ExpressionNode {
-    std::string _identifier;
-    std::shared_ptr<SequenceExprNode> _parameters;
+    std::string _name;
+    SequenceExprNode* _parameters;
 
 public:
-    inline FunctionCall(int lineno,
-                        std::string* identifier,
-                        SequenceExprNode* parameters)
+    inline FunctionCall(int lineno, std::string* name)
         : ExpressionNode(lineno),
-          _identifier(*identifier),
-          _parameters(parameters) {}
+          _name(*name),
+          _parameters(new SequenceExprNode(lineno)) {}
 
     inline FunctionCall(int lineno,
-                        std::string* identifier,
+                        std::string* name,
                         ExpressionNode* parameter)
         : ExpressionNode(lineno),
-          _identifier(*identifier),
+          _name(*name),
           _parameters(new SequenceExprNode(lineno, parameter)) {}
 
+    inline FunctionCall(int lineno,
+                        std::string* name,
+                        SequenceExprNode* parameters)
+        : ExpressionNode(lineno), _name(*name), _parameters(parameters) {}
+
 public:
-    inline std::string identifier() { return _identifier; }
+    inline std::string name() { return _name; }
 
-    inline std::shared_ptr<SequenceExprNode> parameters() {
-        return _parameters;
-    }
+    inline SequenceExprNode* parameters() { return _parameters; }
 
-    ExprType type() override { return ExprType::FunctionCall; }
+    bool accept(Visitor* visitor) override;
 };
 
-class RangeExprNode : public ExpressionNode {
-    std::shared_ptr<ExpressionNode> _expr;
-    std::string _var;
-    std::shared_ptr<ExpressionNode> _domain;
-    std::shared_ptr<ExpressionNode> _predicate;
+class AttributeCall : public ExpressionNode {
+    std::string _name;
+    ExpressionNode* _expr;
 
 public:
-    inline RangeExprNode(int lineno,
-                         ExpressionNode* expr,
-                         std::string* var,
-                         ExpressionNode* domain,
-                         ExpressionNode* predicate)
+    inline AttributeCall(int lineno, std::string* name, ExpressionNode* expr)
+        : ExpressionNode(lineno), _name(*name), _expr(expr) {}
+
+public:
+    inline std::string name() { return _name; }
+    inline ExpressionNode* expr() { return _expr; }
+
+    bool accept(Visitor* visitor) override;
+};
+
+class MemberFunctionCall : public ExpressionNode {
+    std::string _name;
+    ExpressionNode* _expr;
+    SequenceExprNode* _parameters;
+
+public:
+    inline MemberFunctionCall(int lineno,
+                              std::string* name,
+                              ExpressionNode* expr,
+                              SequenceExprNode* parameters = nullptr)
+        : ExpressionNode(lineno), _name(*name), _expr(expr) {
+        if (parameters == nullptr) {
+            _parameters = new SequenceExprNode(lineno);
+        } else {
+            _parameters = parameters;
+        }
+    }
+
+public:
+    inline std::string name() { return _name; }
+    inline ExpressionNode* expr() { return _expr; }
+    inline SequenceExprNode* parameters() { return _parameters; }
+
+    bool accept(Visitor* visitor) override;
+};
+
+class FilterExprNode : public ExpressionNode {
+    std::string _var;
+    ExpressionNode* _domain;
+    ExpressionNode* _predicate;
+
+public:
+    inline FilterExprNode(int lineno,
+                          std::string* var,
+                          ExpressionNode* domain,
+                          ExpressionNode* predicate)
         : ExpressionNode(lineno),
-          _expr(expr),
           _var(*var),
           _domain(domain),
           _predicate(predicate) {}
 
 public:
-    inline std::shared_ptr<ExpressionNode> expr() { return _expr; }
     inline std::string var() { return _var; }
-    inline std::shared_ptr<ExpressionNode> domain() { return _domain; }
-    inline std::shared_ptr<ExpressionNode> predicate() { return _predicate; }
-    ExprType type() override { return ExprType::Range; }
+    inline ExpressionNode* domain() { return _domain; }
+    inline ExpressionNode* predicate() { return _predicate; }
+
+    bool accept(Visitor* visitor) override;
 };
 
 class AtNode : public ExpressionNode {
-    std::shared_ptr<ExpressionNode> _expr;
-    std::shared_ptr<ExpressionNode> _index;
+    ExpressionNode* _expr;
+    ExpressionNode* _index;
 
 public:
     inline AtNode(int lineno, ExpressionNode* expr, ExpressionNode* index)
         : ExpressionNode(lineno), _expr(expr), _index(index) {}
 
 public:
-    inline std::shared_ptr<ExpressionNode> expr() { return _expr; }
+    inline ExpressionNode* expr() { return _expr; }
 
-    inline std::shared_ptr<ExpressionNode> index() { return _index; }
+    inline ExpressionNode* index() { return _index; }
 
-    ExprType type() override { return ExprType::At; }
+    bool accept(Visitor* visitor) override;
 };
 
-class LiteralNode : public ExpressionNode {
-protected:
-    /**
-     * @param lineno the source code line corresponding to the node
-     */
-    LiteralNode(int lineno) : ExpressionNode(lineno) {}
+class TimeNode : public ExpressionNode {
+    ExpressionNode* _expr;
 
 public:
-    virtual bool equals(std::shared_ptr<LiteralNode> other) = 0;
+    inline TimeNode(int lineno, ExpressionNode* expr)
+        : ExpressionNode(lineno), _expr(expr) {}
+
+public:
+    inline ExpressionNode* expr() { return _expr; }
+
+    bool accept(Visitor* visitor) override;
 };
 
-class SequenceLiteralNode : public ExpressionNode {
-public:
-    typedef std::vector<std::shared_ptr<LiteralNode>> SequenceType;
-
-private:
-    SequenceType _nodes;
-
-public:
-    SequenceLiteralNode(int lineno) : ExpressionNode(lineno) {}
-
-    SequenceLiteralNode(int lineno,
-                        LiteralNode* item,
-                        SequenceLiteralNode* sequence = nullptr)
-        : ExpressionNode(lineno) {
-        if (sequence != nullptr)
-            _nodes = sequence->nodes();
-        _nodes.push_back(std::shared_ptr<LiteralNode>(item));
-    }
-
-    SequenceLiteralNode(int lineno, SequenceType nodes)
-        : ExpressionNode(lineno), _nodes(nodes) {}
-
-    SequenceLiteralNode(int lineno,
-                        std::list<std::shared_ptr<LiteralNode>> nodes)
-        : ExpressionNode(lineno),
-          _nodes(SequenceType(nodes.begin(), nodes.end())) {}
-
-public:
-    std::shared_ptr<LiteralNode> node(size_t i) { return _nodes[i]; }
-    SequenceType& nodes() { return _nodes; }
-    size_t size() { return _nodes.size(); }
-
-    void insert(std::shared_ptr<LiteralNode> item) { _nodes.push_back(item); }
-
-    ExprType type() override { return ExprType::SequenceLiteral; }
-};
-
-template <typename StoredType, ExprType T>
+template <typename StoredType, LiteralType T>
 class Literal : public LiteralNode {
     StoredType _value;
 
@@ -428,9 +429,10 @@ public:
     Literal(int lineno, Literal<StoredType, T>* lit)
         : LiteralNode(lit->lineno()), _value(lit->value()) {}
 
-    const StoredType& value() const { return _value; }
+public:
+    StoredType& value() { return _value; }
 
-    ExprType type() override { return T; }
+    LiteralType type() override { return T; }
 
     bool equals(std::shared_ptr<LiteralNode> other) override {
         if (this->type() != other->type()) {
@@ -439,37 +441,23 @@ public:
         auto o = std::dynamic_pointer_cast<Literal<StoredType, T>>(other);
         return this->value() == o->value();
     }
+
+    bool accept(Visitor* visitor) override;
 };
 
-typedef Literal<long int, ExprType::Int> IntNode;
-typedef Literal<double, ExprType::Float> FloatNode;
-typedef Literal<std::string, ExprType::String> StringNode;
-typedef Literal<bool, ExprType::Bool> BoolNode;
-typedef Literal<void*, ExprType::Nil> NilNode;
-typedef Literal<Node*, ExprType::Node> NodePointer;
-typedef Literal<Edge*, ExprType::Edge> EdgePointer;
-
-class ListNode
-    : public Literal<std::shared_ptr<SequenceLiteralNode>, ExprType::List> {
-    typedef std::shared_ptr<SequenceLiteralNode> StoredType;
-
-public:
-    ListNode(int lineno) : Literal<StoredType, ExprType::List>(lineno) {}
-
-    ListNode(int lineno, const StoredType& value)
-        : Literal<StoredType, ExprType::List>(lineno, value) {}
-
-    ListNode(int lineno, Literal<StoredType, ExprType::List>* lit)
-        : Literal<StoredType, ExprType::List>(lineno, lit) {}
-
-    ListNode(int lineno, SequenceLiteralNode* value)
-        : Literal<StoredType, ExprType::List>(lineno, StoredType(value)) {}
-
-public:
-    std::shared_ptr<LiteralNode> node(size_t i) { return value()->node(i); }
-    SequenceLiteralNode::SequenceType& nodes() { return value()->nodes(); }
-    size_t size() { return value()->nodes().size(); }
-};
+typedef Literal<long int, LiteralType::Int> IntNode;
+typedef Literal<double, LiteralType::Float> FloatNode;
+typedef Literal<std::string, LiteralType::String> StringNode;
+typedef Literal<bool, LiteralType::Bool> BoolNode;
+typedef Literal<void*, LiteralType::Nil> NilNode;
+typedef Literal<void*, LiteralType::None> NoneNode;
+typedef Literal<std::shared_ptr<SequenceLiteralNode>, LiteralType::List>
+    ListNode;
+typedef Literal<std::map<std::string, std::shared_ptr<LiteralNode>>,
+                LiteralType::Map>
+    MapNode;
+typedef Literal<Node*, LiteralType::Node> NodePointer;
+typedef Literal<Edge*, LiteralType::Edge> EdgePointer;
 
 class BinopNode : public ExpressionNode {
     ExpressionNode *_left, *_right;
@@ -485,22 +473,35 @@ public:
 
     ExpressionNode* left() { return _left; }
     ExpressionNode* right() { return _right; }
+
+    virtual BinopType type() = 0;
 };
 
-template <ExprType T>
+template <BinopType T>
 class BinopExprNode : public BinopNode {
 public:
     BinopExprNode(int lineno, ExpressionNode* left, ExpressionNode* right)
         : BinopNode(lineno, left, right) {}
 
-    ExprType type() override { return T; }
+    BinopType type() override { return T; }
+
+    bool accept(Visitor* visitor) override;
 };
 
-typedef BinopExprNode<ExprType::Equal> EqualNode;
-typedef BinopExprNode<ExprType::NotEqual> NotEqualNode;
-typedef BinopExprNode<ExprType::And> AndNode;
-typedef BinopExprNode<ExprType::Or> OrNode;
-typedef BinopExprNode<ExprType::In> InNode;
+typedef BinopExprNode<BinopType::Equal> EqualNode;
+typedef BinopExprNode<BinopType::NotEqual> NotEqualNode;
+typedef BinopExprNode<BinopType::And> AndNode;
+typedef BinopExprNode<BinopType::Or> OrNode;
+typedef BinopExprNode<BinopType::In> InNode;
+typedef BinopExprNode<BinopType::Less> LessNode;
+typedef BinopExprNode<BinopType::LessEqual> LessEqualNode;
+typedef BinopExprNode<BinopType::Greater> GreaterNode;
+typedef BinopExprNode<BinopType::GreaterEqual> GreaterEqualNode;
+typedef BinopExprNode<BinopType::Add> AddNode;
+typedef BinopExprNode<BinopType::Sub> SubNode;
+typedef BinopExprNode<BinopType::Mul> MulNode;
+typedef BinopExprNode<BinopType::Div> DivNode;
+typedef BinopExprNode<BinopType::Mod> ModNode;
 
 class UnopNode : public ExpressionNode {
     ExpressionNode* _argument;
@@ -510,116 +511,75 @@ public:
         : ExpressionNode(lineno), _argument(arg) {}
 
     ExpressionNode* argument() { return _argument; }
+
+    virtual UnopType type() = 0;
 };
 
-template <ExprType T>
+template <UnopType T>
 class UnopExprNode : public UnopNode {
 public:
     UnopExprNode(int lineno, ExpressionNode* argument)
         : UnopNode(lineno, argument) {}
 
-    ExprType type() override { return T; }
+    UnopType type() override { return T; }
+
+    bool accept(Visitor* visitor) override;
 };
-typedef UnopExprNode<ExprType::Not> NotNode;
+typedef UnopExprNode<UnopType::Not> NotNode;
 
-template <typename T>
-class VisitorTemplate : public Visitor {
-protected:
-    T _resultVisit;
-
+class Visitor {
 public:
-    virtual T visitRValueNode(RValueNode* node) = 0;
-    virtual T visitFunctionCall(FunctionCall* node) = 0;
-    virtual T visitRangeExprNode(RangeExprNode* node) = 0;
-    virtual T visitAtNode(AtNode* node) = 0;
-    virtual T visitIntNode(IntNode* node) = 0;
-    virtual T visitFloatNode(FloatNode* node) = 0;
-    virtual T visitStringNode(StringNode* node) = 0;
-    virtual T visitBoolNode(BoolNode* node) = 0;
-    virtual T visitListNode(ListNode* node) = 0;
-    virtual T visitNilNode(NilNode* node) = 0;
-    virtual T visitNodePointer(NodePointer* node) = 0;
-    virtual T visitEdgePointer(EdgePointer* node) = 0;
-    virtual T visitEqualNode(EqualNode* node) = 0;
-    virtual T visitNotEqualNode(NotEqualNode* node) = 0;
-    virtual T visitAndNode(AndNode* node) = 0;
-    virtual T visitOrNode(OrNode* node) = 0;
-    virtual T visitInNode(InNode* node) = 0;
-    virtual T visitNotNode(NotNode* node) = 0;
-    virtual T visitSequenceExprNode(SequenceExprNode* node) = 0;
-    virtual T visitSequenceLiteralNode(SequenceLiteralNode* node) = 0;
-
-    void visitExpressionNode(ExpressionNode* expr) override {
-        switch (expr->type()) {
-        case ExprType::And:
-            _resultVisit = visitAndNode(dynamic_cast<AndNode*>(expr));
-            break;
-        case ExprType::At:
-            _resultVisit = visitAtNode(dynamic_cast<AtNode*>(expr));
-            break;
-        case ExprType::Bool:
-            _resultVisit = visitBoolNode(dynamic_cast<BoolNode*>(expr));
-            break;
-        case ExprType::Equal:
-            _resultVisit = visitEqualNode(dynamic_cast<EqualNode*>(expr));
-            break;
-        case ExprType::NotEqual:
-            _resultVisit = visitNotEqualNode(dynamic_cast<NotEqualNode*>(expr));
-            break;
-        case ExprType::Float:
-            _resultVisit = visitFloatNode(dynamic_cast<FloatNode*>(expr));
-            break;
-        case ExprType::FunctionCall:
-            _resultVisit = visitFunctionCall(dynamic_cast<FunctionCall*>(expr));
-            break;
-        case ExprType::In:
-            _resultVisit = visitInNode(dynamic_cast<InNode*>(expr));
-            break;
-        case ExprType::Int:
-            _resultVisit = visitIntNode(dynamic_cast<IntNode*>(expr));
-            break;
-        case ExprType::List:
-            _resultVisit = visitListNode(dynamic_cast<ListNode*>(expr));
-            break;
-        case ExprType::Nil:
-            _resultVisit = visitNilNode(dynamic_cast<NilNode*>(expr));
-            break;
-        case ExprType::Node:
-            _resultVisit = visitNodePointer(dynamic_cast<NodePointer*>(expr));
-            break;
-        case ExprType::Edge:
-            _resultVisit = visitEdgePointer(dynamic_cast<EdgePointer*>(expr));
-            break;
-        case ExprType::Not:
-            _resultVisit = visitNotNode(dynamic_cast<NotNode*>(expr));
-            break;
-        case ExprType::Or:
-            _resultVisit = visitOrNode(dynamic_cast<OrNode*>(expr));
-            break;
-        case ExprType::Range:
-            _resultVisit =
-                visitRangeExprNode(dynamic_cast<RangeExprNode*>(expr));
-            break;
-        case ExprType::RValue:
-            _resultVisit = visitRValueNode(dynamic_cast<RValueNode*>(expr));
-            break;
-        case ExprType::Sequence:
-            _resultVisit =
-                visitSequenceExprNode(dynamic_cast<SequenceExprNode*>(expr));
-            break;
-        case ExprType::SequenceLiteral:
-            _resultVisit = visitSequenceLiteralNode(
-                dynamic_cast<SequenceLiteralNode*>(expr));
-            break;
-        case ExprType::String:
-            _resultVisit = visitStringNode(dynamic_cast<StringNode*>(expr));
-            break;
-        default:
-            break;
-        }
-    }
+    // Statements
+    virtual bool visitBlockNode(BlockNode* node) = 0;
+    virtual bool visitForeach(Foreach* node) = 0;
+    virtual bool visitIfNode(IfNode* node) = 0;
+    virtual bool visitIfElseNode(IfElseNode* node) = 0;
+    virtual bool visitFunction(FunctionNode* node) = 0;
+    virtual bool visitReturnNode(ReturnNode* node) = 0;
+    virtual bool visitImportNode(ImportNode* node) = 0;
+    // basic expr
+    virtual bool visitAssignExpr(AssignExpr* node) = 0;
+    virtual bool visitRValueNode(RValueNode* node) = 0;
+    virtual bool visitFunctionCall(FunctionCall* node) = 0;
+    virtual bool visitAttributeCall(AttributeCall* node) = 0;
+    virtual bool visitMemberFunctionCall(MemberFunctionCall* node) = 0;
+    virtual bool visitFilterExprNode(FilterExprNode* node) = 0;
+    virtual bool visitAtNode(AtNode* node) = 0;
+    virtual bool visitTimeNode(TimeNode* node) = 0;
+    // objects
+    virtual bool visitNodePointer(NodePointer* node) = 0;
+    virtual bool visitEdgePointer(EdgePointer* node) = 0;
+    // literals
+    virtual bool visitIntNode(IntNode* node) = 0;
+    virtual bool visitFloatNode(FloatNode* node) = 0;
+    virtual bool visitBoolNode(BoolNode* node) = 0;
+    virtual bool visitStringNode(StringNode* node) = 0;
+    virtual bool visitListNode(ListNode* node) = 0;
+    virtual bool visitMapNode(MapNode* node) = 0;
+    virtual bool visitNilNode(NilNode* node) = 0;
+    virtual bool visitNoneNode(NoneNode* node) = 0;
+    // binary expr
+    virtual bool visitEqualNode(EqualNode* node) = 0;
+    virtual bool visitNotEqualNode(NotEqualNode* node) = 0;
+    virtual bool visitAndNode(AndNode* node) = 0;
+    virtual bool visitOrNode(OrNode* node) = 0;
+    virtual bool visitInNode(InNode* node) = 0;
+    virtual bool visitLessNode(LessNode* node) = 0;
+    virtual bool visitLessEqualNode(LessEqualNode* node) = 0;
+    virtual bool visitGreaterNode(GreaterNode* node) = 0;
+    virtual bool visitGreaterEqualNode(GreaterEqualNode* node) = 0;
+    virtual bool visitAddNode(AddNode* node) = 0;
+    virtual bool visitSubNode(SubNode* node) = 0;
+    virtual bool visitMulNode(MulNode* node) = 0;
+    virtual bool visitDivNode(DivNode* node) = 0;
+    virtual bool visitModNode(ModNode* node) = 0;
+    // unary expr
+    virtual bool visitNotNode(NotNode* node) = 0;
+    // sequences
+    virtual bool visitSequenceNode(SequenceNode* node) = 0;
+    virtual bool visitSequenceExprNode(SequenceExprNode* node) = 0;
+    virtual bool visitSequenceLiteralNode(SequenceLiteralNode* node) = 0;
 };
-
 }  // namespace wasmati
 
 #endif  // WASMATI_NODES_H

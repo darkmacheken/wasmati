@@ -3,12 +3,10 @@
 
 namespace wasmati {
 
-typedef LiteralNode Symbol;
-
+template <typename Symbol>
 class SymbolTable {
 private:
-    typedef typename std::map<std::string, std::shared_ptr<Symbol>>
-        context_type;
+    typedef typename std::map<std::string, Symbol> context_type;
     // typedef typename context_type::const_iterator context_iterator;
 
     /** the context level */
@@ -80,7 +78,7 @@ public:
      *   context); <tt>false</tt> if identifier already exists in the
      *   current context.
      */
-    bool insert(const std::string& name, std::shared_ptr<Symbol> symbol) {
+    bool insert(const std::string& name, Symbol symbol) {
         auto it = _current->find(name);
         if (it == _current->end()) {
             (*_current)[name] = symbol;
@@ -98,8 +96,7 @@ public:
      *   <tt>true</tt> if the symbol exists; <tt>false</tt> if the
      *   symbol does not exist in any of the contexts.
      */
-    bool replace_local(const std::string& name,
-                       std::shared_ptr<Symbol> symbol) {
+    bool replace_local(const std::string& name, Symbol symbol) {
         auto it = _current->find(name);
         if (it != _current->end()) {
             (*_current)[name] = symbol;
@@ -118,7 +115,7 @@ public:
      *   <tt>true</tt> if the symbol exists; <tt>false</tt> if the
      *   symbol does not exist in any of the contexts.
      */
-    bool replace(const std::string& name, std::shared_ptr<Symbol> symbol) {
+    bool replace(const std::string& name, Symbol symbol) {
         for (size_t ix = _contexts.size(); ix > 0; ix--) {
             context_type& ctx = *_contexts[ix - 1];
             auto it = ctx.find(name);
@@ -140,7 +137,7 @@ public:
      *   <tt>true</tt> if the symbol exists; <tt>false</tt> if the
      *   symbol does not exist in the current context.
      */
-    std::shared_ptr<Symbol> find_local(const std::string& name) {
+    Symbol find_local(const std::string& name) {
         auto it = _current->find(name);
         if (it != _current->end())
             return it->second;  // symbol data
@@ -157,8 +154,7 @@ public:
      *    <tt>nullptr</tt> if the symbol cannot be found in any of the
      *    contexts; or the symbol and corresponding attributes.
      */
-    std::shared_ptr<Symbol> find(const std::string& name,
-                                 size_t from = 0) const {
+    Symbol find(const std::string& name, size_t from = 0) const {
         if (from >= _contexts.size())
             return nullptr;
         for (size_t ix = _contexts.size() - from; ix > 0; ix--) {

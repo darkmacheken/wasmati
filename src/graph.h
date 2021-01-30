@@ -91,8 +91,8 @@ extern const std::map<std::string, InstType> INST_TYPE_MAP_R;
 class Node {
     static Index idCount;
     const Index _id;
-    EdgeSet _inEdges;
-    EdgeSet _outEdges;
+    std::vector<Edge*> _inEdges;
+    std::vector<Edge*> _outEdges;
 
 public:
     const NodeType _type;
@@ -161,8 +161,12 @@ public:
     virtual ~Node();
 
     inline Index id() const { return _id; }
-    inline const EdgeSet& inEdges() const { return _inEdges; }
-    inline const EdgeSet& outEdges() const { return _outEdges; }
+    inline const EdgeSet inEdges() const {
+        return EdgeSet(_inEdges.begin(), _inEdges.end());
+    }
+    inline const EdgeSet outEdges() const {
+        return EdgeSet(_outEdges.begin(), _outEdges.end());
+    }
     EdgeSet inEdges(EdgeType type);
     EdgeSet outEdges(EdgeType type);
 
@@ -175,8 +179,8 @@ public:
     Node* getChild(Index n, EdgeType type = EdgeType::AST);
     Node* getParent(Index n, EdgeType type = EdgeType::AST);
 
-    inline void addInEdge(Edge* e) { _inEdges.insert(e); }
-    inline void addOutEdge(Edge* e) { _outEdges.insert(e); }
+    inline void addInEdge(Edge* e) { _inEdges.push_back(e); }
+    inline void addOutEdge(Edge* e) { _outEdges.push_back(e); }
 
     bool hasEdgesOf(EdgeType) const;
     bool hasInEdgesOf(EdgeType) const;
@@ -588,7 +592,7 @@ public:
     virtual void accept(GraphVisitor* visitor) override;
 };
 
-enum class PDGType { Local, Global, Function, Control, Const };
+enum class PDGType { Local, Global, Function, Control, Const, None };
 
 extern const std::map<EdgeType, std::string> EDGE_TYPES_MAP;
 extern const std::map<std::string, EdgeType> EDGE_TYPES_MAP_R;
@@ -614,18 +618,9 @@ public:
     inline Node* src() const { return _src; }
     inline Node* dest() const { return _dest; }
     inline EdgeType type() const { return _type; }
-    virtual PDGType pdgType() const {
-        assert(false);
-        return PDGType::Local;
-    }
-    virtual const std::string& label() const {
-        assert(false);
-        return emptyString();
-    }
-    virtual const Const& value() const {
-        assert(false);
-        return emptyConst();
-    }
+    virtual PDGType pdgType() const { return PDGType::None; }
+    virtual const std::string& label() const { return emptyString(); }
+    virtual const Const& value() const { return emptyConst(); }
     virtual void accept(GraphVisitor* visitor) = 0;
 
 public:

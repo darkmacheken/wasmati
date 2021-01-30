@@ -1,5 +1,12 @@
 #ifndef WASMATI_UTILS_H_
 #define WASMATI_UTILS_H_
+#ifdef WINDOWS
+#include <direct.h>
+#define GetCurrentDir _getcwd
+#else
+#include <unistd.h>
+#define GetCurrentDir getcwd
+#endif
 
 #include <chrono>
 #include <ctime>
@@ -238,6 +245,15 @@ public:
             }
         }
         return result;
+    }
+
+    bool empty() { return _path.empty(); }
+
+    static std::string getCurrentDir() {
+        char buff[FILENAME_MAX]; //create string buffer to hold path
+        GetCurrentDir(buff, FILENAME_MAX);
+        std::string current_working_dir(buff);
+        return current_working_dir;
     }
 };
 

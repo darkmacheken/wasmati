@@ -48,7 +48,7 @@ public:
         fclose(nodesFile);
         auto edgesFile = fopen(_zipArchive, "edges.csv");
         while (!edgesFile->eof) {
-            std::string row = readLine(nodesFile);
+            std::string row = readLine(edgesFile);
             if (row.empty()) {
                 continue;
             }
@@ -390,10 +390,10 @@ private:
 
     Edge* parseEdge(std::string& str) {
         auto row = Utils::split(str, ',');
-        assert(row.size() == 8);
+        assert(row.size() >= 8);
         Index src = std::stoi(row[EdgeCol::Src]);
         Index dest = std::stoi(row[EdgeCol::Dest]);
-        auto nodes = _graph->getNodes();
+        auto& nodes = _graph->getNodes();
 
         assert(src < nodes.size() && nodes[src]->id() == src);
         assert(dest < nodes.size() && nodes[dest]->id() == dest);

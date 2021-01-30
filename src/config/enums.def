@@ -67,28 +67,36 @@ WASMATI_ENUMS_PDG_EDGE_TYPE(PDGType::Control, "Control")
 WASMATI_ENUMS_PDG_EDGE_TYPE(PDGType::Function, "Function")
 WASMATI_ENUMS_PDG_EDGE_TYPE(PDGType::Global, "Global")
 WASMATI_ENUMS_PDG_EDGE_TYPE(PDGType::Local, "Local")
+WASMATI_ENUMS_PDG_EDGE_TYPE(PDGType::None, "None")
 #endif
 
-#ifdef WASMATI_ENUMS_EXPR_TYPE
+#ifdef WASMATI_ENUMS_LITERAL_TYPE
 /*                Type Name
  * ==========================================================  */
-WASMATI_ENUMS_EXPR_TYPE(ExprType::RValue, "RValue")
-WASMATI_ENUMS_EXPR_TYPE(ExprType::Sequence, "Sequence")
-WASMATI_ENUMS_EXPR_TYPE(ExprType::SequenceLiteral, "SequenceLiteral")
-WASMATI_ENUMS_EXPR_TYPE(ExprType::FunctionCall, "FunctionCall")
-WASMATI_ENUMS_EXPR_TYPE(ExprType::Range, "Range")
-WASMATI_ENUMS_EXPR_TYPE(ExprType::At, "At")
-WASMATI_ENUMS_EXPR_TYPE(ExprType::Int, "Int")
-WASMATI_ENUMS_EXPR_TYPE(ExprType::Float, "Float")
-WASMATI_ENUMS_EXPR_TYPE(ExprType::String, "String")
-WASMATI_ENUMS_EXPR_TYPE(ExprType::Bool, "Bool")
-WASMATI_ENUMS_EXPR_TYPE(ExprType::List, "List")
-WASMATI_ENUMS_EXPR_TYPE(ExprType::Nil, "Nil")
-WASMATI_ENUMS_EXPR_TYPE(ExprType::Node, "Node")
-WASMATI_ENUMS_EXPR_TYPE(ExprType::Equal, "Equal")
-WASMATI_ENUMS_EXPR_TYPE(ExprType::And, "And")
-WASMATI_ENUMS_EXPR_TYPE(ExprType::Or, "Or")
-WASMATI_ENUMS_EXPR_TYPE(ExprType::In, "In")
-WASMATI_ENUMS_EXPR_TYPE(ExprType::Not, "Not")
+WASMATI_ENUMS_LITERAL_TYPE(LiteralType::Int, "Int")
+WASMATI_ENUMS_LITERAL_TYPE(LiteralType::Float, "Float")
+WASMATI_ENUMS_LITERAL_TYPE(LiteralType::String, "String")
+WASMATI_ENUMS_LITERAL_TYPE(LiteralType::Bool, "Bool")
+WASMATI_ENUMS_LITERAL_TYPE(LiteralType::List, "List")
+WASMATI_ENUMS_LITERAL_TYPE(LiteralType::Map, "Map")
+WASMATI_ENUMS_LITERAL_TYPE(LiteralType::Nil, "Nil")
+WASMATI_ENUMS_LITERAL_TYPE(LiteralType::None, "Nil")
+WASMATI_ENUMS_LITERAL_TYPE(LiteralType::Node, "Node")
+WASMATI_ENUMS_LITERAL_TYPE(LiteralType::Edge, "Edge")
+#endif
+
+#ifdef WASMATI_ENUMS_BINARY_TYPE
+/*                Type Name
+ * ==========================================================  */
+WASMATI_ENUMS_BINARY_TYPE(BinopType::Equal, "Equal")
+WASMATI_ENUMS_BINARY_TYPE(BinopType::And, "And")
+WASMATI_ENUMS_BINARY_TYPE(BinopType::Or, "Or")
+WASMATI_ENUMS_BINARY_TYPE(BinopType::In, "In")
+#endif
+
+#ifdef WASMATI_ENUMS_UNARY_TYPE
+/*                Type Name
+ * ==========================================================  */
+WASMATI_ENUMS_UNARY_TYPE(UnopType::Not, "Not")
 #endif
 

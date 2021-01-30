@@ -14,12 +14,12 @@ namespace wasmati {
  * rules as a parameter. Therefore the interpreter class contains a reference to
  * the structure into which the parsed data is saved. */
 class Interpreter {
-    BasicNode* _ast;
+    std::vector<BasicNode*> _ast;
+    std::string _file;
 
 public:
     /// construct a new parser interpreter context
-    Interpreter()
-        : _ast(nullptr), trace_scanning(false), trace_parsing(false) {}
+    Interpreter() : trace_scanning(false), trace_parsing(false) {}
 
     /// enable debug output in the flex scanner
     bool trace_scanning;
@@ -72,8 +72,7 @@ public:
     class Scanner* lexer;
 
 public:
-    BasicNode* ast() { return _ast; }
-    void ast(BasicNode* ast) { _ast = ast; }
+    void ast(BasicNode* ast) { _ast.push_back(ast); }
 
     int64_t evaluate(Visitor* visitor);
 };
