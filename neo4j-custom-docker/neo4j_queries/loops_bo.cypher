@@ -10,9 +10,25 @@ WHERE store.instType="Store"
     AND storeArg.instType="Binary"
     AND storeArg.opcode="i32.add"
     AND (
-    	var.instType="LocalGet"
-        OR var.instType="LocalTee"
-        )
+    	var.instType="LocalGet" OR
+       	var.instType="LocalTee"
+    )
+
+WITH *
+// Get add instructions in function
+MATCH (f)-[:AST*1..]->(add:Instruction)
+WHERE add.instType="Binary"
+	AND add.opcode="i32.add"
+    
+// Check if var is being incremented with a constant
+WITH *
+MATCH (childConst:Instruction)<-[:AST]-(add)-[:AST]->(childLocal:Instruction)
+WHERE childConst.instType="Const"
+	AND childLocal.label=var.label
+    AND (
+    	childLocal.instType="LocalGet" OR
+       	childLocal.instType="LocalTee"
+    )
 
 // Check if breaks depend on store vars
 WITH *
@@ -21,9 +37,9 @@ WHERE brIf.instType="BrIf"
 	AND compare.instType="Compare"
     AND local.label=var.label
     AND (
-    	var.instType="LocalGet"
-        OR var.instType="LocalTee"
-        )
+    	var.instType="LocalGet" OR
+       	var.instType="LocalTee"
+    )
 
 WITH path, f, loop
 RETURN DISTINCT
