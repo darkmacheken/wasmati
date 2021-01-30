@@ -2,13 +2,13 @@
 #include "src/vulns.h"
 using namespace wasmati;
 
-void VulnerabilityChecker::UseAfterFree() {
+void VulnerabilityChecker::DoubleFree() {
     auto start = std::chrono::high_resolution_clock::now();
     std::set<std::string> ignore = config[IGNORE];
 
     Index counter = 0;
     for (auto func : Query::functions()) {
-        debug("[DEBUG][Query::UseAfterFree][%u/%u] Function %s\n", counter++,
+        debug("[DEBUG][Query::DoubleFree][%u/%u] Function %s\n", counter++,
               numFuncs, func->name().c_str());
         if (ignore.count(func->name())) {
             continue;
@@ -40,31 +40,24 @@ void VulnerabilityChecker::UseAfterFree() {
                     Query::BFS({callSource}, destPredicate, Query::CFG_EDGES);
                 for (Node* callDest : destInsts) {
                     Node* inst = nullptr;
-                    auto uafPredicate =
+                    auto dfPredicate =
                         Predicate()
+                            .type(NodeType::Instruction)
+                            .instType(InstType::Call)
+                            .label(dest)
                             .inPDGEdge(callSource->label(), PDGType::Function)
                             .EXEC(inst = node)
                             .reaches(callSource, inst, pdgEdgeCond);
-                    Node* parent = nullptr;
-                    auto uafInst =
-                        NodeStream(callDest)
-                            .BFS(uafPredicate, Query::CFG_EDGES, 1)
-                            .filterOut(Predicate()
-                                           .instType(InstType::Call)
-                                           .label(dest)
-                                           .Or()
-                                           .EXEC(parent = node->getParent(0))
-                                           .TEST(parent->instType() ==
-                                                     InstType::Call &&
-                                                 parent->label() == dest))
-                            .findFirst();
+                    auto dfInst = NodeStream(callDest)
+                                      .BFS(dfPredicate, Query::CFG_EDGES, 1)
+                                      .findFirst();
 
-                    if (uafInst.isPresent()) {
+                    if (dfInst.isPresent()) {
                         std::stringstream desc;
                         desc << "Value from call " << callSource->label()
                              << " used after call to " << dest;
-                        vulns.emplace_back(VulnType::UaF, func->name(),
-                                           uafInst.get()->label(), desc.str());
+                        vulns.emplace_back(VulnType::DoubleFree, func->name(),
+                                           dfInst.get()->label(), desc.str());
                     }
                 }
             }
@@ -74,5 +67,5 @@ void VulnerabilityChecker::UseAfterFree() {
     auto time =
         std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
             .count();
-    info["useAfterFree"] = time;
+    info["doubleFree"] = time;
 }

@@ -20,7 +20,7 @@ public:
             loopsInsts = Queries::loopsInsts(cpgOptions.loopName);
         }
         auto nodes = _graph->getNodes();
-        std::sort(nodes.begin(), nodes.end(), Compare());
+        std::sort(nodes.begin(), nodes.end(), CompareNode());
         _graphJson["nodes"] = json::array();
         _graphJson["edges"] = json::array();
 
@@ -43,9 +43,6 @@ public:
             } else if (cpgOptions.printCG &&
                        node->hasEdgesOf(EdgeType::CG)) {  // CG
                 node->accept(this);
-            } else if (cpgOptions.printPG &&
-                       node->hasEdgesOf(EdgeType::PG)) {  // PDG
-                node->accept(this);
             }
         }
         for (auto const& node : _graph->getNodes()) {
@@ -60,11 +57,11 @@ public:
             return;
         }
         json edgeJson;
-        edgeJson["src"] = e->src()->getId();
-        edgeJson["dest"] = e->dest()->getId();
+        edgeJson["src"] = e->src()->id();
+        edgeJson["dest"] = e->dest()->id();
         edgeJson["type"] = "AST";
         _graphJson["edges"].emplace_back(edgeJson);
-        insertEdge(e->src()->getId(), e->dest()->getId(), _edgeId++);
+        insertEdge(e->src()->id(), e->dest()->id(), _edgeId++);
     }
     void visitCFGEdge(CFGEdge* e) override {
         if (!(cpgOptions.printAll || cpgOptions.printCFG)) {
@@ -72,12 +69,12 @@ public:
         }
 
         json edgeJson;
-        edgeJson["src"] = e->src()->getId();
-        edgeJson["dest"] = e->dest()->getId();
+        edgeJson["src"] = e->src()->id();
+        edgeJson["dest"] = e->dest()->id();
         edgeJson["type"] = "CFG";
         edgeJson["label"] = e->label();
         _graphJson["edges"].emplace_back(edgeJson);
-        insertEdge(e->src()->getId(), e->dest()->getId(), _edgeId++);
+        insertEdge(e->src()->id(), e->dest()->id(), _edgeId++);
     }
 
     void visitPDGEdge(PDGEdge* e) override {
@@ -86,23 +83,23 @@ public:
         }
         if (e->pdgType() == PDGType::Const) {
             json edgeJson;
-            edgeJson["src"] = e->src()->getId();
-            edgeJson["dest"] = e->dest()->getId();
+            edgeJson["src"] = e->src()->id();
+            edgeJson["dest"] = e->dest()->id();
             edgeJson["type"] = "PDG";
             edgeJson["label"] = e->label();
             edgeJson["pdgType"] = e->writePdgType();
             edgeJson["value"] = Utils::jsonConst(e->value());
             _graphJson["edges"].emplace_back(edgeJson);
-            insertEdge(e->src()->getId(), e->dest()->getId(), _edgeId++);
+            insertEdge(e->src()->id(), e->dest()->id(), _edgeId++);
         } else {
             json edgeJson;
-            edgeJson["src"] = e->src()->getId();
-            edgeJson["dest"] = e->dest()->getId();
+            edgeJson["src"] = e->src()->id();
+            edgeJson["dest"] = e->dest()->id();
             edgeJson["type"] = "PDG";
             edgeJson["label"] = e->label();
             edgeJson["pdgType"] = e->writePdgType();
             _graphJson["edges"].emplace_back(edgeJson);
-            insertEdge(e->src()->getId(), e->dest()->getId(), _edgeId++);
+            insertEdge(e->src()->id(), e->dest()->id(), _edgeId++);
         }
     }
     void visitCGEdge(CGEdge* e) override {
@@ -110,22 +107,11 @@ public:
             return;
         }
         json edgeJson;
-        edgeJson["src"] = e->src()->getId();
-        edgeJson["dest"] = e->dest()->getId();
+        edgeJson["src"] = e->src()->id();
+        edgeJson["dest"] = e->dest()->id();
         edgeJson["type"] = "CG";
         _graphJson["edges"].emplace_back(edgeJson);
-        insertEdge(e->src()->getId(), e->dest()->getId(), _edgeId++);
-    }
-    void visitPGEdge(PGEdge* e) override {
-        if (!(cpgOptions.printAll || cpgOptions.printPG)) {
-            return;
-        }
-        json edgeJson;
-        edgeJson["src"] = e->src()->getId();
-        edgeJson["dest"] = e->dest()->getId();
-        edgeJson["type"] = "PG";
-        _graphJson["edges"].emplace_back(edgeJson);
-        insertEdge(e->src()->getId(), e->dest()->getId(), _edgeId++);
+        insertEdge(e->src()->id(), e->dest()->id(), _edgeId++);
     }
 
 private:
@@ -134,7 +120,7 @@ private:
         json nodeJson;
         nodeJson["inEdges"] = json::array();
         nodeJson["outEdges"] = json::array();
-        nodeJson["id"] = node->getId();
+        nodeJson["id"] = node->id();
         nodeJson["type"] = "Module";
         nodeJson["name"] = node->name();
         _graphJson["nodes"].emplace_back(nodeJson);
@@ -144,7 +130,7 @@ private:
         json nodeJson;
         nodeJson["inEdges"] = json::array();
         nodeJson["outEdges"] = json::array();
-        nodeJson["id"] = node->getId();
+        nodeJson["id"] = node->id();
         nodeJson["type"] = "Function";
         nodeJson["name"] = node->name();
         nodeJson["index"] = node->index();
@@ -184,7 +170,7 @@ private:
         json nodeJson;
         nodeJson["inEdges"] = json::array();
         nodeJson["outEdges"] = json::array();
-        nodeJson["id"] = node->getId();
+        nodeJson["id"] = node->id();
         nodeJson["type"] = "VarNode";
         nodeJson["name"] = node->name();
         nodeJson["index"] = node->index();
@@ -219,7 +205,7 @@ private:
         json nodeJson;
         nodeJson["inEdges"] = json::array();
         nodeJson["outEdges"] = json::array();
-        nodeJson["id"] = node->getId();
+        nodeJson["id"] = node->id();
         nodeJson["type"] = "Instruction";
         nodeJson["instType"] = "Const";
         nodeJson["value"] = Utils::jsonConst(node->value());
@@ -277,11 +263,14 @@ private:
     void visitLoopInst(LoopInst* node) override {
         visitBlockInstNode(node, "Loop");
     }
+    void visitEndLoopInst(EndLoopInst* node) override {
+        visitBlockInstNode(node, "EndLoop");
+    }
     void visitIfInst(IfInst* node) override {
         json nodeJson;
         nodeJson["inEdges"] = json::array();
         nodeJson["outEdges"] = json::array();
-        nodeJson["id"] = node->getId();
+        nodeJson["id"] = node->id();
         nodeJson["type"] = "Instruction";
         nodeJson["nresults"] = node->nresults();
         nodeJson["instType"] = "If";
@@ -294,7 +283,7 @@ private:
         json nodeJson;
         nodeJson["inEdges"] = json::array();
         nodeJson["outEdges"] = json::array();
-        nodeJson["id"] = node->getId();
+        nodeJson["id"] = node->id();
         nodeJson["type"] = nodeName;
         _graphJson["nodes"].emplace_back(nodeJson);
     }
@@ -303,7 +292,7 @@ private:
         json nodeJson;
         nodeJson["inEdges"] = json::array();
         nodeJson["outEdges"] = json::array();
-        nodeJson["id"] = node->getId();
+        nodeJson["id"] = node->id();
         nodeJson["type"] = "Instruction";
         nodeJson["instType"] = instType;
         _graphJson["nodes"].emplace_back(nodeJson);
@@ -313,7 +302,7 @@ private:
         json nodeJson;
         nodeJson["inEdges"] = json::array();
         nodeJson["outEdges"] = json::array();
-        nodeJson["id"] = node->getId();
+        nodeJson["id"] = node->id();
         nodeJson["type"] = "Instruction";
         nodeJson["instType"] = instType;
         nodeJson["opcode"] = node->opcode().GetName();
@@ -324,7 +313,7 @@ private:
         json nodeJson;
         nodeJson["inEdges"] = json::array();
         nodeJson["outEdges"] = json::array();
-        nodeJson["id"] = node->getId();
+        nodeJson["id"] = node->id();
         nodeJson["type"] = "Instruction";
         nodeJson["instType"] = instType;
         nodeJson["opcode"] = node->opcode().GetName();
@@ -335,7 +324,7 @@ private:
         json nodeJson;
         nodeJson["inEdges"] = json::array();
         nodeJson["outEdges"] = json::array();
-        nodeJson["id"] = node->getId();
+        nodeJson["id"] = node->id();
         nodeJson["type"] = "Instruction";
         nodeJson["instType"] = instType;
         nodeJson["label"] = node->label();
@@ -345,7 +334,7 @@ private:
         json nodeJson;
         nodeJson["inEdges"] = json::array();
         nodeJson["outEdges"] = json::array();
-        nodeJson["id"] = node->getId();
+        nodeJson["id"] = node->id();
         nodeJson["type"] = "Instruction";
         nodeJson["nargs"] = node->nargs();
         nodeJson["nresults"] = node->nresults();
@@ -358,7 +347,7 @@ private:
         json nodeJson;
         nodeJson["inEdges"] = json::array();
         nodeJson["outEdges"] = json::array();
-        nodeJson["id"] = node->getId();
+        nodeJson["id"] = node->id();
         nodeJson["type"] = "Instruction";
         nodeJson["nresults"] = node->nresults();
         nodeJson["instType"] = instType;

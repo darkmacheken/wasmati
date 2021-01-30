@@ -10,12 +10,12 @@ WASMATI_PREDICATE(nresults, Index)
 WASMATI_PREDICATE(isImport, bool)
 WASMATI_PREDICATE(isExport, bool)
 WASMATI_PREDICATE(varType, Type)
-WASMATI_PREDICATE(instType, ExprType)
+WASMATI_PREDICATE(instType, InstType)
 WASMATI_PREDICATE(opcode, Opcode)
 WASMATI_PREDICATE(label, std::string)
 WASMATI_PREDICATE(offset, Index)
 WASMATI_PREDICATE(hasElse, bool)
-WASMATI_PREDICATE(isBeginBlock, bool)
+WASMATI_PREDICATE(id, Index)
 
 #endif
 

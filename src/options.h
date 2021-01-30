@@ -1,7 +1,10 @@
 #ifndef WASMATI_OPTIONS_H_
 #define WASMATI_OPTIONS_H_
 
+#include <chrono>
+#include "include/nlohmann/json.hpp"
 #include "src/stream.h"
+using nlohmann::json;
 
 #define debug(format, ...)                             \
     if (cpgOptions.verbose) {                          \
@@ -23,13 +26,13 @@ struct GenerateCPGOptions {
     bool printCFG = false;
     bool printPDG = false;
     bool printCG = false;
-    bool printPG = false;
     bool printAll = true;
     bool verbose = false;
     bool info = false;
     std::string loopName;
 };
 
+extern json info;
 extern GenerateCPGOptions cpgOptions;
 extern std::unique_ptr<wabt::FileStream> s_verbose_stream;
 }  // namespace wasmati

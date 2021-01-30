@@ -1,8 +1,8 @@
 #ifndef WASMATI_GRAPH_H
 #define WASMATI_GRAPH_H
+#define NOMINMAX 1
 #include <map>
 #include <set>
-#include "single_include/csv2/csv2.hpp"
 #include "src/cast.h"
 #include "src/ir-util.h"
 #include "src/options.h"
@@ -11,15 +11,18 @@
 using namespace wabt;
 namespace wasmati {
 class GraphVisitor;
-class Edge;
+struct Edge;
 class Node;
 class Predicate;
 
-struct Compare {
+struct CompareNode {
     bool operator()(Node* const& n1, Node* const& n2) const;
 };
-typedef std::set<Node*, Compare> NodeSet;
-typedef std::set<Edge*> EdgeSet;
+struct CompareEdge {
+    bool operator()(Edge* const& e1, Edge* const& e2) const;
+};
+typedef std::set<Node*, CompareNode> NodeSet;
+typedef std::set<Edge*, CompareEdge> EdgeSet;
 
 inline const std::string& emptyString() {
     static const std::string empty = "";
@@ -31,7 +34,7 @@ inline const Const& emptyConst() {
     return empty;
 }
 
-enum class EdgeType { AST, CFG, PDG, CG, PG };
+enum class EdgeType { AST, CFG, PDG, CG };
 
 enum class NodeType {
     Module,
@@ -43,21 +46,53 @@ enum class NodeType {
     Parameters,
     Locals,
     Results,
-    Return,
     Else,
     Trap,
     Start,
 };
 
+enum class InstType {
+    Nop,
+    Unreachable,
+    Return,
+    BrTable,
+    Drop,
+    Select,
+    MemorySize,
+    MemoryGrow,
+    Const,
+    Binary,
+    Compare,
+    Convert,
+    Unary,
+    Load,
+    Store,
+    Br,
+    BrIf,
+    GlobalGet,
+    GlobalSet,
+    LocalGet,
+    LocalSet,
+    LocalTee,
+    Call,
+    CallIndirect,
+    BeginBlock,
+    Block,
+    Loop,
+    EndLoop,
+    If,
+    None
+};
+
 extern const std::map<NodeType, std::string> NODE_TYPE_MAP;
 extern const std::map<std::string, NodeType> NODE_TYPE_MAP_R;
-extern const std::map<ExprType, std::string> INST_TYPE_MAP;
-extern const std::map<std::string, ExprType> INST_TYPE_MAP_R;
+extern const std::map<InstType, std::string> INST_TYPE_MAP;
+extern const std::map<std::string, InstType> INST_TYPE_MAP_R;
 class Node {
     static Index idCount;
     const Index _id;
-    EdgeSet _inEdges;
-    EdgeSet _outEdges;
+    std::vector<Edge*> _inEdges;
+    std::vector<Edge*> _outEdges;
 
 public:
     const NodeType _type;
@@ -66,47 +101,47 @@ public:
     NodeType type() const { return _type; }
 
     virtual const std::string& name() const {
-        assert(false);
+        warning(false);
         return emptyString();
     }
     virtual Index index() const {
-        assert(false);
+        warning(false);
         return 0;
     }
     virtual Index nargs() const {
-        assert(false);
+        warning(false);
         return 0;
     }
     virtual Index nlocals() const {
-        assert(false);
+        warning(false);
         return 0;
     }
     virtual Index nresults() const {
-        assert(false);
+        warning(false);
         return 0;
     }
     virtual bool isImport() const {
-        assert(false);
+        warning(false);
         return false;
     }
     virtual bool isExport() const {
-        assert(false);
+        warning(false);
         return false;
     }
     virtual Type varType() const {
-        assert(false);
+        warning(false);
         return {};
     }
-    virtual ExprType instType() const {
-        assert(false);
-        return ExprType::Nop;
+    virtual InstType instType() const {
+        warning(false);
+        return InstType::None;
     }
     virtual Opcode opcode() const {
-        assert(false);
+        warning(false);
         return {};
     }
     virtual const Const& value() const {
-        assert(false);
+        warning(false);
         return emptyConst();
     }
     virtual const std::string& label() const { return emptyString(); }
@@ -121,14 +156,17 @@ public:
         assert(false);
         return nullptr;
     }
-    virtual bool isBeginBlock() { return false; }
 
     explicit Node(NodeType type) : _id(idCount++), _type(type) {}
     virtual ~Node();
 
-    inline Index getId() const { return _id; }
-    inline const EdgeSet& inEdges() const { return _inEdges; }
-    inline const EdgeSet& outEdges() const { return _outEdges; }
+    inline Index id() const { return _id; }
+    inline const EdgeSet inEdges() const {
+        return EdgeSet(_inEdges.begin(), _inEdges.end());
+    }
+    inline const EdgeSet outEdges() const {
+        return EdgeSet(_outEdges.begin(), _outEdges.end());
+    }
     EdgeSet inEdges(EdgeType type);
     EdgeSet outEdges(EdgeType type);
 
@@ -141,8 +179,8 @@ public:
     Node* getChild(Index n, EdgeType type = EdgeType::AST);
     Node* getParent(Index n, EdgeType type = EdgeType::AST);
 
-    inline void addInEdge(Edge* e) { _inEdges.insert(e); }
-    inline void addOutEdge(Edge* e) { _outEdges.insert(e); }
+    inline void addInEdge(Edge* e) { _inEdges.push_back(e); }
+    inline void addOutEdge(Edge* e) { _outEdges.push_back(e); }
 
     bool hasEdgesOf(EdgeType) const;
     bool hasInEdgesOf(EdgeType) const;
@@ -166,11 +204,11 @@ class Module : public BaseNode<NodeType::Module> {
 public:
     Module() {}
     Module(std::string name) : _name(name) {}
-    Module(Index id, std::string name) : _name(name) { assert(id == getId()); }
+    Module(Index id_, std::string name) : _name(name) { assert(id_ == id()); }
 
     const std::string& name() const override { return _name; }
 
-    void accept(GraphVisitor* visitor);
+    void accept(GraphVisitor* visitor) override;
 };
 
 class Function : public BaseNode<NodeType::Function> {
@@ -194,7 +232,7 @@ public:
           _isImport(isImport),
           _isExport(isExport) {}
 
-    Function(Index id,
+    Function(Index id_,
              std::string name,
              Index index,
              Index nargs,
@@ -210,7 +248,7 @@ public:
           _nresults(nresults),
           _isImport(isImport),
           _isExport(isExport) {
-        assert(id == getId());
+        assert(id_ == id());
     }
 
     const std::string& name() const override { return _name; }
@@ -222,7 +260,7 @@ public:
     bool isExport() const override { return _isExport; }
     Func* getFunc() override { return _f; }
 
-    void accept(GraphVisitor* visitor);
+    void accept(GraphVisitor* visitor) override;
 };
 
 class VarNode : public BaseNode<NodeType::VarNode> {
@@ -234,9 +272,9 @@ public:
     VarNode(Type type, Index index, std::string name = "")
         : _varType(type), _index(index), _name(name) {}
 
-    VarNode(Index id, std::string type, Index index, std::string name)
+    VarNode(Index id_, std::string type, Index index, std::string name)
         : _varType(readVarType(type)), _index(index), _name(name) {
-        assert(id == getId());
+        assert(id_ == id());
     }
 
     Type varType() const override { return _varType; }
@@ -276,14 +314,14 @@ public:
         return Type::Any;
     }
 
-    void accept(GraphVisitor* visitor);
+    void accept(GraphVisitor* visitor) override;
 };
 
 template <NodeType T, char const* nodeName>
 class SimpleNode : public BaseNode<T> {
 public:
     SimpleNode() {}
-    SimpleNode(Index id) { assert(id == this->getId()); }
+    SimpleNode(Index id_) { assert(id_ == this->id()); }
     inline const std::string getNodeName() const { return nodeName; }
 
     virtual void accept(GraphVisitor* visitor);
@@ -310,31 +348,33 @@ typedef SimpleNode<NodeType::Start, startName> Start;
 
 class Instruction : public BaseNode<NodeType::Instruction> {
 protected:
-    const ExprType _instType;
+    const InstType _instType;
     const Location _loc;
 
 public:
-    Instruction(const ExprType type, const Location loc)
+    Instruction(const InstType type, const Location loc)
         : _instType(type), _loc(loc) {}
 
-    Instruction(Index id, const ExprType type, const Location loc)
+    Instruction(Index id_, const InstType type, const Location loc)
         : _instType(type), _loc(loc) {
-        assert(id == getId());
+        assert(id_ == id());
     }
 
-    ExprType instType() const override { return _instType; }
+    InstType instType() const override { return _instType; }
 
     Location location() const override { return _loc; }
 };
 
-template <ExprType exprType>
+template <InstType exprType>
 class BaseInstruction : public Instruction {
 public:
     BaseInstruction(const Location _loc = Location())
         : Instruction(exprType, _loc) {}
 
-    BaseInstruction(Index id, const Location _loc = Location())
-        : Instruction(exprType, _loc) {}
+    BaseInstruction(Index id_, const Location _loc = Location())
+        : Instruction(exprType, _loc) {
+        assert(id_ == id());
+    }
 
     static bool classof(const Node* node) {
         return Instruction::classof(node) && (node->instType() == exprType);
@@ -343,40 +383,39 @@ public:
     virtual void accept(GraphVisitor* visitor);
 };
 
-typedef BaseInstruction<ExprType::Nop> NopInst;
-typedef BaseInstruction<ExprType::Unreachable> UnreachableInst;
-typedef BaseInstruction<ExprType::Return> ReturnInst;
-typedef BaseInstruction<ExprType::BrTable> BrTableInst;
-typedef BaseInstruction<ExprType::Drop> DropInst;
-typedef BaseInstruction<ExprType::Select> SelectInst;
-typedef BaseInstruction<ExprType::MemorySize> MemorySizeInst;
-typedef BaseInstruction<ExprType::MemoryGrow> MemoryGrowInst;
+typedef BaseInstruction<InstType::Nop> NopInst;
+typedef BaseInstruction<InstType::Unreachable> UnreachableInst;
+typedef BaseInstruction<InstType::Return> ReturnInst;
+typedef BaseInstruction<InstType::BrTable> BrTableInst;
+typedef BaseInstruction<InstType::Drop> DropInst;
+typedef BaseInstruction<InstType::Select> SelectInst;
+typedef BaseInstruction<InstType::MemorySize> MemorySizeInst;
+typedef BaseInstruction<InstType::MemoryGrow> MemoryGrowInst;
 
-class ConstInst : public BaseInstruction<ExprType::Const> {
+class ConstInst : public BaseInstruction<InstType::Const> {
     const Const _value;
 
 public:
     ConstInst(const ConstExpr* expr)
         : BaseInstruction(expr->loc), _value(expr->const_) {}
 
-    ConstInst(Index id, Const& value) : _value(value) {}
+    ConstInst(Index id_, Const& value) : _value(value) { assert(id_ == id()); }
 
     const Const& value() const override { return _value; }
 
-    void accept(GraphVisitor* visitor);
+    void accept(GraphVisitor* visitor) override;
 };
 
-template <ExprType T>
+template <InstType T>
 class OpcodeInst : public BaseInstruction<T> {
     Opcode _opcode;
 
 public:
-    OpcodeInst(const OpcodeExpr<T>* expr)
-        : BaseInstruction<T>(expr->loc), _opcode(expr->opcode) {}
     OpcodeInst(Opcode opcode, const Location loc)
         : BaseInstruction<T>(loc), _opcode(opcode) {}
 
-    OpcodeInst(Index id, std::string opcode) {
+    OpcodeInst(Index id, std::string opcode, Location loc = Location())
+        : BaseInstruction<T>(id, loc) {
         bool assigned = false;
         {
 #define WABT_OPCODE(rtype, type1, type2, type3, mem_size, prefix, code, Name, \
@@ -395,40 +434,41 @@ public:
 
     Opcode opcode() const override { return _opcode; }
 
-    virtual void accept(GraphVisitor* visitor);
+    virtual void accept(GraphVisitor* visitor) override;
 };
 
-typedef OpcodeInst<ExprType::Binary> BinaryInst;
-typedef OpcodeInst<ExprType::Compare> CompareInst;
-typedef OpcodeInst<ExprType::Convert> ConvertInst;
-typedef OpcodeInst<ExprType::Unary> UnaryInst;
+typedef OpcodeInst<InstType::Binary> BinaryInst;
+typedef OpcodeInst<InstType::Compare> CompareInst;
+typedef OpcodeInst<InstType::Convert> ConvertInst;
+typedef OpcodeInst<InstType::Unary> UnaryInst;
 
-template <ExprType T>
+template <InstType T>
 class LoadStoreBase : public OpcodeInst<T> {
     const Index _offset;
 
 public:
-    LoadStoreBase(const LoadStoreExpr<T>* expr)
-        : OpcodeInst<T>(expr->opcode, expr->loc), _offset(expr->offset) {}
+    LoadStoreBase(Opcode opcode, Index offset, Location loc = Location())
+        : OpcodeInst<T>(opcode, loc), _offset(offset) {}
 
-    LoadStoreBase(Index id, std::string opcode, Index offset)
-        : OpcodeInst<T>(id, opcode), _offset(offset) {}
+    LoadStoreBase(Index id,
+                  std::string opcode,
+                  Index offset,
+                  Location loc = Location())
+        : OpcodeInst<T>(id, opcode, loc), _offset(offset) {}
 
     Index offset() const override { return _offset; }
 
-    void accept(GraphVisitor* visitor);
+    void accept(GraphVisitor* visitor) override;
 };
 
-typedef LoadStoreBase<ExprType::Load> LoadInst;
-typedef LoadStoreBase<ExprType::Store> StoreInst;
+typedef LoadStoreBase<InstType::Load> LoadInst;
+typedef LoadStoreBase<InstType::Store> StoreInst;
 
-template <ExprType T>
+template <InstType T>
 class LabeledInst : public BaseInstruction<T> {
     const std::string _label;
 
 public:
-    LabeledInst(const VarExpr<T>* expr)
-        : BaseInstruction<T>(expr->loc), _label(expr->var.name()) {}
     LabeledInst(std::string label, const Location loc = Location())
         : BaseInstruction<T>(loc), _label(label) {}
     LabeledInst(Index id, std::string label, const Location loc = Location())
@@ -439,15 +479,15 @@ public:
     virtual void accept(GraphVisitor* visitor);
 };
 
-typedef LabeledInst<ExprType::Br> BrInst;
-typedef LabeledInst<ExprType::BrIf> BrIfInst;
-typedef LabeledInst<ExprType::GlobalGet> GlobalGetInst;
-typedef LabeledInst<ExprType::GlobalSet> GlobalSetInst;
-typedef LabeledInst<ExprType::LocalGet> LocalGetInst;
-typedef LabeledInst<ExprType::LocalSet> LocalSetInst;
-typedef LabeledInst<ExprType::LocalTee> LocalTeeInst;
+typedef LabeledInst<InstType::Br> BrInst;
+typedef LabeledInst<InstType::BrIf> BrIfInst;
+typedef LabeledInst<InstType::GlobalGet> GlobalGetInst;
+typedef LabeledInst<InstType::GlobalSet> GlobalSetInst;
+typedef LabeledInst<InstType::LocalGet> LocalGetInst;
+typedef LabeledInst<InstType::LocalSet> LocalSetInst;
+typedef LabeledInst<InstType::LocalTee> LocalTeeInst;
 
-template <ExprType T>
+template <InstType T>
 class CallBase : public LabeledInst<T> {
     const Index _nargs;
     const Index _nresults;
@@ -471,23 +511,26 @@ public:
     Index nargs() const override { return _nargs; }
     Index nresults() const override { return _nresults; }
 
-    virtual void accept(GraphVisitor* visitor);
+    virtual void accept(GraphVisitor* visitor) override;
 };
 
-typedef CallBase<ExprType::Call> CallInst;
-typedef CallBase<ExprType::CallIndirect> CallIndirectInst;
+typedef CallBase<InstType::Call> CallInst;
+typedef CallBase<InstType::CallIndirect> CallIndirectInst;
 
-template <ExprType T>
+template <InstType T>
 class BlockBase : public LabeledInst<T> {
     Index _nresults;
 
 public:
-    BlockBase(const BlockExprBase<T>* expr)
-        : LabeledInst<T>(expr->block.label, expr->loc),
-          _nresults(expr->block.decl.GetNumResults()) {}
+    // BlockBase(const BlockExprBase<T>* expr)
+    //    : LabeledInst<T>(expr->block.label, expr->loc),
+    //      _nresults(expr->block.decl.GetNumResults()) {}
 
-    BlockBase(const BlockExprBase<T>* expr, Index nresults)
-        : LabeledInst<T>(expr->block.label, expr->loc), _nresults(nresults) {}
+    // BlockBase(const BlockExprBase<T>* expr, Index nresults)
+    //    : LabeledInst<T>(expr->block.label, expr->loc), _nresults(nresults) {}
+
+    BlockBase(std::string label, Index nresults, Location loc = Location())
+        : LabeledInst<T>(label, loc), _nresults(nresults) {}
 
     BlockBase(const Block& block)
         : LabeledInst<T>(block.label, block.end_loc),
@@ -496,40 +539,42 @@ public:
     BlockBase(Index id, Index nresults, std::string label)
         : LabeledInst<T>(id, label), _nresults(nresults) {}
 
+    BlockBase(Index nresults, std::string label)
+        : LabeledInst<T>(label), _nresults(nresults) {}
+
     Index nresults() const override { return _nresults; }
     void setResults(Index nresults) { _nresults = nresults; }
 
-    virtual void accept(GraphVisitor* visitor);
+    virtual void accept(GraphVisitor* visitor) override;
 };
 
-typedef BlockBase<ExprType::Block> BlockInst;
-typedef BlockBase<ExprType::Loop> LoopInst;
+typedef BlockBase<InstType::Block> BlockInst;
+typedef BlockBase<InstType::Loop> LoopInst;
+typedef BlockBase<InstType::EndLoop> EndLoopInst;
 
-class BeginBlockInst : public LabeledInst<ExprType::Block> {
+class BeginBlockInst : public BlockBase<InstType::BeginBlock> {
     BlockInst* _block;
 
 public:
-    BeginBlockInst(const VarExpr<ExprType::Block>* expr, BlockInst* block)
-        : LabeledInst<ExprType::Block>(expr), _block(block) {}
     BeginBlockInst(std::string label,
                    BlockInst* block,
                    const Location loc = Location())
-        : LabeledInst<ExprType::Block>(label, loc), _block(block) {}
+        : BlockBase<InstType::BeginBlock>(label, block->nresults(), loc),
+          _block(block) {}
 
-    BeginBlockInst(Index id, std::string label)
-        : LabeledInst<ExprType::Block>(id, label), _block(nullptr) {}
+    BeginBlockInst(Index id, Index nresults, std::string label)
+        : BlockBase<InstType::BeginBlock>(id, nresults, label),
+          _block(nullptr) {}
 
     Node* block() override {
         assert(_block != nullptr);
         return _block;
     }
 
-    virtual bool isBeginBlock() override { return true; }
-
-    virtual void accept(GraphVisitor* visitor);
+    void accept(GraphVisitor* visitor) override;
 };
 
-class IfInst : public BaseInstruction<ExprType::If> {
+class IfInst : public BaseInstruction<InstType::If> {
     const Index _nresults;
     const bool _hasElse;
 
@@ -544,10 +589,10 @@ public:
 
     Index nresults() const override { return _nresults; }
     bool hasElse() const override { return _hasElse; }
-    virtual void accept(GraphVisitor* visitor);
+    virtual void accept(GraphVisitor* visitor) override;
 };
 
-enum class PDGType { Local, Global, Function, Control, Const };
+enum class PDGType { Local, Global, Function, Control, Const, None };
 
 extern const std::map<EdgeType, std::string> EDGE_TYPES_MAP;
 extern const std::map<std::string, EdgeType> EDGE_TYPES_MAP_R;
@@ -573,18 +618,9 @@ public:
     inline Node* src() const { return _src; }
     inline Node* dest() const { return _dest; }
     inline EdgeType type() const { return _type; }
-    virtual PDGType pdgType() const {
-        assert(false);
-        return PDGType::Local;
-    }
-    virtual const std::string& label() const {
-        assert(false);
-        return emptyString();
-    }
-    virtual const Const& value() const {
-        assert(false);
-        return emptyConst();
-    }
+    virtual PDGType pdgType() const { return PDGType::None; }
+    virtual const std::string& label() const { return emptyString(); }
+    virtual const Const& value() const { return emptyConst(); }
     virtual void accept(GraphVisitor* visitor) = 0;
 
 public:
@@ -622,10 +658,10 @@ struct PDGEdge : Edge {
     PDGEdge(Node* src, Node* dest, const std::string& label, PDGType type)
         : Edge(src, dest, EdgeType::PDG), _label(label), _pdgType(type) {}
 
-    void accept(GraphVisitor* visitor);
+    void accept(GraphVisitor* visitor) override;
     static bool classof(const Edge* e) { return e->type() == EdgeType::PDG; }
 
-    inline const std::string& label() const { return _label; }
+    inline const std::string& label() const override { return _label; }
     inline PDGType pdgType() const override { return _pdgType; }
 
 public:
@@ -633,14 +669,14 @@ public:
         assert(PDG_TYPE_MAP_R.count(type) == 1);
         return PDG_TYPE_MAP_R.at(type);
     }
-    
+
     inline std::string writePdgType() {
         static const std::map<PDGType, std::string> pdgTypeMap = {
             {PDGType::Const, "Const"},
             {PDGType::Control, "Control"},
             {PDGType::Function, "Function"},
             {PDGType::Global, "Global"},
-            {PDGType::Local, "Local"} };
+            {PDGType::Local, "Local"}};
         return pdgTypeMap.at(_pdgType);
     }
 };
@@ -649,12 +685,6 @@ struct CGEdge : Edge {
     CGEdge(Node* src, Node* dest) : Edge(src, dest, EdgeType::CG) {}
     void accept(GraphVisitor* visitor);
     static bool classof(const Edge* e) { return e->type() == EdgeType::CG; }
-};
-
-struct PGEdge : Edge {
-    PGEdge(Node* src, Node* dest) : Edge(src, dest, EdgeType::PG) {}
-    void accept(GraphVisitor* visitor);
-    static bool classof(const Edge* e) { return e->type() == EdgeType::PG; }
 };
 
 struct PDGEdgeConst : PDGEdge {
@@ -674,9 +704,6 @@ class Graph {
     Start* _start;
     Module* _module;
 
-    inline void setTrap(Trap* trap) { _trap = trap; }
-    inline void setStart(Start* start) { _start = start; }
-
 public:
     Graph() : _mc(ModuleContext({})), _trap(nullptr), _start(nullptr) {}
     Graph(wabt::Module& mc)
@@ -687,8 +714,8 @@ public:
         }
     }
 
-    void populate(std::string filePath);
-
+    inline void setTrap(Trap* trap) { _trap = trap; }
+    inline void setStart(Start* start) { _start = start; }
     inline void setModule(Module* module) {
         assert(module != nullptr);
         _module = module;
@@ -745,7 +772,6 @@ public:
     virtual void visitCFGEdge(CFGEdge* e) = 0;
     virtual void visitPDGEdge(PDGEdge* e) = 0;
     virtual void visitCGEdge(CGEdge* e) = 0;
-    virtual void visitPGEdge(PGEdge* e) = 0;
 
     // Nodes
     virtual void visitModule(Module* node) = 0;
@@ -786,6 +812,7 @@ public:
     virtual void visitBeginBlockInst(BeginBlockInst* node) = 0;
     virtual void visitBlockInst(BlockInst* node) = 0;
     virtual void visitLoopInst(LoopInst* node) = 0;
+    virtual void visitEndLoopInst(EndLoopInst* node) = 0;
     virtual void visitIfInst(IfInst* node) = 0;
 };
 
@@ -870,189 +897,157 @@ inline void SimpleNode<NodeType::Start, startName>::accept(
 }
 
 template <>
-inline void BaseInstruction<ExprType::Nop>::accept(GraphVisitor* visitor) {
+inline void BaseInstruction<InstType::Nop>::accept(GraphVisitor* visitor) {
     visitor->visitNopInst(this);
 }
 
 template <>
-inline void BaseInstruction<ExprType::Unreachable>::accept(
+inline void BaseInstruction<InstType::Unreachable>::accept(
     GraphVisitor* visitor) {
     visitor->visitUnreachableInst(this);
 }
 
 template <>
-inline void BaseInstruction<ExprType::Return>::accept(GraphVisitor* visitor) {
+inline void BaseInstruction<InstType::Return>::accept(GraphVisitor* visitor) {
     visitor->visitReturnInst(this);
 }
 
 template <>
-inline void BaseInstruction<ExprType::BrTable>::accept(GraphVisitor* visitor) {
+inline void BaseInstruction<InstType::BrTable>::accept(GraphVisitor* visitor) {
     visitor->visitBrTableInst(this);
 }
 
 template <>
-inline void BaseInstruction<ExprType::Drop>::accept(GraphVisitor* visitor) {
+inline void BaseInstruction<InstType::Drop>::accept(GraphVisitor* visitor) {
     visitor->visitDropInst(this);
 }
 
 template <>
-inline void BaseInstruction<ExprType::Select>::accept(GraphVisitor* visitor) {
+inline void BaseInstruction<InstType::Select>::accept(GraphVisitor* visitor) {
     visitor->visitSelectInst(this);
 }
 
 template <>
-inline void BaseInstruction<ExprType::MemorySize>::accept(
+inline void BaseInstruction<InstType::MemorySize>::accept(
     GraphVisitor* visitor) {
     visitor->visitMemorySizeInst(this);
 }
 
 template <>
-inline void BaseInstruction<ExprType::MemoryGrow>::accept(
+inline void BaseInstruction<InstType::MemoryGrow>::accept(
     GraphVisitor* visitor) {
     visitor->visitMemoryGrowInst(this);
 }
 
 template <>
-inline void OpcodeInst<ExprType::Binary>::accept(GraphVisitor* visitor) {
+inline void OpcodeInst<InstType::Binary>::accept(GraphVisitor* visitor) {
     visitor->visitBinaryInst(this);
 }
 
 template <>
-inline void OpcodeInst<ExprType::Compare>::accept(GraphVisitor* visitor) {
+inline void OpcodeInst<InstType::Compare>::accept(GraphVisitor* visitor) {
     visitor->visitCompareInst(this);
 }
 
 template <>
-inline void OpcodeInst<ExprType::Convert>::accept(GraphVisitor* visitor) {
+inline void OpcodeInst<InstType::Convert>::accept(GraphVisitor* visitor) {
     visitor->visitConvertInst(this);
 }
 
 template <>
-inline void OpcodeInst<ExprType::Unary>::accept(GraphVisitor* visitor) {
+inline void OpcodeInst<InstType::Unary>::accept(GraphVisitor* visitor) {
     visitor->visitUnaryInst(this);
 }
 
 template <>
-inline void LoadStoreBase<ExprType::Load>::accept(GraphVisitor* visitor) {
+inline void LoadStoreBase<InstType::Load>::accept(GraphVisitor* visitor) {
     visitor->visitLoadInst(this);
 }
 
 template <>
-inline void LoadStoreBase<ExprType::Store>::accept(GraphVisitor* visitor) {
+inline void LoadStoreBase<InstType::Store>::accept(GraphVisitor* visitor) {
     visitor->visitStoreInst(this);
 }
 
 template <>
-inline void LabeledInst<ExprType::Br>::accept(GraphVisitor* visitor) {
+inline void LabeledInst<InstType::Br>::accept(GraphVisitor* visitor) {
     visitor->visitBrInst(this);
 }
 
 template <>
-inline void LabeledInst<ExprType::BrIf>::accept(GraphVisitor* visitor) {
+inline void LabeledInst<InstType::BrIf>::accept(GraphVisitor* visitor) {
     visitor->visitBrIfInst(this);
 }
 
 template <>
-inline void LabeledInst<ExprType::GlobalGet>::accept(GraphVisitor* visitor) {
+inline void LabeledInst<InstType::GlobalGet>::accept(GraphVisitor* visitor) {
     visitor->visitGlobalGetInst(this);
 }
 
 template <>
-inline void LabeledInst<ExprType::GlobalSet>::accept(GraphVisitor* visitor) {
+inline void LabeledInst<InstType::GlobalSet>::accept(GraphVisitor* visitor) {
     visitor->visitGlobalSetInst(this);
 }
 
 template <>
-inline void LabeledInst<ExprType::LocalGet>::accept(GraphVisitor* visitor) {
+inline void LabeledInst<InstType::LocalGet>::accept(GraphVisitor* visitor) {
     visitor->visitLocalGetInst(this);
 }
 
 template <>
-inline void LabeledInst<ExprType::LocalSet>::accept(GraphVisitor* visitor) {
+inline void LabeledInst<InstType::LocalSet>::accept(GraphVisitor* visitor) {
     visitor->visitLocalSetInst(this);
 }
 
 template <>
-inline void LabeledInst<ExprType::LocalTee>::accept(GraphVisitor* visitor) {
+inline void LabeledInst<InstType::LocalTee>::accept(GraphVisitor* visitor) {
     visitor->visitLocalTeeInst(this);
 }
 
 template <>
-inline void CallBase<ExprType::CallIndirect>::accept(GraphVisitor* visitor) {
+inline void CallBase<InstType::CallIndirect>::accept(GraphVisitor* visitor) {
     visitor->visitCallIndirectInst(this);
 }
 
 template <>
-inline void CallBase<ExprType::Call>::accept(GraphVisitor* visitor) {
+inline void CallBase<InstType::Call>::accept(GraphVisitor* visitor) {
     visitor->visitCallInst(this);
 }
 
 template <>
-inline void BlockBase<ExprType::Block>::accept(GraphVisitor* visitor) {
+inline void BlockBase<InstType::Block>::accept(GraphVisitor* visitor) {
     visitor->visitBlockInst(this);
 }
 
 template <>
-inline void BlockBase<ExprType::Loop>::accept(GraphVisitor* visitor) {
+inline void BlockBase<InstType::Loop>::accept(GraphVisitor* visitor) {
     visitor->visitLoopInst(this);
 }
 
-template <ExprType t>
-inline void BaseInstruction<t>::accept(GraphVisitor* visitor) {
+template <>
+inline void BlockBase<InstType::EndLoop>::accept(GraphVisitor* visitor) {
+    visitor->visitEndLoopInst(this);
+}
+
+template <InstType T>
+inline void BaseInstruction<T>::accept(GraphVisitor* visitor) {
     assert(false);
 }
 
-template <ExprType t>
-inline void OpcodeInst<t>::accept(GraphVisitor* visitor) {
+template <InstType T>
+inline void OpcodeInst<T>::accept(GraphVisitor* visitor) {
     assert(false);
 }
 
-template <ExprType t>
-inline void LabeledInst<t>::accept(GraphVisitor* visitor) {
+template <InstType T>
+inline void LabeledInst<T>::accept(GraphVisitor* visitor) {
     assert(false);
 }
 
-struct NodeCol {
-    enum {
-        ID = 0,
-        NodeType,
-        Name,
-        Index,
-        Nargs,
-        Nlocals,
-        Nresults,
-        IsImport,
-        IsExport,
-        VarType,
-        InstType,
-        Opcode,
-        ConstType,
-        ConstValue,
-        Label,
-        Offset,
-        HasElse
-    };
-};
-
-struct EdgeCol {
-    enum { Src = 0, Dest, Type, Label, PdgType, ConstType, ConstValue };
-};
-
-struct Factory {
-    // To delete in the end
-    static std::vector<Const*> consts;
-
-    static Node* createNode(std::vector<std::string>& row);
-    static Edge* createEdge(std::vector<std::string>& row,
-                            std::vector<Node*>& nodes);
-    static Const* createConst(std::string type, std::string value);
-    static void insertConst(Const* expr) { consts.push_back(expr); }
-    static void deleteConsts() {
-        for (auto expr : consts) {
-            delete expr;
-        }
-    }
-};
+template <InstType T>
+inline void BlockBase<T>::accept(GraphVisitor* visitor) {
+    assert(false);
+}
 
 }  // namespace wasmati
 

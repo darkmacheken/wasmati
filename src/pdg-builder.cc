@@ -41,109 +41,112 @@ void PDG::generatePDG() {
             _lastNode = std::get<2>(firstInst);
 
             switch (std::get<0>(firstInst)->instType()) {
-            case ExprType::Nop:
+            case InstType::Nop:
                 visitNopInst(dynamic_cast<NopInst*>(std::get<0>(firstInst)));
                 break;
-            case ExprType::Unreachable:
+            case InstType::Unreachable:
                 visitUnreachableInst(
                     dynamic_cast<UnreachableInst*>(std::get<0>(firstInst)));
                 break;
-            case ExprType::Return:
+            case InstType::Return:
                 visitReturnInst(
                     dynamic_cast<ReturnInst*>(std::get<0>(firstInst)));
                 break;
-            case ExprType::BrTable:
+            case InstType::BrTable:
                 visitBrTableInst(
                     dynamic_cast<BrTableInst*>(std::get<0>(firstInst)));
                 break;
-            case ExprType::CallIndirect:
+            case InstType::CallIndirect:
                 visitCallIndirectInst(
                     dynamic_cast<CallIndirectInst*>(std::get<0>(firstInst)));
                 break;
-            case ExprType::Drop:
+            case InstType::Drop:
                 visitDropInst(dynamic_cast<DropInst*>(std::get<0>(firstInst)));
                 break;
-            case ExprType::Select:
+            case InstType::Select:
                 visitSelectInst(
                     dynamic_cast<SelectInst*>(std::get<0>(firstInst)));
                 break;
-            case ExprType::MemorySize:
+            case InstType::MemorySize:
                 visitMemorySizeInst(
                     dynamic_cast<MemorySizeInst*>(std::get<0>(firstInst)));
                 break;
-            case ExprType::MemoryGrow:
+            case InstType::MemoryGrow:
                 visitMemoryGrowInst(
                     dynamic_cast<MemoryGrowInst*>(std::get<0>(firstInst)));
                 break;
-            case ExprType::Const:
+            case InstType::Const:
                 visitConstInst(
                     dynamic_cast<ConstInst*>(std::get<0>(firstInst)));
                 break;
-            case ExprType::Binary:
+            case InstType::Binary:
                 visitBinaryInst(
                     dynamic_cast<BinaryInst*>(std::get<0>(firstInst)));
                 break;
-            case ExprType::Compare:
+            case InstType::Compare:
                 visitCompareInst(
                     dynamic_cast<CompareInst*>(std::get<0>(firstInst)));
                 break;
-            case ExprType::Convert:
+            case InstType::Convert:
                 visitConvertInst(
                     dynamic_cast<ConvertInst*>(std::get<0>(firstInst)));
                 break;
-            case ExprType::Unary:
+            case InstType::Unary:
                 visitUnaryInst(
                     dynamic_cast<UnaryInst*>(std::get<0>(firstInst)));
                 break;
-            case ExprType::Load:
+            case InstType::Load:
                 visitLoadInst(dynamic_cast<LoadInst*>(std::get<0>(firstInst)));
                 break;
-            case ExprType::Store:
+            case InstType::Store:
                 visitStoreInst(
                     dynamic_cast<StoreInst*>(std::get<0>(firstInst)));
                 break;
-            case ExprType::Br:
+            case InstType::Br:
                 visitBrInst(dynamic_cast<BrInst*>(std::get<0>(firstInst)));
                 break;
-            case ExprType::BrIf:
+            case InstType::BrIf:
                 visitBrIfInst(dynamic_cast<BrIfInst*>(std::get<0>(firstInst)));
                 break;
-            case ExprType::Call:
+            case InstType::Call:
                 visitCallInst(dynamic_cast<CallInst*>(std::get<0>(firstInst)));
                 break;
-            case ExprType::GlobalGet:
+            case InstType::GlobalGet:
                 visitGlobalGetInst(
                     dynamic_cast<GlobalGetInst*>(std::get<0>(firstInst)));
                 break;
-            case ExprType::GlobalSet:
+            case InstType::GlobalSet:
                 visitGlobalSetInst(
                     dynamic_cast<GlobalSetInst*>(std::get<0>(firstInst)));
                 break;
-            case ExprType::LocalGet:
+            case InstType::LocalGet:
                 visitLocalGetInst(
                     dynamic_cast<LocalGetInst*>(std::get<0>(firstInst)));
                 break;
-            case ExprType::LocalSet:
+            case InstType::LocalSet:
                 visitLocalSetInst(
                     dynamic_cast<LocalSetInst*>(std::get<0>(firstInst)));
                 break;
-            case ExprType::LocalTee:
+            case InstType::LocalTee:
                 visitLocalTeeInst(
                     dynamic_cast<LocalTeeInst*>(std::get<0>(firstInst)));
                 break;
-            case ExprType::Block:
-                if (std::get<0>(firstInst)->isBeginBlock()) {
-                    visitBeginBlockInst(
-                        dynamic_cast<BeginBlockInst*>(std::get<0>(firstInst)));
-                } else {
-                    visitBlockInst(
-                        dynamic_cast<BlockInst*>(std::get<0>(firstInst)));
-                }
+            case InstType::BeginBlock:
+                visitBeginBlockInst(
+                    dynamic_cast<BeginBlockInst*>(std::get<0>(firstInst)));
                 break;
-            case ExprType::Loop:
+            case InstType::Block:
+                visitBlockInst(
+                    dynamic_cast<BlockInst*>(std::get<0>(firstInst)));
+                break;
+            case InstType::Loop:
                 visitLoopInst(dynamic_cast<LoopInst*>(std::get<0>(firstInst)));
                 break;
-            case ExprType::If:
+            case InstType::EndLoop:
+                visitEndLoopInst(
+                    dynamic_cast<EndLoopInst*>(std::get<0>(firstInst)));
+                break;
+            case InstType::If:
                 visitIfInst(dynamic_cast<IfInst*>(std::get<0>(firstInst)));
                 break;
             default:
@@ -661,8 +664,8 @@ void PDG::visitLoopInst(LoopInst* node) {
             } else {
                 // we emplace front to be faster to look for repeated
                 // definitions later, since it is more probable that the next
-                // entrance in the loop the definition, if present to cache, will
-                // be at the beginning of the list. 
+                // entrance in the loop the definition, if present to cache,
+                // will be at the beginning of the list.
                 _loopsEntrances[node].emplace_front(reachDef);
             }
         }
@@ -691,6 +694,27 @@ void PDG::visitLoopInst(LoopInst* node) {
     // Save loop def
     _loops[node] = std::make_shared<ReachDefinition>(*reachDef);
     _reachDef.erase(node);
+    // ---------------------------------------
+    advance(node, reachDef);
+}
+
+void PDG::visitEndLoopInst(EndLoopInst* node) {
+    if (waitPaths(node)) {
+        return;
+    }
+    // ---------------------------------------
+    for (auto& reachDef : _reachDef[node]) {
+        assert(reachDef->stackSize() >= node->nresults());
+
+        // gets results
+        auto results = reachDef->pop(node->nresults());
+        // pop label
+        reachDef->popLabel(node->label());
+        // push back the results
+        reachDef->push(results);
+    }
+    auto reachDef = getReachDef(node);
+    // logDefinition(node, reachDef);
     // ---------------------------------------
     advance(node, reachDef);
 }
@@ -745,7 +769,7 @@ inline std::shared_ptr<ReachDefinition> PDG::getReachDef(Instruction* inst) {
 
     assert(numReachDefs > 0);
 
-    if (inst->instType() == ExprType::Loop) {
+    if (inst->instType() == InstType::Loop) {
         for (auto reachDef : reachDefs) {
             Index nresults = inst->nresults();
             warning(reachDef->stackSize() >= inst->nresults());
@@ -766,7 +790,7 @@ inline std::shared_ptr<ReachDefinition> PDG::getReachDef(Instruction* inst) {
             // push back the results
             reachDef->push(results);
         }
-    } else if (inst->instType() == ExprType::Return) {
+    } else if (inst->instType() == InstType::Return) {
         for (auto reachDef : reachDefs) {
             assert(reachDef->stackSize() >= currentFunction->GetNumResults());
             // gets results
@@ -823,15 +847,15 @@ inline void PDG::advance(Instruction* inst,
 
 void PDG::logDefinition(Node* inst, std::shared_ptr<ReachDefinition> def) {
     json instLog;
-    instLog["id"] = inst->getId();
-    instLog["lastInstId"] = _lastNode->getId();
+    instLog["id"] = inst->id();
+    instLog["lastInstId"] = _lastNode->id();
     instLog["def"] = *def;
     s_verbose_stream->Writef("%s\n", instLog.dump(2).c_str());
 }
 
 inline bool PDG::contains(std::list<std::shared_ptr<ReachDefinition>> list,
                           std::shared_ptr<ReachDefinition> reachDef) {
-    for (auto const def : list) {
+    for (auto const& def : list) {
         if (reachDef->equals(*def)) {
             return true;
         }

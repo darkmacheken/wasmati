@@ -18,7 +18,6 @@ class ReachDefinition;
 class PDG {
 private:
     ModuleContext& mc;
-    Graph& graph;
 
     std::list<std::tuple<Node*, std::shared_ptr<std::stack<LoopInst*>>, Node*>>
         _dfsList;
@@ -37,8 +36,7 @@ private:
     NodeSet _verboseLoops;
 
 public:
-    PDG(ModuleContext& mc, Graph& graph)
-        : mc(mc), graph(graph), _verbose(json::array()) {}
+    PDG(ModuleContext& mc, Graph& graph) : mc(mc), _verbose(json::array()) {}
 
     ~PDG() {}
 
@@ -74,6 +72,7 @@ private:
     void visitBeginBlockInst(BeginBlockInst* node);
     void visitBlockInst(BlockInst* node);
     void visitLoopInst(LoopInst* node);
+    void visitEndLoopInst(EndLoopInst* node);
     void visitIfInst(IfInst* node);
 
     // Auxiliars
@@ -123,10 +122,14 @@ public:
         Var(const Const* value, Node* node)
             : name(Utils::writeConst(*value)),
               value(value),
-              type(PDGType::Const), src(node) {}
+              type(PDGType::Const),
+              src(node) {}
 
-        Var(const std::string& name, const Const* value, const PDGType type, Node* node)
-            : name(name), value(value), type(type), src(node){}
+        Var(const std::string& name,
+            const Const* value,
+            const PDGType type,
+            Node* node)
+            : name(name), value(value), type(type), src(node) {}
 
         Var(const Var& var) : Var(var.name, var.value, var.type, var.src) {}
 
@@ -183,7 +186,8 @@ public:
             if (kv.second.type == PDGType::Const) {
                 new PDGEdgeConst(kv.second.src, target, *kv.second.value);
             } else {
-                new PDGEdge(kv.second.src, target, kv.second.name, kv.second.type);
+                new PDGEdge(kv.second.src, target, kv.second.name,
+                            kv.second.type);
             }
         }
     }
@@ -222,7 +226,7 @@ public:
     friend void to_json(json& j, const Definition& d) {
         for (auto const& kv : d._def) {
             json def;
-            def["node"] = kv.first->getId();
+            def["node"] = kv.first->id();
             def["name"] = kv.second.name;
             def["type"] = kv.second.type;
             j.push_back(def);

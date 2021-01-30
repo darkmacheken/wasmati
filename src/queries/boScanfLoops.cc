@@ -3,6 +3,7 @@
 using namespace wasmati;
 
 void VulnerabilityChecker::BoScanfLoops() {
+    auto start = std::chrono::high_resolution_clock::now();
     std::set<std::string> ignore = config[IGNORE];
 
     Index counter = 0;
@@ -14,16 +15,16 @@ void VulnerabilityChecker::BoScanfLoops() {
         }
         // find all loops
         auto loops =
-            Query::instructions({func}, Predicate().instType(ExprType::Loop));
+            Query::instructions({func}, Predicate().instType(InstType::Loop));
 
         for (Node* loop : loops) {
             auto insts = Query::BFS({loop}, Query::ALL_INSTS, Query::AST_EDGES);
             auto callScanf = Query::filter(
                 insts,
                 Predicate()
-                    .instType(ExprType::Call)
+                    .instType(InstType::Call)
                     .label("$scanf")
-                    .TEST(node->getChild(1)->instType() == ExprType::LocalGet));
+                    .TEST(node->getChild(1)->instType() == InstType::LocalGet));
 
             if (callScanf.size() == 0) {
                 continue;
@@ -44,11 +45,11 @@ void VulnerabilityChecker::BoScanfLoops() {
             // find br_if
             auto brifs = NodeStream(insts)
                              .filter(Predicate()
-                                         .instType(ExprType::BrIf)
+                                         .instType(InstType::BrIf)
                                          .label(loop->label()))
                              .child(0, EdgeType::AST)
                              .filter(Predicate()
-                                         .instType(ExprType::Compare)
+                                         .instType(InstType::Compare)
                                          .opcode(Opcode::I32Eq, false)
                                          .opcode(Opcode::I32Eqz, false))
                              .parents(Query::AST_EDGES)
@@ -64,13 +65,13 @@ void VulnerabilityChecker::BoScanfLoops() {
                     NodeStream(brif)
                         .BFS(Query::ALL_NODES, Query::AST_EDGES)
                         .filter(Predicate()
-                                    .instType(ExprType::Load)
+                                    .instType(InstType::Load)
                                     .inEdge(EdgeType::PDG, varDepend));
 
                 if (loadInsts.size() > 0) {
                     std::stringstream desc;
                     loadInsts.child(0, EdgeType::AST)
-                        .filter(Predicate().instType(ExprType::LocalGet));
+                        .filter(Predicate().instType(InstType::LocalGet));
 
                     if (loadInsts.empty()) {
                         return;
@@ -96,4 +97,9 @@ void VulnerabilityChecker::BoScanfLoops() {
             }
         }
     }
+    auto end = std::chrono::high_resolution_clock::now();
+    auto time =
+        std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
+        .count();
+    info["boScanfLoops"] = time;
 }

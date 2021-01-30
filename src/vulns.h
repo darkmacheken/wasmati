@@ -23,6 +23,7 @@
 #define BUFFER "buffer"
 #define SIZE "size"
 #define FORMAT_STRING "formatString"
+#define MALLOC "malloc"
 #define CONTROL_FLOW "controlFlow"
 #define SOURCE "source"
 #define DEST "dest"
@@ -54,12 +55,27 @@ static const json defaultConfig = R"(
 		"$emscripten_memcpy_big",
 		"$emscripten_resize_heap"
 	],
-	"whiteList": [],
-	"sources": [],
+	"whiteList": [
+		"$__wasi_fd_close",
+		"$env._emval_decref",
+		"$env.testSetjmp",
+		"$wasi_snapshot_preview1.fd_close",
+		"$env.invoke_iii",
+		"$env.emscripten_longjmp",
+		"$env.setTempRet0",
+		"$wasi_snapshot_preview1.fd_seek",
+		"$wasi_snapshot_preview1.fd_read",
+		"$wasi_snapshot_preview1.fd_write",
+		"$env.emscripten_resize_heap",
+		"$env.emscripten_memcpy_big",
+		"$fflush"
+	],
+	"sources": [ "$read_bytes_to_mmap_memory" ],
 	"sinks": [],
 	"tainted": {
 		"$main": { "params": [ 0, 1 ] },
-		"$bof": { "params": [ 1 ] }
+		"$store_data": { "params": [ 0 ] },
+		"$very_complex_function": { "params": [ 0 ] }
 	},
 	"bufferOverflow": {
 		"$read": {
@@ -72,7 +88,7 @@ static const json defaultConfig = R"(
 		}
 	},
 	"boMemcpy": [ "$strcpy", "$__stpcpy", "$memcpy" ],
-	"dangerousFunctions": [ "$gets" ],
+	"dangerousFunctions": [ "$gets", "$strcat" ],
 	"formatString": {
 		"$fprintf": 1,
 		"$printf": 0,
@@ -86,10 +102,15 @@ static const json defaultConfig = R"(
 		"$syslog": 1,
 		"$vsyslog": 1
 	},
+	"malloc": [ "$malloc", "$dlmalloc" ],
 	"controlFlow": [
 		{
 			"source": "$malloc",
 			"dest": "$free"
+		},
+		{
+			"source": "$dlmalloc",
+			"dest": "$dlfree"
 		}
 	]
 }
@@ -97,6 +118,7 @@ static const json defaultConfig = R"(
 
 enum class VulnType {
     Unreachable,
+    DangFunc,
     FormatStrings,
     BufferOverflow,
     Tainted,
@@ -108,6 +130,7 @@ enum class VulnType {
 NLOHMANN_JSON_SERIALIZE_ENUM(VulnType,
                              {
                                  {VulnType::Unreachable, "Unreachable"},
+                                 {VulnType::DangFunc, "Dangerous Function"},
                                  {VulnType::FormatStrings, "Format Strings"},
                                  {VulnType::BufferOverflow, "Buffer Overflow"},
                                  {VulnType::Tainted, "Tainted Variable"},
@@ -260,6 +283,14 @@ struct VulnerabilityChecker {
             assert(item.value().is_number_integer());
             assert(item.value() >= 0);
         }
+
+        // malloc
+        assert(config.contains(MALLOC));
+        assert(config.at(MALLOC).is_array());
+        for (auto const& item : config.at(MALLOC).items()) {
+            assert(item.value().is_string());
+        }
+
         // constrolFlow
         assert(config.contains(CONTROL_FLOW));
         assert(config.at(CONTROL_FLOW).is_array());

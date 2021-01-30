@@ -1,8 +1,12 @@
 cmake_minimum_required(VERSION 3.14.0)
-project(WASMATI VERSION 0.1.1)
+project(WASMATI VERSION 1.0.0)
+find_package(OpenSSL REQUIRED)
+find_package(ZLIB REQUIRED)
+find_package(BISON REQUIRED)
+find_package(FLEX REQUIRED)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(CMAKE_PROJECT_VERSION "${CMAKE_PROJECT_VERSION} (${GIT_VERSION})")
+set(CMAKE_PROJECT_VERSION "${CMAKE_PROJECT_VERSION}")
 
 option(USE_ASAN "Use address sanitizer" OFF)
 option(USE_MSAN "Use memory sanitizer" OFF)
@@ -66,16 +70,16 @@ if (COMPILER_IS_MSVC)
   #   seems to not like float compare w/ HUGE_VALF; bug?
   # disable warnings C4267 and C4244: conversion/truncation from larger to smaller type.
   # disable warning C4800: implicit conversion from larger int to bool
-  add_definitions(-W3 -wd4018 -wd4056 -wd4756 -wd4267 -wd4244 -wd4800 -D_CRT_SECURE_NO_WARNINGS -D_SCL_SECURE_NO_WARNINGS)
+  add_definitions(-W3 -wd2182 -wd2065 -wd4018 -wd4056 -wd4756 -wd4267 -wd4244 -wd4800 -D_CRT_SECURE_NO_WARNINGS -D_SCL_SECURE_NO_WARNINGS)
 
   if (WERROR)
     add_definitions(-WX)
   endif ()
 
-  if (NOT WITH_EXCEPTIONS)
+  #if (NOT WITH_EXCEPTIONS)
     # disable exception use in C++ library
-    add_definitions(-D_HAS_EXCEPTIONS=0)
-  endif ()
+   # add_definitions(-D_HAS_EXCEPTIONS=0)
+  #endif ()
 else ()
   # disable -Wunused-parameter: this is really common when implementing
   #   interfaces, etc.
@@ -203,58 +207,97 @@ FetchContent_Declare(json
   GIT_TAG v3.9.1
 )
 
-FetchContent_Declare(csv
-  GIT_REPOSITORY https://github.com/p-ranav/csv2
-  GIT_TAG "a20992f7a1b75215609037c4cc66f690e8691aab"
-  )
+include(ExternalProject)
+externalproject_add(libzip
+  PREFIX ${CMAKE_CURRENT_BINARY_DIR}/libzip
+  GIT_REPOSITORY "https://github.com/nih-at/libzip.git"
+  GIT_TAG "66e496489bdae81bfda8b0088172871d8fda0032"
+  CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_BINARY_DIR}/libzip
+)
 
-FetchContent_MakeAvailable(wabt json csv)
-include_directories(${wabt_SOURCE_DIR} ${json_SOURCE_DIR} ${csv_SOURCE_DIR})
+ExternalProject_Get_Property(libzip install_dir)
+link_directories(${CMAKE_CURRENT_BINARY_DIR}/libzip/lib)
 
-#FetchContent_GetProperties(json)
-#if(NOT json_POPULATED)
-#  FetchContent_Populate(json)
-#  add_subdirectory(${json_SOURCE_DIR} ${json_BINARY_DIR} EXCLUDE_FROM_ALL)
-#endif()
+FetchContent_MakeAvailable(wabt json)
+include_directories(${wabt_SOURCE_DIR} ${json_SOURCE_DIR} ${install_dir}/include)
+
+BISON_TARGET(
+    DSLParser 
+    ${WASMATI_SOURCE_DIR}/src/interpreter/parser.y 
+    ${CMAKE_CURRENT_BINARY_DIR}/parser.cpp
+    DEFINES_FILE ${CMAKE_CURRENT_BINARY_DIR}/parser.h
+    COMPILE_FLAGS "-dtv"
+)
+FLEX_TARGET(
+    DSLScanner 
+    ${WASMATI_SOURCE_DIR}/src/interpreter/scanner.l  
+    ${CMAKE_CURRENT_BINARY_DIR}/scanner.cpp
+)
+ADD_FLEX_BISON_DEPENDENCY(DSLScanner DSLParser)
+
+add_library(interp STATIC
+     ${FLEX_DSLScanner_OUTPUTS}
+     ${BISON_DSLParser_OUTPUTS}  
+     ${FLEX_LIBRARIES})
 
 add_library(wasmatilib STATIC
-  src/config/config.h
-  src/config/config.cc
-  src/options.h
-  src/options.cc
-  src/graph.h
-  src/graph.cc
-  src/ast-builder.h
-  src/ast-builder.cc
-  src/cfg-builder.h
-  src/cfg-builder.cc
-  src/pdg-builder.h
-  src/pdg-builder.cc
-  src/query.h
-  src/query.cc
-  src/utils.h
-  src/vulns.h
-  #writters
-  src/writers/csv-writer.h
-  src/writers/datalog-writer.h
-  src/writers/dot-writer.h
-  src/writers/json-writer.h
-  # Queries
-  src/queries/boBuffsStatic.cc
-  src/queries/boMemcpy.cc
-  src/queries/boScanfLoops.cc
-  src/queries/bufferSizes.cc
-  src/queries/dangerousFunctions.cc
-  src/queries/formatStrings.cc
-  src/queries/isTainted.cc
-  src/queries/taintedFuncToFunc.cc
-  src/queries/taintedLocalToFunc.cc
-  src/queries/unreachable.cc
-  src/queries/useAfterFree.cc
- )
+	  src/config/config.h
+	  src/config/config.cc
+	  src/options.h
+	  src/options.cc
+	  src/graph.h
+	  src/graph.cc
+	  src/ast-builder.h
+	  src/ast-builder.cc
+	  src/cfg-builder.h
+	  src/cfg-builder.cc
+	  src/pdg-builder.h
+	  src/pdg-builder.cc
+	  src/query.h
+	  src/query.cc
+	  src/utils.h
+	  src/vulns.h
+	  # writters
+	  src/writers/csv-writer.h
+	  src/writers/datalog-writer.h
+	  src/writers/dot-writer.h
+	  src/writers/json-writer.h
+	  # readers
+	  src/readers/csv-reader.h
+	  # Queries
+	  src/queries/boBuffsStatic.cc
+	  src/queries/boBuffsStaticMalloc.cc
+	  src/queries/verifyMallocConst.cc
+	  src/queries/boMemcpy.cc
+	  #src/queries/boLoops.cc
+	  src/queries/boScanfLoops.cc
+	  src/queries/bufferSizes.cc
+	  src/queries/dangerousFunctions.cc
+	  src/queries/formatStrings.cc
+	  src/queries/isTainted.cc
+	  src/queries/taintedCallIndirect.cc
+	  src/queries/taintedFuncToFunc.cc
+	  src/queries/taintedLocalToFunc.cc
+	  src/queries/unreachable.cc
+	  src/queries/useAfterFree.cc
+	  src/queries/doubleFree.cc
+	  # interpreter
+	  src/interpreter/scanner.h
+	  src/interpreter/interpreter.h 
+	  src/interpreter/interpreter.cc 
+	  src/interpreter/nodes.h
+	  src/interpreter/nodes.cc
+	  src/interpreter/y.tab.h 
+      src/interpreter/evaluator.h
+      src/interpreter/evaluator.cc
+      src/interpreter/symbol-table.h
+      src/interpreter/functions.h)
+
+#add_dependencies(wasmatilib libzip)
 
 if (NOT EMSCRIPTEN)
   if (CODE_COVERAGE)
+
     add_definitions("-fprofile-arcs -ftest-coverage")
     if (COMPILER_IS_CLANG)
       set(CMAKE_EXE_LINKER_FLAGS "--coverage")
@@ -265,7 +308,6 @@ if (NOT EMSCRIPTEN)
 
   function(wasmati_executable)
     cmake_parse_arguments(EXE "WITH_LIBM;INSTALL" "NAME" "SOURCES;LIBS" ${ARGN})
-
     # Always link wasmatilib.
     set(EXE_LIBS "${EXE_LIBS};wasmatilib")
 
@@ -274,9 +316,9 @@ if (NOT EMSCRIPTEN)
       set(EXE_LIBS "${EXE_LIBS};m")
     endif ()
 
-    add_executable(${EXE_NAME} ${EXE_SOURCES} )
+    add_executable(${EXE_NAME} ${EXE_SOURCES})
     add_dependencies(everything_wasm ${EXE_NAME})
-    target_link_libraries(${EXE_NAME} PRIVATE ${EXE_LIBS} wabt nlohmann_json::nlohmann_json csv2::csv2)
+    target_link_libraries(${EXE_NAME} PRIVATE ${EXE_LIBS} wabt nlohmann_json::nlohmann_json interp zip)
     set_property(TARGET ${EXE_NAME} PROPERTY CXX_STANDARD 11)
     set_property(TARGET ${EXE_NAME} PROPERTY CXX_STANDARD_REQUIRED ON)
 
@@ -297,6 +339,13 @@ if (NOT EMSCRIPTEN)
     wasmati_executable(
       NAME wasmati
       SOURCES src/tools/wasmati.cc
+      INSTALL
+    )
+
+    # wasmati-query
+    wasmati_executable(
+      NAME wasmati-query
+      SOURCES src/tools/wasmati-query.cc
       INSTALL
     )
   endif ()

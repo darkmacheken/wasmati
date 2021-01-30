@@ -7,7 +7,7 @@ std::pair<Index, std::map<Index, Index>> VulnerabilityChecker::checkBufferSizes(
     // Find SUB
     Index val = 0;
     auto subPred = Predicate()
-                       .instType(ExprType::Binary)
+                       .instType(InstType::Binary)
                        .opcode(Opcode::I32Sub)
                        .inPDGEdge("$g0", PDGType::Global)
                        .pdgConstEdgeU32(val)
@@ -27,7 +27,7 @@ std::pair<Index, std::map<Index, Index>> VulnerabilityChecker::checkBufferSizes(
     setBuffs.insert(0);
     setBuffs.insert(sizeAlloc);
     auto addPred = Predicate()
-                       .instType(ExprType::Binary)
+                       .instType(InstType::Binary)
                        .opcode(Opcode::I32Add)
                        .inPDGEdge("$g0", PDGType::Global)
                        .pdgConstEdgeU32(val)

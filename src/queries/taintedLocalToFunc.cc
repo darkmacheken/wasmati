@@ -3,6 +3,7 @@
 using namespace wasmati;
 
 void VulnerabilityChecker::TaintedLocalToFunc() {
+    auto start = std::chrono::high_resolution_clock::now();
     std::set<std::string> sinks = config.at(SINKS);
 
     if (config.at(IMPORT_AS_SINKS)) {
@@ -32,14 +33,14 @@ void VulnerabilityChecker::TaintedLocalToFunc() {
         }
         std::map<std::string, std::pair<std::string, std::string>>
             taintedParams;
-        NodeStream(func).parameters().forEach([&](Node* param) {
-            std::set<std::string> visited;
-            taintedParams[param->name()] = isTainted(param, visited);
-        });
+        // NodeStream(func).parameters().forEach([&](Node* param) {
+        //    std::set<std::string> visited;
+        //    taintedParams[param->name()] = isTainted(param, visited);
+        //});
 
         NodeStream(func)
             .instructions(Predicate()
-                              .instType(ExprType::Call)
+                              .instType(InstType::Call)
                               .TEST(sinks.count(node->label()) == 1))
             .forEach([&](Node* call) {
                 auto localsDependsList =
@@ -65,8 +66,16 @@ void VulnerabilityChecker::TaintedLocalToFunc() {
 
                 for (std::string local : localsDepends) {
                     if (taintedParams.count(local) == 0) {
-                        continue;
-                    } else if (taintedParams[local].first == "") {
+                        auto param = NodeStream(func)
+                                         .parameters(Predicate().name(local))
+                                         .findFirst();
+                        if (!param.isPresent()) {
+                            continue;
+                        }
+                        std::set<std::string> visited;
+                        auto tainted = isTainted(param.get(), visited);
+                    }
+                    if (taintedParams[local].first == "") {
                         continue;
                     } else {
                         std::stringstream desc;
@@ -79,4 +88,9 @@ void VulnerabilityChecker::TaintedLocalToFunc() {
                 }
             });
     }
+    auto end = std::chrono::high_resolution_clock::now();
+    auto time =
+        std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
+            .count();
+    info["taintedLocalToFunc"] = time;
 }

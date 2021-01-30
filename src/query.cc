@@ -16,9 +16,6 @@ const EdgeCondition& Query::PDG_EDGES = [](Edge* e) {
 const EdgeCondition& Query::CG_EDGES = [](Edge* e) {
     return e->type() == EdgeType::CG;
 };
-const EdgeCondition& Query::PG_EDGES = [](Edge* e) {
-    return e->type() == EdgeType::PG;
-};
 const NodeCondition& Query::ALL_INSTS = [](Node* node) {
     return node->type() == NodeType::Instruction;
 };
@@ -86,6 +83,19 @@ EdgeSet Query::filterEdges(const EdgeSet& edges,
             }                                                      \
         }                                                          \
         return result;                                             \
+    }
+#include "src/config/predicates.def"
+#undef WASMATI_EVALUATION
+
+#define WASMATI_EVALUATION(type, var, eval, rALL)                     \
+    NodeSet Query::filterOut(const NodeSet& nodes, const type& var) { \
+        NodeSet result;                                               \
+        for (Node * node : nodes) {                                   \
+            if (!eval(node)) {                                        \
+                result.insert(node);                                  \
+            }                                                         \
+        }                                                             \
+        return result;                                                \
     }
 #include "src/config/predicates.def"
 #undef WASMATI_EVALUATION
@@ -213,17 +223,8 @@ Node* Query::function(Node* node) {
 
 #define WASMATI_EVALUATION(TYPE, var, eval, rALL)                           \
     NodeSet Query::instructions(const NodeSet& nodes, const TYPE& var) {    \
-        NodeSet funcInstsNode;                                              \
-        for (Node * node : nodes) {                                         \
-            assert(node->type() == NodeType::Function);                     \
-            if (node->isImport()) {                                         \
-                continue;                                                   \
-            }                                                               \
-            funcInstsNode.insert(node->getChild(1, EdgeType::AST));         \
-        }                                                                   \
-                                                                            \
         return BFS(                                                         \
-            funcInstsNode,                                                  \
+            nodes,                                                          \
             [&](Node* node) {                                               \
                 return node->type() == NodeType::Instruction && eval(node); \
             },                                                              \
@@ -262,7 +263,7 @@ NodeSet Queries::loopsInsts(std::string& loopName) {
     NodeSet results;
     auto loops = NodeStream(Query::functions())
                      .instructions([&](Node* node) {
-                         return node->instType() == ExprType::Loop &&
+                         return node->instType() == InstType::Loop &&
                                 node->label() == loopName;
                      })
                      .toNodeSet();
@@ -270,7 +271,7 @@ NodeSet Queries::loopsInsts(std::string& loopName) {
     auto beginBlocks = Query::BFS(
         loops,
         [&](Node* node) {
-            return node->instType() == ExprType::Block &&
+            return node->instType() == InstType::Block &&
                    Query::contains(
                        Query::parents({node}, Query::CFG_EDGES),
                        [&](Node* n) { return results.count(n) == 1; });
