@@ -37,11 +37,10 @@ RESULTS_DIR=execution-results
 echo $password | sudo -S chown $UID:$UID -R $GRAPH_DIR_PATH
 echo $password | sudo -S chown $UID:$UID -R $NEO4J_QUERIES
 
-# Build and Run container
-echo "[INFO] - Building image for container $NEO4j_WASMATI_CONTAINER"
-docker build -q . -t neo4j-docker
-
 if [ "$DEBUG" = true ]; then
+    # Build and Run container
+    echo "[INFO] - Building image for container $NEO4j_WASMATI_CONTAINER"
+    docker build . -t neo4j-docker
     echo "[INFO] - Running container $NEO4j_WASMATI_CONTAINER"
     docker run --rm --name $NEO4J_WASMATI_CONTAINER -v $GRAPH_DIR_PATH:/var/lib/neo4j/import \
         -v $NEO4J_QUERIES:/var/lib/neo4j/queries \
@@ -51,6 +50,9 @@ if [ "$DEBUG" = true ]; then
         -e NEO4JLABS_PLUGINS=\[\"apoc\"\] \
         -p 7474:7474 -p 7687:7687 neo4j-docker
 else
+    # Build and Run container
+    echo "[INFO] - Building image for container $NEO4j_WASMATI_CONTAINER"
+    docker build -q . -t neo4j-docker
     echo "[INFO] - Running container $NEO4j_WASMATI_CONTAINER"
     docker run -d --rm --name $NEO4J_WASMATI_CONTAINER -v $GRAPH_DIR_PATH:/var/lib/neo4j/import \
         -v $NEO4J_QUERIES:/var/lib/neo4j/queries \

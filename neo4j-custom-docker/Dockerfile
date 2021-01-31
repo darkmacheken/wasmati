@@ -13,7 +13,8 @@ RUN addgroup --gid 7474 --system neo4j && adduser --uid 7474 --system --no-creat
 COPY ./local-package/* /tmp/
 
 RUN apt-get update \
-    && apt-get install -y curl wget gosu jq time\
+    && apt-get install -y curl wget gosu jq time python3 python3-pip\
+    && pip3 install neo4j\
     && curl -L --fail --silent --show-error ${TINI_URI} > /sbin/tini \
     && echo "${TINI_SHA256}  /sbin/tini" | sha256sum -c --strict --quiet \
     && chmod +x /sbin/tini \

@@ -14,8 +14,8 @@ WHERE store.instType="Store"
        	var.instType="LocalTee"
     )
 
-WITH *
 // Get add instructions in function
+WITH *
 MATCH (f)-[:AST*1..]->(add:Instruction)
 WHERE add.instType="Binary"
 	AND add.opcode="i32.add"
