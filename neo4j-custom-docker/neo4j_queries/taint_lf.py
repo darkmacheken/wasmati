@@ -10,20 +10,36 @@ def searchForTaintedCalls():
     taintedCalls = []
 
     while len(tainted) > 0:
-        query = """
+        # query = """
+        # WITH apoc.map.fromPairs({0}) AS taintedInitial
+
+        # MATCH (taintedF:Function)-[:AST*..]->(:Parameters)-[:AST]->(p)
+        # WHERE taintedF.name IN keys(taintedInitial) AND p.index IN taintedInitial[taintedF.name]
+
+        # WITH *
+        # MATCH (taintedF)-[:AST*1..]->(call:Instruction)-[callArgIndex:AST]->()-[:AST*0..]->(callArg)
+        # WHERE call.instType="Call" AND callArg.label=p.name
+
+        # RETURN taintedF.name AS taintedFunction, p.index AS taintedParam, call.label AS callInst, collect(DISTINCT callArgIndex.arg) AS callInstParams
+        # """.format(tainted)
+
+        query_pdg="""
         WITH apoc.map.fromPairs({0}) AS taintedInitial
 
-        MATCH path1=(taintedF:Function)-[:AST*..]->(:Parameters)-[:AST]->(p)
+        MATCH (taintedF:Function)-[:AST*..]->(:Parameters)-[:AST]->(p)
         WHERE taintedF.name IN keys(taintedInitial) AND p.index IN taintedInitial[taintedF.name]
 
         WITH *
-        MATCH path2=(taintedF)-[:AST*1..]->(call:Instruction)-[callArgIndex:AST]->()-[:AST*0..]->(callArg)
-        WHERE call.instType="Call" AND callArg.label=p.name
+        MATCH (taintedF)-[:AST*1..]->(call:Instruction)-[:AST*0..1]->(s)<-[:PDG*1.. {{pdgType:"Local",label:p.name}}]-(arg:Instruction)
+        WHERE call.instType="Call"
 
-        RETURN taintedF.name AS taintedFunction, p.index AS taintedParam, call.label AS callInst, collect(DISTINCT callArgIndex.arg) AS callInstParams
+        WITH *
+        MATCH (call)-[callArgIndex:AST]->()-[:AST*0..]->(arg)
+
+        RETURN DISTINCT taintedF.name AS taintedFunction, p.index AS taintedParam, call.label AS callInst, collect(DISTINCT callArgIndex.arg) AS callInstParams
         """.format(tainted)
 
-        queryExecution = session.run(query)
+        queryExecution = session.run(query_pdg)
         tainted = []
         for (taintedFunction, taintedParam, callInst, callInstParams) in queryExecution:
             if callInst in sinks:
