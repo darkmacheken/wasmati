@@ -8,6 +8,7 @@ def searchForTaintedCalls():
     tainted = [["$main", [0, 1]]]
     sinks = ["$strcpy"]
     taintedCalls = []
+    visited = set()
 
     while len(tainted) > 0:
         # query = """
@@ -42,9 +43,10 @@ def searchForTaintedCalls():
         queryExecution = session.run(query_pdg)
         tainted = []
         for (taintedFunction, taintedParam, callInst, callInstParams) in queryExecution:
+            visited.add(taintedFunction)
             if callInst in sinks:
                 taintedCalls.append((taintedFunction, taintedParam, callInst, callInstParams))
-            else:
+            elif not callInst in visited:
                 tainted.append([callInst, callInstParams])
 
     print("taintedFunction,taintedParam,sink")
