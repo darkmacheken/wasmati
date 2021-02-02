@@ -1,5 +1,5 @@
 #!/bin/bash
-DEBUG=false
+DEBUG=true
 
 if [[ -z $1 ]]; then
     echo "$0: Required path containing graph files"
@@ -44,6 +44,7 @@ if [ "$DEBUG" = true ]; then
     echo "[INFO] - Running container $NEO4j_WASMATI_CONTAINER"
     docker run --rm --name $NEO4J_WASMATI_CONTAINER -v $GRAPH_DIR_PATH:/var/lib/neo4j/import \
         -v $NEO4J_QUERIES:/var/lib/neo4j/queries \
+        -e NEO4J_dbms_query__cache__size=0 \
         -e NEO4J_apoc_export_file_enabled=true \
         -e NEO4J_apoc_import_file_enabled=true \
         -e NEO4J_apoc_import_file_use__neo4j__config=true \
@@ -56,6 +57,7 @@ else
     echo "[INFO] - Running container $NEO4j_WASMATI_CONTAINER"
     docker run -d --rm --name $NEO4J_WASMATI_CONTAINER -v $GRAPH_DIR_PATH:/var/lib/neo4j/import \
         -v $NEO4J_QUERIES:/var/lib/neo4j/queries \
+        -e NEO4J_dbms_query__cache__size=0 \
         -e NEO4J_apoc_export_file_enabled=true \
         -e NEO4J_apoc_import_file_enabled=true \
         -e NEO4J_apoc_import_file_use__neo4j__config=true \

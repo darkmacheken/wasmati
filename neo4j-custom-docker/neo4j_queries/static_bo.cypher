@@ -1,13 +1,13 @@
 // List of vulnerable functions
-WITH apoc.map.fromPairs([["$read", [1, 2]]]) AS boFuncs
+WITH apoc.map.fromPairs([["$read", [1, 2]], ["$fgets", [0, 1]]]) AS boFuncs
 
 // Get reference to function and call to vulnerable function in list
 MATCH (f:Function)-[:AST*1..]->(call:Instruction)
 WHERE call.instType="Call" AND call.label IN keys(boFuncs)
 
 // Check if the call has some positional argument
-// WITH *
-// MATCH (call)-[:AST {arg:boFuncs[call.label][0]}]->(buff:Instruction)
+WITH *
+MATCH (call)-[:AST {arg:boFuncs[call.label][0]}]->(buff:Instruction)
 
 // Get the position argument for the read size
 WITH *

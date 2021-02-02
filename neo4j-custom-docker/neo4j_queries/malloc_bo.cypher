@@ -1,5 +1,5 @@
 // List of vulnerable functions
-WITH apoc.map.fromPairs([["$read", [1, 2]]]) AS boFuncs, ["$dlmalloc"] as mallocs
+WITH apoc.map.fromPairs([["$read", [1, 2]], ["$fgets", [0, 1]]]) AS boFuncs, ["$dlmalloc", "$malloc] as mallocs
 
 MATCH (f:Function)-[:AST*1..]->(m:Instruction)<-[mSizeEdge:PDG {pdgType:"Const"}]-()
 WHERE m.instType="Call"
