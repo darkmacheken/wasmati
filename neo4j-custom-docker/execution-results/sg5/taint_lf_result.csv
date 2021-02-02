@@ -1,2 +1,0 @@
-taintedFunction,taintedParam,sink
-$get_username,0,$strcpy

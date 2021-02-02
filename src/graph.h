@@ -34,7 +34,7 @@ inline const Const& emptyConst() {
     return empty;
 }
 
-enum class EdgeType { AST, CFG, PDG, CG };
+enum class EdgeType { AST, CFG, PDG, CG, None };
 
 enum class NodeType {
     Module,

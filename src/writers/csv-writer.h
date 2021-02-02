@@ -10,6 +10,11 @@
 namespace wasmati {
 
 class CSVWriter : public GraphWriter {
+    bool _datalog;
+    std::string _NODES_FILE_NAME;
+    std::string _EDGES_FILE_NAME;
+
+private:
     std::string _edgesFileName;
     std::string _nodesFileName;
     std::string _infoFileName;
@@ -18,14 +23,16 @@ class CSVWriter : public GraphWriter {
     std::shared_ptr<wabt::Stream> _info;
     zip_t* _zipArchive;
 
+private:
     size_t _numNodes = 0;
     size_t _numEdges = 0;
 
     size_t _astOrder = 0;
 
+private:
 public:
-    CSVWriter(std::string zipFileName, Graph* graph)
-        : GraphWriter(nullptr, graph) {
+    CSVWriter(std::string zipFileName, Graph* graph, bool datalog = false)
+        : GraphWriter(nullptr, graph), _datalog(datalog) {
         auto path = Path(zipFileName);
         auto dir = path.directory();
         _edgesFileName = std::tmpnam(nullptr);
@@ -37,6 +44,13 @@ public:
         int error;
         _zipArchive =
             zip_open(zipFileName.c_str(), ZIP_CREATE | ZIP_TRUNCATE, &error);
+        if (datalog) {
+            _NODES_FILE_NAME = "node.facts";
+            _EDGES_FILE_NAME = "edge.facts";
+        } else {
+            _NODES_FILE_NAME = "nodes.csv";
+            _EDGES_FILE_NAME = "edges.csv";
+        }
     }
 
     void writeGraph() override {
@@ -82,14 +96,14 @@ public:
         zip_source_t* infoSource;
         if ((nodesSource = zip_source_file(_zipArchive, _nodesFileName.c_str(),
                                            0, -1)) == NULL ||
-            zip_file_add(_zipArchive, "nodes.csv", nodesSource,
+            zip_file_add(_zipArchive, _NODES_FILE_NAME.c_str(), nodesSource,
                          ZIP_FL_ENC_UTF_8 | ZIP_FL_OVERWRITE) < 0) {
             zip_source_free(nodesSource);
             printf("error adding file: %s\n", zip_strerror(_zipArchive));
         }
         if ((edgesSource = zip_source_file(_zipArchive, _edgesFileName.c_str(),
                                            0, -1)) == NULL ||
-            zip_file_add(_zipArchive, "edges.csv", edgesSource,
+            zip_file_add(_zipArchive, _EDGES_FILE_NAME.c_str(), edgesSource,
                          ZIP_FL_ENC_UTF_8 | ZIP_FL_OVERWRITE) < 0) {
             zip_source_free(edgesSource);
             printf("error adding file: %s\n", zip_strerror(_zipArchive));
@@ -112,7 +126,7 @@ public:
         if (!(cpgOptions.printAll || cpgOptions.printAST)) {
             return;
         }
-        std::map<std::string, std::string> edges;
+        auto edges = getEdgesMap();
         edges[SRC] = std::to_string(e->src()->id());
         edges[DEST] = std::to_string(e->dest()->id());
         edges[EDGE_TYPE] = EDGE_TYPES_MAP.at(EdgeType::AST);
@@ -124,7 +138,7 @@ public:
         if (!(cpgOptions.printAll || cpgOptions.printCFG)) {
             return;
         }
-        std::map<std::string, std::string> edges;
+        auto edges = getEdgesMap();
         edges[SRC] = std::to_string(e->src()->id());
         edges[DEST] = std::to_string(e->dest()->id());
         edges[EDGE_TYPE] = EDGE_TYPES_MAP.at(EdgeType::CFG);
@@ -135,7 +149,7 @@ public:
         if (!(cpgOptions.printAll || cpgOptions.printPDG)) {
             return;
         }
-        std::map<std::string, std::string> edges;
+        auto edges = getEdgesMap();
         edges[SRC] = std::to_string(e->src()->id());
         edges[DEST] = std::to_string(e->dest()->id());
         edges[EDGE_TYPE] = EDGE_TYPES_MAP.at(EdgeType::PDG);
@@ -155,7 +169,7 @@ public:
         if (!(cpgOptions.printAll || cpgOptions.printCG)) {
             return;
         }
-        std::map<std::string, std::string> edges;
+        auto edges = getEdgesMap();
         edges[SRC] = std::to_string(e->src()->id());
         edges[DEST] = std::to_string(e->dest()->id());
         edges[EDGE_TYPE] = EDGE_TYPES_MAP.at(EdgeType::CG);
@@ -165,14 +179,14 @@ public:
 private:
     // Inherited via GraphWriter
     void visitModule(Module* node) override {
-        std::map<std::string, std::string> nodes;
+        auto nodes = getNodesMap();
         nodes[ID] = std::to_string(node->id());
         nodes[NODE_TYPE] = NODE_TYPE_MAP.at(node->type());
         nodes[NAME] = node->name();
         writeNode(nodes);
     }
     void visitFunction(Function* node) override {
-        std::map<std::string, std::string> nodes;
+        auto nodes = getNodesMap();
         nodes[ID] = std::to_string(node->id());
         nodes[NODE_TYPE] = NODE_TYPE_MAP.at(node->type());
         nodes[NAME] = node->name();
@@ -197,7 +211,7 @@ private:
     void visitStart(Start* node) override { visitSimpleNode(node); }
     void visitTrap(Trap* node) override { visitSimpleNode(node); }
     void visitVarNode(VarNode* node) override {
-        std::map<std::string, std::string> nodes;
+        auto nodes = getNodesMap();
         nodes[ID] = std::to_string(node->id());
         nodes[NODE_TYPE] = NODE_TYPE_MAP.at(node->type());
         nodes[NAME] = node->name();
@@ -226,7 +240,7 @@ private:
         visitSimpleInstNode(node);
     }
     void visitConstInst(ConstInst* node) override {
-        std::map<std::string, std::string> nodes;
+        auto nodes = getNodesMap();
         nodes[ID] = std::to_string(node->id());
         nodes[NODE_TYPE] = NODE_TYPE_MAP.at(node->type());
         nodes[INST_TYPE] = INST_TYPE_MAP.at(node->instType());
@@ -285,7 +299,7 @@ private:
         visitBlockInstNode(node);
     }
     void visitIfInst(IfInst* node) override {
-        std::map<std::string, std::string> nodes;
+        auto nodes = getNodesMap();
         nodes[ID] = std::to_string(node->id());
         nodes[NODE_TYPE] = NODE_TYPE_MAP.at(node->type());
         nodes[NRESULTS] = std::to_string(node->nresults());
@@ -296,14 +310,14 @@ private:
 
 private:
     inline void visitSimpleNode(Node* node) {
-        std::map<std::string, std::string> nodes;
+        auto nodes = getNodesMap();
         nodes[ID] = std::to_string(node->id());
         nodes[NODE_TYPE] = NODE_TYPE_MAP.at(node->type());
         writeNode(nodes);
     }
 
     inline void visitSimpleInstNode(Node* node) {
-        std::map<std::string, std::string> nodes;
+        auto nodes = getNodesMap();
         nodes[ID] = std::to_string(node->id());
         nodes[NODE_TYPE] = NODE_TYPE_MAP.at(node->type());
         nodes[INST_TYPE] = INST_TYPE_MAP.at(node->instType());
@@ -311,7 +325,7 @@ private:
     }
 
     inline void visitOpcodeInstNode(Node* node) {
-        std::map<std::string, std::string> nodes;
+        auto nodes = getNodesMap();
         nodes[ID] = std::to_string(node->id());
         nodes[NODE_TYPE] = NODE_TYPE_MAP.at(node->type());
         nodes[INST_TYPE] = INST_TYPE_MAP.at(node->instType());
@@ -320,7 +334,7 @@ private:
     }
 
     inline void visitLoadStoreInstNode(Node* node) {
-        std::map<std::string, std::string> nodes;
+        auto nodes = getNodesMap();
         nodes[ID] = std::to_string(node->id());
         nodes[NODE_TYPE] = NODE_TYPE_MAP.at(node->type());
         nodes[INST_TYPE] = INST_TYPE_MAP.at(node->instType());
@@ -329,7 +343,7 @@ private:
         writeNode(nodes);
     }
     inline void visitLabelInstNode(Node* node) {
-        std::map<std::string, std::string> nodes;
+        auto nodes = getNodesMap();
         nodes[ID] = std::to_string(node->id());
         nodes[NODE_TYPE] = NODE_TYPE_MAP.at(node->type());
         nodes[INST_TYPE] = INST_TYPE_MAP.at(node->instType());
@@ -337,7 +351,7 @@ private:
         writeNode(nodes);
     }
     inline void visitCallInstNode(Node* node) {
-        std::map<std::string, std::string> nodes;
+        auto nodes = getNodesMap();
         nodes[ID] = std::to_string(node->id());
         nodes[NODE_TYPE] = NODE_TYPE_MAP.at(node->type());
         nodes[NARGS] = std::to_string(node->nargs());
@@ -348,7 +362,7 @@ private:
     }
 
     inline void visitBlockInstNode(Node* node) {
-        std::map<std::string, std::string> nodes;
+        auto nodes = getNodesMap();
         nodes[ID] = std::to_string(node->id());
         nodes[NODE_TYPE] = NODE_TYPE_MAP.at(node->type());
         nodes[NRESULTS] = std::to_string(node->nresults());
@@ -357,6 +371,49 @@ private:
         writeNode(nodes);
     }
 
+private:
+    inline std::map<std::string, std::string> getEdgesMap() {
+        std::map<std::string, std::string> res;
+        if (_datalog) {
+            res[SRC] = "0";
+            res[DEST] = "0";
+            res[EDGE_TYPE] = "None";
+            res[LABEL] = "None";
+            res[PDG_TYPE] = "None";
+            res[CONST_TYPE] = "None";
+            res[CONST_VALUE_I] = "0";
+            res[CONST_VALUE_F] = "0";
+            res[AST_ORDER] = "0";
+        }
+        return res;
+    }
+
+    inline std::map<std::string, std::string> getNodesMap() {
+        std::map<std::string, std::string> res;
+        if (_datalog) {
+            res[ID] = "0";
+            res[NODE_TYPE] = "None";
+            res[NAME] = "None";
+            res[INDEX] = "0";
+            res[NARGS] = "0";
+            res[NLOCALS] = "0";
+            res[NRESULTS] = "0";
+            res[IS_IMPORT] = "0";
+            res[IS_EXPORT] = "0";
+            res[VAR_TYPE] = "None";
+            res[INST_TYPE] = "None";
+            res[OPCODE] = "None";
+            res[CONST_TYPE] = "None";
+            res[CONST_VALUE_I] = "0";
+            res[CONST_VALUE_F] = "0";
+            res[LABEL] = "None";
+            res[OFFSET] = "0";
+            res[HAS_ELSE] = "0";
+        }
+        return res;
+    }
+
+private:
     inline void writeNode(std::map<std::string, std::string>& node) {
         // id,nodeType,name,index,nargs,nlocals,nresults,isImport,isExport,varType,instType,opcode,constType,constValueI,constValueF,label,offset,hasElse
         std::replace(node[NAME].begin(), node[NAME].end(), ',', '_');

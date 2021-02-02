@@ -260,11 +260,11 @@ int ProgramMain(int argc, char** argv) {
     }
     // generate datalog facts
     if (Succeeded(result) && generate_datalog_dir) {
-        assert(!s_dlogdir.empty());
-        auto stream = FileStream(s_dlogdir + "/base.dl");
-        auto edges = FileStream(s_dlogdir + "/edge.facts");
-        auto nodes = FileStream(s_dlogdir + "/node.facts");
-        DatalogWriter writer(&stream, &edges, &nodes, graph);
+        //assert(!s_dlogdir.empty());
+        //auto stream = FileStream(s_dlogdir + "/base.dl");
+        //auto edges = FileStream(s_dlogdir + "/edge.facts");
+        //auto nodes = FileStream(s_dlogdir + "/node.facts");
+        CSVWriter writer(s_dlogdir, graph, true);
         writer.writeGraph();
     }
     if (cpgOptions.info) {

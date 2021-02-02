@@ -1,1 +1,1 @@
-x:START_ID,y:END_ID,type:TYPE,label,pdgType,value_type,value_i:int,value_f:float,arg:int
+x:START_ID,y:END_ID,type:TYPE,label,pdgType,value_type,value_i:int,value_f:string,arg:int

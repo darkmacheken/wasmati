@@ -505,6 +505,9 @@ public:
         node->left()->accept(this);
         ASSERT_EXPR_TYPE(LiteralType::Bool);
         auto left = std::dynamic_pointer_cast<BoolNode>(_resultVisit);
+        if (left->value()) {
+            RETURN(std::make_shared<BoolNode>(node->lineno(), true));
+        }
         node->right()->accept(this);
         ASSERT_EXPR_TYPE(LiteralType::Bool);
         auto right = std::dynamic_pointer_cast<BoolNode>(_resultVisit);

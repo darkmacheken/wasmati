@@ -22,7 +22,7 @@ ZIP_FILE=false
 if [[ $GRAPH_DIR_BASE =~ \.zip$ ]]; then
     ZIP_FILE=true
     GRAPH_DIR_BASE=$(echo $GRAPH_DIR_BASE | cut -d '.' -f1)
-    unzip $GRAPH_DIR_PATH -d $PARENT_DIR/$GRAPH_DIR_BASE
+    unzip -u $GRAPH_DIR_PATH -d $PARENT_DIR/$GRAPH_DIR_BASE
     GRAPH_DIR_PATH=$PARENT_DIR/$GRAPH_DIR_BASE
 fi
 
@@ -64,7 +64,14 @@ else
 
     echo "[INFO] - Waiting for server to start..."
     # Check if server already accepting connections
-    (echo $password | sudo -S tail -f -n0 `docker inspect --format='{{.LogPath}}' $NEO4J_WASMATI_CONTAINER` &) | grep -q "Started."
+    #docker logs $NEO4J_WASMATI_CONTAINER &) | grep -q "Started."
+    if uname -a | grep -q "WSL2"; then
+        while ! (docker logs $NEO4J_WASMATI_CONTAINER| grep -q 'Started'); do
+            sleep 1
+        done
+    else
+        (echo $password | sudo -S tail -f -n0 `docker inspect --format='{{.LogPath}}' $NEO4J_WASMATI_CONTAINER` &) | grep -q "Started."
+    fi
     echo "[INFO] - Neo4j server started..."
 
     # RUN queries

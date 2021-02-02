@@ -1,2 +1,0 @@
-taintedFunction,taintedParam,sink
-$bof,1,$strcpy
