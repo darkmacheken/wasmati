@@ -1,4 +1,4 @@
-WITH ["$sink"] as sinks, ["$source"] as sources
+WITH ["$sink"] as sinks, ["$source", "$read_bytes_to_mmap_memory"] as sources
 
 MATCH (f:Function)-[:AST*1..]->(sink_call:Instruction),(source_call:Instruction)
 WHERE sink_call.instType="Call"

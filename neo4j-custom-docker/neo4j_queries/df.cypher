@@ -1,4 +1,4 @@
-WITH ["$dlmalloc"] as mallocs, ["$dlfree"] as frees
+WITH ["$malloc","$dlmalloc"] as mallocs, ["$free","$dlfree"] as frees
 
 MATCH (f:Function)-[:AST*1..]->(i:Instruction)
 WHERE i.instType="Call" AND i.label IN mallocs

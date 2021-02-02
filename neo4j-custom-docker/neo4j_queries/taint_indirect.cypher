@@ -1,4 +1,4 @@
-WITH ["$read_bytes_to_mmap_memory"] as sources
+WITH ["$read_bytes_to_mmap_memory", "$source"] as sources
 
 MATCH (f:Function)-[:AST*1..]->(source_call:Instruction)
 WHERE source_call.instType="Call"
