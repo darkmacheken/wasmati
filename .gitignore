@@ -1,0 +1,17 @@
+/bin
+/build
+/out
+/fuzz-out
+/emscripten
+*.pyc
+.idea/
+.vscode/
+/cmake-build-debug/
+
+CMakeSettings.json
+
+.vs/
+neo4j-custom-docker/.config
+neo4j-custom-docker/graphs-local/
+matplotlib-charts/virtual_env/
+neo4j-custom-docker/execution-results/

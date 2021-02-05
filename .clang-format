@@ -1,0 +1,8 @@
+---
+BasedOnStyle: Chromium
+IndentWidth: '4'
+AccessModifierOffset: -4
+IndentCaseLabels: false
+TabWidth: '4'
+UseTab: Never
+...
