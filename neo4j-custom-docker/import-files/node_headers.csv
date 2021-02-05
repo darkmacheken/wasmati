@@ -1,0 +1,1 @@
+x:ID,type:LABEL,name,index:int,nargs:int,nlocals:int,nresults:int,isImport:boolean,isExport:boolean,varType,instType,opcode,value_type,value_i:string,value_f:string,label,offset:int,hasElse:boolean

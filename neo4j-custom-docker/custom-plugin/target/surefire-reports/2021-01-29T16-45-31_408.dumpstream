@@ -1,0 +1,15 @@
+# Created at 2021-01-29T16:45:33.724
+WARNING: An illegal reflective access operation has occurred
+
+# Created at 2021-01-29T16:45:33.724
+WARNING: Illegal reflective access using Lookup on org.neo4j.memory.RuntimeInternals (file:/home/tiago/.m2/repository/org/neo4j/neo4j-unsafe/4.2.1/neo4j-unsafe-4.2.1.jar) to class java.lang.String
+
+# Created at 2021-01-29T16:45:33.724
+WARNING: Please consider reporting this to the maintainers of org.neo4j.memory.RuntimeInternals
+
+# Created at 2021-01-29T16:45:33.724
+WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
+
+# Created at 2021-01-29T16:45:33.725
+WARNING: All illegal access operations will be denied in a future release
+
