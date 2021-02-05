@@ -81,6 +81,9 @@ EMPTY_LINE                                  ^{SPACE}*\n
 "true"               { return token::TRUE;          }
 "time"               { return token::TIME;          }
 "import"             { return token::IMPORT;        }
+"while"              { return token::WHILE;         }
+"continue"           { return token::CONTINUE;      }
+"break"              { return token::BREAK;         }
 
 ":="                 { return token::ASSIGN;        }
 "="                  { return token::EQ_OP;         }

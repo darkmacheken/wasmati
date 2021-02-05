@@ -104,6 +104,16 @@ public:
     virtual const char* what() const throw() { return _msg.c_str(); }
 };
 
+class ContinueException : public std::exception {
+public:
+    ContinueException() {}
+};
+
+class BreakException : public std::exception {
+public:
+    BreakException() {}
+};
+
 class Printer : public Visitor {
     bool _strWithQuotes;
     std::string _resultVisit;
@@ -116,6 +126,9 @@ public:
     // Statements
     bool visitBlockNode(BlockNode* node) override { RETURN(""); }
     bool visitForeach(Foreach* node) override { RETURN(""); }
+    bool visitWhileNode(WhileNode* node) override { RETURN(""); }
+    bool visitContinueNode(ContinueNode* node) override { RETURN(""); }
+    bool visitBreakNode(BreakNode* node) override { RETURN(""); }
     bool visitIfNode(IfNode* node) override { RETURN(""); }
     bool visitIfElseNode(IfElseNode* node) override { RETURN(""); }
     bool visitFunction(FunctionNode* node) override { RETURN(""); }
@@ -252,14 +265,57 @@ public:
         _symTab.push();
         _symTab.insert(node->identifier(),
                        std::make_shared<NilNode>(node->lineno()));
+        int level = _symTab.level();
         for (auto lit : list->value()->nodes()) {
-            _symTab.replace_local(node->identifier(),
-                                  std::shared_ptr<LiteralNode>(lit));
-            node->insts()->accept(this);
+            try {
+                _symTab.replace_local(node->identifier(), lit);
+                node->insts()->accept(this);
+            } catch (ContinueException& e) {
+                while (_symTab.level() != level) {
+                    _symTab.pop();
+                }
+                continue;
+            } catch (BreakException& e) {
+                while (_symTab.level() != level) {
+                    _symTab.pop();
+                }
+                break;
+            }
         }
         _symTab.pop();
         RETURN(NONE(node->lineno()));
     }
+
+    bool visitWhileNode(WhileNode* node) override {
+        int level = _symTab.level();
+        do {
+            node->condition()->accept(this);
+            ASSERT_EXPR_TYPE(LiteralType::Bool);
+            if (!std::dynamic_pointer_cast<BoolNode>(_resultVisit)->value()) {
+                break;
+            }
+            try {
+                node->stmt()->accept(this);
+            } catch (ContinueException& e) {
+                while (_symTab.level() != level) {
+                    _symTab.pop();
+                }
+                continue;
+            } catch (BreakException& e) {
+                while (_symTab.level() != level) {
+                    _symTab.pop();
+                }
+                break;
+            }
+
+        } while (true);
+        RETURN(NONE(node->lineno()));
+    }
+
+    bool visitContinueNode(ContinueNode* node) override {
+        throw ContinueException();
+    }
+    bool visitBreakNode(BreakNode* node) override { throw BreakException(); }
 
     bool visitIfNode(IfNode* node) override {
         node->condition()->accept(this);
@@ -294,10 +350,14 @@ public:
                     _symTab.replace(identifiers[i], args->value()->node(i));
                 }
             }
+            int level = _symTab.level();
             try {
                 block->accept(this);
 
             } catch (std::shared_ptr<LiteralNode>& res) {
+                while (_symTab.level() != level) {
+                    _symTab.pop();
+                }
                 return res;
             }
             return _resultVisit;
@@ -310,7 +370,8 @@ public:
 
     bool visitReturnNode(ReturnNode* node) override {
         if (node->expr() == nullptr) {
-            throw NIL(node->lineno());
+            std::shared_ptr<LiteralNode> res = NIL(node->lineno());
+            throw res;
         }
         node->expr()->accept(this);
         throw _resultVisit;

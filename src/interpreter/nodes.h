@@ -1,6 +1,7 @@
 #ifndef WASMATI_NODES_H
 #define WASMATI_NODES_H
 
+#include <algorithm>
 #include <cmath>
 #include <functional>
 #include <list>
@@ -119,12 +120,25 @@ public:
 public:
     Item node(size_t i) { return _nodes[i]; }
     Item last() { return _nodes.back(); }
+    Item pop_back() {
+        auto res = _nodes.back();
+        _nodes.pop_back();
+        return res;
+    }
+
     const SequenceType& nodes() { return _nodes; }
     size_t size() { return _nodes.size(); }
+
+public:
     void insert(Item item) { _nodes.push_back(item); }
     void insert(const SequenceType& nodes) {
         _nodes.insert(_nodes.end(), nodes.begin(), nodes.end());
     }
+    void sort(std::function<bool(Item, Item)> func) {
+        std::sort(_nodes.begin(), _nodes.end(), func);
+    }
+
+public:
     virtual bool accept(Visitor* visitor) override;
 };
 
@@ -171,6 +185,38 @@ public:
 
     inline BasicNode* insts() { return _stmt; }
 
+    bool accept(Visitor* visitor) override;
+};
+
+class WhileNode : public BasicNode {
+    ExpressionNode* _condition;
+    BasicNode* _stmt;
+
+public:
+    inline WhileNode(int lineno, ExpressionNode* condition, BasicNode* stmt)
+        : BasicNode(lineno), _condition(condition), _stmt(stmt) {}
+
+public:
+    inline ExpressionNode* condition() { return _condition; }
+
+    inline BasicNode* stmt() { return _stmt; }
+
+    bool accept(Visitor* visitor) override;
+};
+
+class ContinueNode : public BasicNode {
+public:
+    inline ContinueNode(int lineno) : BasicNode(lineno) {}
+
+public:
+    bool accept(Visitor* visitor) override;
+};
+
+class BreakNode : public BasicNode {
+public:
+    inline BreakNode(int lineno) : BasicNode(lineno) {}
+
+public:
     bool accept(Visitor* visitor) override;
 };
 
@@ -532,6 +578,9 @@ public:
     // Statements
     virtual bool visitBlockNode(BlockNode* node) = 0;
     virtual bool visitForeach(Foreach* node) = 0;
+    virtual bool visitWhileNode(WhileNode* node) = 0;
+    virtual bool visitContinueNode(ContinueNode* node) = 0;
+    virtual bool visitBreakNode(BreakNode* node) = 0;
     virtual bool visitIfNode(IfNode* node) = 0;
     virtual bool visitIfElseNode(IfElseNode* node) = 0;
     virtual bool visitFunction(FunctionNode* node) = 0;

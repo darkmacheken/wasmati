@@ -82,7 +82,8 @@
 %token FALSE TRUE
 %token ELSE FOREACH NIL
 %token IF
-%token FUNCTION RETURN TIME IMPORT
+%token CONTINUE BREAK
+%token FUNCTION RETURN TIME IMPORT WHILE
 
 %precedence THEN
 %precedence ELSE
@@ -138,6 +139,8 @@ stmt
      | ";"                                        {/* ignore */}
      | RETURN ";"                                 {$$ = new ReturnNode(LINE);}
      | RETURN expr ";"                            {$$ = new ReturnNode(LINE, $2);}
+     | CONTINUE ";"                               {$$ = new ContinueNode(LINE);}
+     | BREAK ";"                                  {$$ = new BreakNode(LINE);}
      | IMPORT STRING                              {$$ = new ImportNode(LINE, $2);}
      ;
 
@@ -153,6 +156,7 @@ if_stmt
 
 iteration_stmt
      : FOREACH IDENTIFIER IN expr stmt            {$$ = new Foreach(LINE, $2, $4, $5);}
+     | WHILE "(" expr ")" stmt                    {$$ = new WhileNode(LINE, $3, $5);}
      ;
 
 function

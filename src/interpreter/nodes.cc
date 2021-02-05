@@ -7,6 +7,16 @@ bool BlockNode::accept(Visitor* visitor) {
 bool Foreach::accept(Visitor* visitor) {
     return visitor->visitForeach(this);
 }
+bool WhileNode::accept(Visitor* visitor) {
+    return visitor->visitWhileNode(this);
+}
+bool ContinueNode::accept(Visitor* visitor) {
+    return visitor->visitContinueNode(this);
+}
+
+bool BreakNode::accept(Visitor* visitor) {
+    return visitor->visitBreakNode(this);
+}
 bool IfElseNode::accept(Visitor* visitor) {
     return visitor->visitIfElseNode(this);
 }

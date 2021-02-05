@@ -1,5 +1,5 @@
 #!/bin/bash
-DEBUG=true
+DEBUG=false
 
 if [[ -z $1 ]]; then
     echo "$0: Required path containing graph files"

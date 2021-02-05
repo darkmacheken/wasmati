@@ -165,6 +165,8 @@ public:
         }
         return nullptr;
     }
+
+    int level() { return _level; }
 };
 }  // namespace wasmati
 #endif

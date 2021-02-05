@@ -79,7 +79,7 @@ std::map<LiteralType, std::map<std::string, AttributeFunction>> attributesMap =
           {"varType", NodeFunctions::varType},
           {"instType", NodeFunctions::instType},
           {"opcode", NodeFunctions::opcode},
-          //{"value", NodeFunctions::value},
+          {"value", NodeFunctions::value},
           {"label", NodeFunctions::label},
           {"hasElse", NodeFunctions::hasElse},
           {"offset", NodeFunctions::offset},
@@ -93,6 +93,8 @@ std::map<LiteralType, std::map<std::string, AttributeFunction>> attributesMap =
           {"src", EdgeFunctions::src},
           {"dest", EdgeFunctions::dest},
           {"pdgType", EdgeFunctions::pdgType},
+          {"value", EdgeFunctions::value},
+          {"varType", EdgeFunctions::varType},
       }}};
 
 std::map<LiteralType, std::map<std::string, MemberFunction>>
@@ -101,15 +103,22 @@ std::map<LiteralType, std::map<std::string, MemberFunction>>
                                {"empty", ListFunctions::empty},
                                {"size", ListFunctions::size},
                                {"append", ListFunctions::append},
+                               {"pop_back", ListFunctions::pop_back},
+                               {"sort", ListFunctions::sort},
+                               {"adjacent_difference", ListFunctions::adjacent_difference},
+
                            }},
                           {LiteralType::Map,
                            {
                                {"empty", MapFunctions::empty},
                                {"size", MapFunctions::size},
+                               {"keys", MapFunctions::keys},
+                               {"values", MapFunctions::values},
                                {"insert", MapFunctions::insert},
                            }},
                           {LiteralType::Node,
                            {
+                               {"edges", NodeFunctions::edges},
                                {"child", NodeFunctions::child},
                                {"children", NodeFunctions::children},
                            }}};
@@ -120,11 +129,18 @@ std::map<std::string, Func> functionsMap = {
     {"Map", MapFunctions::Map},
     // functions
     {"functions", Functions::functions},
+    {"parameters", Functions::parameters},
     {"instructions", Functions::instructions},
     {"PDGEdge", Functions::PDGEdge},
+    {"ascendantsCFG", Functions::ascendantsCFG},
     {"descendantsCFG", Functions::descendantsCFG},
+    {"descendantsAST", Functions::descendantsAST},
     {"reachesPDG", Functions::reachesPDG},
     {"vulnerability", Functions::vulnerability},
+    {"print_vulns", Functions::print_vulns},
+
+    {"range", Functions::range},
+    {"print", Functions::print},
 
 };
 
