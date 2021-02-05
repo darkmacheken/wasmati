@@ -1,0 +1,25 @@
+﻿{
+  "configurations": [
+    {
+      "name": "WSL-Debug",
+      "generator": "Unix Makefiles",
+      "configurationType": "Debug",
+      "buildRoot": "${projectDir}\\build",
+      "installRoot": "${projectDir}\\install}",
+      "cmakeExecutable": "/usr/local/bin/cmake",
+      "cmakeCommandArgs": "",
+      "buildCommandArgs": "",
+      "ctestCommandArgs": "",
+      "inheritEnvironments": [ "linux_x64" ],
+      "wslPath": "${defaultWSLPath}",
+      "addressSanitizerRuntimeFlags": "detect_leaks=0",
+      "variables": [
+        {
+          "name": "CMAKE_INSTALL_PREFIX",
+          "value": "/mnt/c/Users/pedrodaniel10/Desktop/Thesis/wasmti/install}",
+          "type": "PATH"
+        }
+      ]
+    }
+  ]
+}

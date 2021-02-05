@@ -1,0 +1,103 @@
+#ifdef WASMATI_ENUMS_NODE_TYPE
+/*                Type Name
+ * ==========================================================  */
+WASMATI_ENUMS_NODE_TYPE(NodeType::Module, "Module")
+WASMATI_ENUMS_NODE_TYPE(NodeType::Function, "Function")
+WASMATI_ENUMS_NODE_TYPE(NodeType::VarNode, "VarNode")
+WASMATI_ENUMS_NODE_TYPE(NodeType::FunctionSignature, "FunctionSignature")
+WASMATI_ENUMS_NODE_TYPE(NodeType::Instructions, "Instructions")
+WASMATI_ENUMS_NODE_TYPE(NodeType::Instruction, "Instruction")
+WASMATI_ENUMS_NODE_TYPE(NodeType::Parameters, "Parameters")
+WASMATI_ENUMS_NODE_TYPE(NodeType::Locals, "Locals")
+WASMATI_ENUMS_NODE_TYPE(NodeType::Results, "Results")
+WASMATI_ENUMS_NODE_TYPE(NodeType::Else, "Else")
+WASMATI_ENUMS_NODE_TYPE(NodeType::Trap, "Trap")
+WASMATI_ENUMS_NODE_TYPE(NodeType::Start, "Start")
+#endif
+
+#ifdef WASMATI_ENUMS_INST_TYPE
+/*                Type Name
+ * ==========================================================  */
+WASMATI_ENUMS_INST_TYPE(InstType::Nop, "Nop")
+WASMATI_ENUMS_INST_TYPE(InstType::Unreachable, "Unreachable")
+WASMATI_ENUMS_INST_TYPE(InstType::Return, "Return")
+WASMATI_ENUMS_INST_TYPE(InstType::BrTable, "BrTable")
+WASMATI_ENUMS_INST_TYPE(InstType::Drop, "Drop")
+WASMATI_ENUMS_INST_TYPE(InstType::Select, "Select")
+WASMATI_ENUMS_INST_TYPE(InstType::MemorySize, "MemorySize")
+WASMATI_ENUMS_INST_TYPE(InstType::MemoryGrow, "MemoryGrow")
+WASMATI_ENUMS_INST_TYPE(InstType::Const, "Const")
+WASMATI_ENUMS_INST_TYPE(InstType::Binary, "Binary")
+WASMATI_ENUMS_INST_TYPE(InstType::Compare, "Compare")
+WASMATI_ENUMS_INST_TYPE(InstType::Convert, "Convert")
+WASMATI_ENUMS_INST_TYPE(InstType::Unary, "Unary")
+WASMATI_ENUMS_INST_TYPE(InstType::Load, "Load")
+WASMATI_ENUMS_INST_TYPE(InstType::Store, "Store")
+WASMATI_ENUMS_INST_TYPE(InstType::Br, "Br")
+WASMATI_ENUMS_INST_TYPE(InstType::BrIf, "BrIf")
+WASMATI_ENUMS_INST_TYPE(InstType::GlobalGet, "GlobalGet")
+WASMATI_ENUMS_INST_TYPE(InstType::GlobalSet, "GlobalSet")
+WASMATI_ENUMS_INST_TYPE(InstType::LocalGet, "LocalGet")
+WASMATI_ENUMS_INST_TYPE(InstType::LocalSet, "LocalSet")
+WASMATI_ENUMS_INST_TYPE(InstType::LocalTee, "LocalTee")
+WASMATI_ENUMS_INST_TYPE(InstType::Call, "Call")
+WASMATI_ENUMS_INST_TYPE(InstType::CallIndirect, "CallIndirect")
+WASMATI_ENUMS_INST_TYPE(InstType::BeginBlock, "BeginBlock")
+WASMATI_ENUMS_INST_TYPE(InstType::Block, "Block")
+WASMATI_ENUMS_INST_TYPE(InstType::Loop, "Loop")
+WASMATI_ENUMS_INST_TYPE(InstType::EndLoop, "EndLoop")
+WASMATI_ENUMS_INST_TYPE(InstType::If, "If")
+WASMATI_ENUMS_INST_TYPE(InstType::None, "None")
+#endif
+
+#ifdef WASMATI_ENUMS_EDGE_TYPE
+/*                Type Name
+ * ==========================================================  */
+WASMATI_ENUMS_EDGE_TYPE(EdgeType::AST, "AST")
+WASMATI_ENUMS_EDGE_TYPE(EdgeType::CFG, "CFG")
+WASMATI_ENUMS_EDGE_TYPE(EdgeType::PDG, "PDG")
+WASMATI_ENUMS_EDGE_TYPE(EdgeType::CG, "CG")
+WASMATI_ENUMS_EDGE_TYPE(EdgeType::None, "None")
+#endif
+
+#ifdef WASMATI_ENUMS_PDG_EDGE_TYPE
+/*                Type Name
+ * ==========================================================  */
+WASMATI_ENUMS_PDG_EDGE_TYPE(PDGType::Const, "Const")
+WASMATI_ENUMS_PDG_EDGE_TYPE(PDGType::Control, "Control")
+WASMATI_ENUMS_PDG_EDGE_TYPE(PDGType::Function, "Function")
+WASMATI_ENUMS_PDG_EDGE_TYPE(PDGType::Global, "Global")
+WASMATI_ENUMS_PDG_EDGE_TYPE(PDGType::Local, "Local")
+WASMATI_ENUMS_PDG_EDGE_TYPE(PDGType::None, "None")
+#endif
+
+#ifdef WASMATI_ENUMS_LITERAL_TYPE
+/*                Type Name
+ * ==========================================================  */
+WASMATI_ENUMS_LITERAL_TYPE(LiteralType::Int, "Int")
+WASMATI_ENUMS_LITERAL_TYPE(LiteralType::Float, "Float")
+WASMATI_ENUMS_LITERAL_TYPE(LiteralType::String, "String")
+WASMATI_ENUMS_LITERAL_TYPE(LiteralType::Bool, "Bool")
+WASMATI_ENUMS_LITERAL_TYPE(LiteralType::List, "List")
+WASMATI_ENUMS_LITERAL_TYPE(LiteralType::Map, "Map")
+WASMATI_ENUMS_LITERAL_TYPE(LiteralType::Nil, "Nil")
+WASMATI_ENUMS_LITERAL_TYPE(LiteralType::None, "Nil")
+WASMATI_ENUMS_LITERAL_TYPE(LiteralType::Node, "Node")
+WASMATI_ENUMS_LITERAL_TYPE(LiteralType::Edge, "Edge")
+#endif
+
+#ifdef WASMATI_ENUMS_BINARY_TYPE
+/*                Type Name
+ * ==========================================================  */
+WASMATI_ENUMS_BINARY_TYPE(BinopType::Equal, "Equal")
+WASMATI_ENUMS_BINARY_TYPE(BinopType::And, "And")
+WASMATI_ENUMS_BINARY_TYPE(BinopType::Or, "Or")
+WASMATI_ENUMS_BINARY_TYPE(BinopType::In, "In")
+#endif
+
+#ifdef WASMATI_ENUMS_UNARY_TYPE
+/*                Type Name
+ * ==========================================================  */
+WASMATI_ENUMS_UNARY_TYPE(UnopType::Not, "Not")
+#endif
+
