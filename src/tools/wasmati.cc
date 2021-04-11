@@ -164,6 +164,7 @@ int ProgramMain(int argc, char** argv) {
     InitStdio();
     ParseOptions(argc, argv);
     Graph* graph = nullptr;
+    json output;
 
     // Parse and validate Config file
     json config;
@@ -229,14 +230,7 @@ int ProgramMain(int argc, char** argv) {
             info["query"] = queryDuration.count();
         }
 
-        // Print vulns
-        json list = vulns;
-        if (s_outfile.empty()) {
-            FileStream(stdout).Writef("%s\n", list.dump(4).c_str());
-        } else {
-            std::ofstream o(s_outfile);
-            o << list.dump(4) << std::endl;
-        }
+        output["vulnerabilities"] = vulns;
     }
 
     // generate csv
@@ -260,10 +254,6 @@ int ProgramMain(int argc, char** argv) {
     }
     // generate datalog facts
     if (Succeeded(result) && generate_datalog_dir) {
-        //assert(!s_dlogdir.empty());
-        //auto stream = FileStream(s_dlogdir + "/base.dl");
-        //auto edges = FileStream(s_dlogdir + "/edge.facts");
-        //auto nodes = FileStream(s_dlogdir + "/node.facts");
         CSVWriter writer(s_dlogdir, graph, true);
         writer.writeGraph();
     }
@@ -276,7 +266,17 @@ int ProgramMain(int argc, char** argv) {
         info["nodes"] = graph->getNumberNodes();
         info["edges"] = graph->getNumberEdges();
         info["memory"] = graph->getMemoryUsage();
-        FileStream(stdout).Writef("%s\n", info.dump(2).c_str());
+        output["info"] = info;
+    }
+
+    // Print output
+    if (!output.is_null()) {
+        if (s_outfile.empty()) {
+            FileStream(stdout).Writef("%s\n", output.dump(4).c_str());
+        } else {
+            std::ofstream o(s_outfile);
+            o << output.dump(4) << std::endl;
+        }
     }
 
     return result != Result::Ok;

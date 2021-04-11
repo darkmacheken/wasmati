@@ -1,14 +1,14 @@
 #ifdef WASMATI_QUERY
 /*                FunctionName  Name Description 
  * ==========================================================  */
-WASMATI_QUERY(UnreachableCode, "Unreachable Code", "Queries for instruction nodes that are unreachable.")
+// WASMATI_QUERY(UnreachableCode, "Unreachable Code", "Queries for instruction nodes that are unreachable.")
 WASMATI_QUERY(BOBuffsStatic, "Buffer Overflow - Static Buffers", "Queries for buffer overflows of static buffers.")
 WASMATI_QUERY(BOBuffsStaticMalloc, "Buffer Overflow - Static Buffers Malloc", "Queries for buffer overflows of static buffers.")
 WASMATI_QUERY(BoScanfLoops, "Buffer Overflow - Scanf Loops", "Queries for buffer overflows when using scanf in loops.")
 WASMATI_QUERY(BOMemcpy, "Buffer Overflow - Memcpy", "Queries for buffer overflows from copying memory from tainted buffer to static buffer.")
 WASMATI_QUERY(DangerousFunctions, "Buffer Overflow - Scanf Loops", "Queries for the use of dangerous functions.")
 WASMATI_QUERY(FormatStrings, "Format Strings", "Queries for format strings vulnerabilities.")
-WASMATI_QUERY(TaintedCallIndirect, "Tainted - CallIndirect", "Queries for tainted argument in call_indirect.")
+// WASMATI_QUERY(TaintedCallIndirect, "Tainted - CallIndirect", "Queries for tainted argument in call_indirect.")
 WASMATI_QUERY(TaintedFuncToFunc, "Tainted - Source/Sink", "Queries for source (function) to sink (function) vulnerabilities.")
 WASMATI_QUERY(TaintedLocalToFunc, "Tainted - Source/Sink", "Queries for source (local variable) to sink (function) vulnerabilities.")
 WASMATI_QUERY(UseAfterFree, "Use After Free", "Queries for use after free vulnerabilities.")

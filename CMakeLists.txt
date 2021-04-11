@@ -275,10 +275,10 @@ add_library(wasmatilib STATIC
 	  src/queries/dangerousFunctions.cc
 	  src/queries/formatStrings.cc
 	  src/queries/isTainted.cc
-	  src/queries/taintedCallIndirect.cc
+	  #src/queries/taintedCallIndirect.cc
 	  src/queries/taintedFuncToFunc.cc
 	  src/queries/taintedLocalToFunc.cc
-	  src/queries/unreachable.cc
+	  #src/queries/unreachable.cc
 	  src/queries/useAfterFree.cc
 	  src/queries/doubleFree.cc
 	  # interpreter
@@ -293,7 +293,7 @@ add_library(wasmatilib STATIC
       src/interpreter/symbol-table.h
       src/interpreter/functions.h)
 
-#add_dependencies(wasmatilib libzip)
+add_dependencies(wasmatilib interp)
 
 if (NOT EMSCRIPTEN)
   if (CODE_COVERAGE)
@@ -318,6 +318,7 @@ if (NOT EMSCRIPTEN)
 
     add_executable(${EXE_NAME} ${EXE_SOURCES})
     add_dependencies(everything_wasm ${EXE_NAME})
+    add_dependencies(${EXE_NAME} libzip)
     target_link_libraries(${EXE_NAME} PRIVATE ${EXE_LIBS} wabt nlohmann_json::nlohmann_json interp zip)
     set_property(TARGET ${EXE_NAME} PROPERTY CXX_STANDARD 11)
     set_property(TARGET ${EXE_NAME} PROPERTY CXX_STANDARD_REQUIRED ON)

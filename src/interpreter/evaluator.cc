@@ -3,6 +3,9 @@
 
 namespace wasmati {
 
+// allocate space for static variable
+json Functions::_vulns;
+
 const std::map<LiteralType, std::string> LITERAL_TYPE_MAP = {
 #define WASMATI_ENUMS_LITERAL_TYPE(type, name) {type, name},
 #include "src/config/enums.def"

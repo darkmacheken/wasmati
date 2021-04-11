@@ -3,6 +3,7 @@
 
 namespace wasmati {
 struct Functions {
+    // space is made available in evaluator.cc
     static json _vulns;
 
     static std::shared_ptr<ListNode> nodeSetToList(int lineno, NodeSet& nodes) {

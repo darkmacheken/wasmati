@@ -1,4 +1,7 @@
 ./.git
 ./.vs
 ./bin
+./out
 ./build
+./matplotlib-charts
+./neo4j-custom-docker

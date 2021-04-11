@@ -33,10 +33,10 @@ void VulnerabilityChecker::TaintedLocalToFunc() {
         }
         std::map<std::string, std::pair<std::string, std::string>>
             taintedParams;
-        // NodeStream(func).parameters().forEach([&](Node* param) {
-        //    std::set<std::string> visited;
-        //    taintedParams[param->name()] = isTainted(param, visited);
-        //});
+        NodeStream(func).parameters().forEach([&](Node* param) {
+            std::set<std::string> visited;
+            taintedParams[param->name()] = isTainted(param, visited);
+        });
 
         NodeStream(func)
             .instructions(Predicate()

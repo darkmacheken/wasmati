@@ -30,7 +30,10 @@ std::pair<std::string, std::string> VulnerabilityChecker::isTainted(
 
     auto args = NodeStream(param)
                     .function()
-                    .parents(Query::CG_EDGES)
+                    .parents([](Edge* e) {
+                        return e->type() == EdgeType::CG &&
+                               e->src()->instType() == InstType::Call;
+                    })
                     .child(param->index(), EdgeType::AST)
                     .toNodeSet();
 
