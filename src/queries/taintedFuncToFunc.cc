@@ -46,11 +46,16 @@ void VulnerabilityChecker::TaintedFuncToFunc() {
                 return Query::containsEdge(pdgEdges, [&](Edge* e) {
                     if (e->pdgType() == PDGType::Function &&
                         sources.count(e->label()) == 1) {
+                        size_t numInsts =
+                            NodeStream(func).instructions().size();
                         std::stringstream desc;
                         desc << "Source " << e->label() << " reaches sink "
                              << node->label();
-                        vulns.emplace_back(VulnType::Tainted, func->name(),
-                                           node->label(), desc.str());
+                        json vuln = json{{"function", func->name()},
+                                         {"caller", node->label()},
+                                         {"description", desc.str()},
+                                         {"numInsts", numInsts}};
+                        vulns.emplace_back(VulnType::Tainted, vuln);
                         return true;
                     }
                     return false;

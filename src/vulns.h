@@ -161,7 +161,7 @@ struct Vulnerability {
         : type(type), object(object), is_object(true) {
         assert(object.contains("function"));
         assert(object.contains("caller"));
-        object["type"] = type;
+        (this->object)["type"] = type;
     }
 
     friend void to_json(json& j, const Vulnerability& v) {
@@ -179,17 +179,8 @@ struct Vulnerability {
     }
 
     friend void from_json(const json& j, Vulnerability& v) {
-        j.at("type").get_to(v.type);
-        j.at("function").get_to(v.function);
-        if (j.contains("caller")) {
-            j.at("caller").get_to(v.caller);
-        }
-        if (j.contains("description")) {
-            j.at("description").get_to(v.description);
-        }
-        if (j.contains("info")) {
-            j.at("info").get_to(v.object);
-        }
+        v.object = j;
+        v.is_object = true;
     }
 };
 
