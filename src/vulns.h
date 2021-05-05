@@ -145,6 +145,8 @@ struct Vulnerability {
     std::string function;
     std::string caller;
     std::string description;
+    json object;
+    bool is_object = false;
 
     Vulnerability(VulnType type,
                   const std::string& function,
@@ -155,7 +157,18 @@ struct Vulnerability {
           caller(caller),
           description(description) {}
 
+    Vulnerability(VulnType type, json object)
+        : type(type), object(object), is_object(true) {
+        assert(object.contains("function"));
+        assert(object.contains("caller"));
+        object["type"] = type;
+    }
+
     friend void to_json(json& j, const Vulnerability& v) {
+        if (v.is_object) {
+            j = v.object;
+            return;
+        }
         j = json{{"type", v.type}, {"function", v.function}};
         if (!v.caller.empty()) {
             j["caller"] = v.caller;
@@ -174,6 +187,9 @@ struct Vulnerability {
         if (j.contains("description")) {
             j.at("description").get_to(v.description);
         }
+        if (j.contains("info")) {
+            j.at("info").get_to(v.object);
+        }
     }
 };
 
@@ -188,7 +204,7 @@ struct VulnerabilityChecker {
     }
 
     void checkVulnerabilities() {
-		numFuncs = Query::functions().size();
+        numFuncs = Query::functions().size();
 
 #define WASMATI_QUERY(FunctionName, Name, Description) FunctionName();
 #include "src/queries/queries.def"
@@ -204,7 +220,7 @@ struct VulnerabilityChecker {
 #include "src/queries/queries.def"
 #undef WASMATI_QUERY_AUX
 
-	static void verifyConfig(const json& config) {
+    static void verifyConfig(const json& config) {
         // importAsSources
         assert(config.contains(IMPORT_AS_SOURCES));
         assert(config.at(IMPORT_AS_SOURCES).is_boolean());
@@ -299,7 +315,7 @@ struct VulnerabilityChecker {
             assert(item.contains(SOURCE));
             assert(item.contains(DEST));
         }
-	}
-  };
+    }
+};
 }  // namespace wasmati
 #endif  // WABT_AST_BUILDER_H_

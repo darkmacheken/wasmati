@@ -11,8 +11,8 @@ WASMATI_QUERY(FormatStrings, "Format Strings", "Queries for format strings vulne
 // WASMATI_QUERY(TaintedCallIndirect, "Tainted - CallIndirect", "Queries for tainted argument in call_indirect.")
 WASMATI_QUERY(TaintedFuncToFunc, "Tainted - Source/Sink", "Queries for source (function) to sink (function) vulnerabilities.")
 WASMATI_QUERY(TaintedLocalToFunc, "Tainted - Source/Sink", "Queries for source (local variable) to sink (function) vulnerabilities.")
-WASMATI_QUERY(UseAfterFree, "Use After Free", "Queries for use after free vulnerabilities.")
-WASMATI_QUERY(DoubleFree, "Double Free", "Queries for double free vulnerabilities.")
+// WASMATI_QUERY(UseAfterFree, "Use After Free", "Queries for use after free vulnerabilities.")
+// WASMATI_QUERY(DoubleFree, "Double Free", "Queries for double free vulnerabilities.")
 #endif
 
 #ifdef WASMATI_QUERY_AUX

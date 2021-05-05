@@ -78,12 +78,17 @@ void VulnerabilityChecker::TaintedLocalToFunc() {
                     if (taintedParams[local].first == "") {
                         continue;
                     } else {
+                        size_t numInsts =
+                            NodeStream(func).instructions().size();
                         std::stringstream desc;
                         desc << local << " tainted from param "
                              << taintedParams[local].first << " in "
                              << taintedParams[local].second;
-                        vulns.emplace_back(VulnType::Tainted, func->name(),
-                                           call->label(), desc.str());
+                        json vuln = json{{"function", func->name()},
+                                         {"caller", call->label()},
+                                         {"description", desc.str()},
+                                         {"numInsts", numInsts}};
+                        vulns.emplace_back(VulnType::Tainted, vuln);
                     }
                 }
             });
