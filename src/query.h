@@ -11,9 +11,12 @@
 using nlohmann::json;
 
 namespace wasmati {
+
 typedef std::function<bool(Node*)> NodeCondition;
 typedef std::function<bool(Edge*)> EdgeCondition;
+
 class Predicate;
+class GraphPath;
 
 class Query {
     static const Graph* _graph;
@@ -209,6 +212,13 @@ public:
                                const EdgeCondition& edgeCondition = ALL_EDGES, \
                                Index limit = UINT32_MAX,                       \
                                bool reverse = false);
+#include "src/config/predicates.def"
+#undef WASMATI_EVALUATION
+
+#define WASMATI_EVALUATION(type, var, eval, rALL)                             \
+    static std::list<GraphPath*>* BFS_paths(const NodeSet& nodes, const type& var = rALL,    \
+                             const EdgeCondition& edgeCondition = ALL_EDGES,  \
+                             Index limit = UINT32_MAX);
 #include "src/config/predicates.def"
 #undef WASMATI_EVALUATION
 
@@ -753,6 +763,13 @@ public:
             return Optional<Edge*>();
         }
     }
+
+    EdgeStream& forEach(std::function<void(Edge*)> func) {
+        for (auto edge : edges) {
+            func(edge);
+        }
+        return *this;
+    }
 };
 
 class NodeStream {
@@ -925,6 +942,77 @@ public:
             func(node);
         }
         return *this;
+    }
+};
+
+/// Saves a graphpath (in reverse order)
+class GraphPath {
+    std::list<Node*> path;
+    std::set<Node*> nodes;
+
+public:
+    GraphPath();
+
+    GraphPath(Node *node) {
+        this->path.push_back(node);
+        this->nodes.insert(node);
+    }
+
+    GraphPath(GraphPath *other) {
+        this->path = other->path;
+        this->nodes = other->nodes;
+    }
+
+    bool contains(Node *node) {
+        return this->nodes.find(node) != this->nodes.end();
+    }
+
+    void push_back(Node *node) {
+        this->path.push_front(node);
+        this->nodes.insert(node);
+    }
+
+    void push_front(Node *node) {
+        this->path.push_back(node);
+        this->nodes.insert(node);
+    }
+
+    std::list<Node*>::reference src() {
+        return this->path.back();
+    }
+
+    std::list<Node*>::reference dest() {
+        return this->path.front();
+    }
+
+    json toJson() {
+      std::list<json> res;
+      std::list<json> blocks;
+
+      Node *prev = NULL;
+
+      // Print function names
+      // And blocks that need to be true/false
+      for(Node* node: this->path) {
+        if (node->type() == NodeType::Function) {
+          res.push_back(json{{node->name(), blocks}});
+          blocks.clear();
+        } else if (node->instType() == InstType::BrIf) {
+          if (prev != NULL) {
+            EdgeStream(node->outEdges(EdgeType::CFG))
+              .filter([&](Edge *e) {
+                return e->dest() == prev;
+              })
+              .forEach([&](Edge *e) {
+                blocks.push_front(json{{node->label(), e->label()}});
+              });
+          }
+        }
+
+        prev = node;
+      }
+
+      return res;
     }
 };
 }  // namespace wasmati

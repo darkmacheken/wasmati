@@ -742,9 +742,9 @@ public:
         return _module;
     }
 
-    inline size_t getNumberNodes() { return _nodes.size(); }
+    inline size_t getNumberNodes() const { return _nodes.size(); }
 
-    inline size_t getNumberEdges() {
+    inline size_t getNumberEdges() const {
         size_t edges = 0;
         for (Node* node : _nodes) {
             edges += node->outEdges().size();

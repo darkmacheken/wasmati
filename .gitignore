@@ -5,6 +5,7 @@
 /emscripten
 *.pyc
 .idea/
+.cache/
 .vscode/
 /cmake-build-debug/
 

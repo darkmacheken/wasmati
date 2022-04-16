@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.14.0)
+cmake_policy(SET CMP0115 OLD)
 project(WASMATI VERSION 1.0.0)
 find_package(OpenSSL REQUIRED)
 find_package(ZLIB REQUIRED)
@@ -269,18 +270,18 @@ add_library(wasmatilib STATIC
 	  src/queries/boBuffsStaticMalloc.cc
 	  src/queries/verifyMallocConst.cc
 	  src/queries/boMemcpy.cc
-	  #src/queries/boLoops.cc
+	  src/queries/boLoops.cc
 	  src/queries/boScanfLoops.cc
 	  src/queries/bufferSizes.cc
 	  src/queries/dangerousFunctions.cc
 	  src/queries/formatStrings.cc
 	  src/queries/isTainted.cc
-	  #src/queries/taintedCallIndirect.cc
+	  src/queries/taintedCallIndirect.cc
 	  src/queries/taintedFuncToFunc.cc
 	  src/queries/taintedLocalToFunc.cc
-	  #src/queries/unreachable.cc
-	  #src/queries/useAfterFree.cc
-	  #src/queries/doubleFree.cc
+	  src/queries/unreachable.cc
+	  src/queries/useAfterFree.cc
+	  src/queries/doubleFree.cc
 	  # interpreter
 	  src/interpreter/scanner.h
 	  src/interpreter/interpreter.h 

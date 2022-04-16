@@ -161,7 +161,6 @@ struct Vulnerability {
         : type(type), object(object), is_object(true) {
         assert(object.contains("function"));
         assert(object.contains("caller"));
-        (this->object)["type"] = type;
     }
 
     friend void to_json(json& j, const Vulnerability& v) {

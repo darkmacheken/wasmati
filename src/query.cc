@@ -198,6 +198,66 @@ NodeSet Query::map(const NodeSet& nodes,
 #include "src/config/predicates.def"
 #undef WASMATI_EVALUATION
 
+#define WASMATI_EVALUATION(type, var, eval, rALL)                                  \
+    std::list<GraphPath*>* Query::BFS_paths(const NodeSet& nodes, const type& var, \
+                             const EdgeCondition& edgeCondition, Index limit) {    \
+        std::list<GraphPath*> *result = new std::list<GraphPath*>();               \
+                                                                                   \
+        if (nodes.size() == 0 || limit == 0) {                                     \
+            return result;                                                         \
+        }                                                                          \
+                                                                                   \
+        /* Traverse nodes in back order */                                         \
+        auto mapFunction = [&](Node* node) {                                       \
+            auto edges = node->inEdges();                                          \
+            return map<Node*>(filterEdges(edges, edgeCondition), [&](Edge* e) {    \
+                return e->src();                                                   \
+            });                                                                    \
+        };                                                                         \
+                                                                                   \
+        /* Generate queue */                                                       \
+        std::list<GraphPath*> queue = map<GraphPath*>(nodes, [&](Node* node) {     \
+            return new GraphPath(node);                                            \
+        });                                                                        \
+                                                                                   \
+        bool reached;                                                              \
+                                                                                   \
+        while (!queue.empty()) {                                                   \
+            reached = false;                                                       \
+            GraphPath *path = queue.front();                                       \
+            queue.pop_front();                                                     \
+                                                                                   \
+            Node* src = path->src();                                               \
+                                                                                   \
+            /* Check if reached the module node */                                 \
+            /* or function can be called from JavaScript/other module */           \
+            if (src->_type == NodeType::Module || src->isExport()) {            \
+               result->push_back(path);                                            \
+               reached = true;                                                     \
+            }                                                                      \
+                                                                                   \
+            auto up = mapFunction(src);                                            \
+            for (Node* cur: up) {                                                  \
+                if (!path->contains(cur)) {                                        \
+                    GraphPath *newPath = new GraphPath(path);                      \
+                                                                                   \
+                    newPath->push_front(cur);                                      \
+                                                                                   \
+                    queue.push_back(newPath);                                      \
+                }                                                                  \
+            }                                                                      \
+                                                                                   \
+            /* Delete a path if it doesn't reach the module node */                \
+            if (!reached) {                                                        \
+                delete path;                                                       \
+            }                                                                      \
+        }                                                                          \
+                                                                                   \
+        return result;                                                             \
+    }
+#include "src/config/predicates.def"
+#undef WASMATI_EVALUATION
+
 NodeSet Query::module() {
     assert(_graph != nullptr);
     return {_graph->getModule()};

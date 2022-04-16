@@ -17,7 +17,7 @@ void CFG::generateCFG() {
             cpgOptions.funcName.compare(f->name) != 0) {
             continue;
         }
-        assert(f->decl.has_func_type);
+        //assert(f->decl.has_func_type);
         if (funcsInTable.count(f) == 1) {
             funcByType[f->decl.type_var.name()].insert(ast.funcs[f]);
         }

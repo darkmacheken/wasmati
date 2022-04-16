@@ -7,7 +7,7 @@ void VulnerabilityChecker::BoLoops() {
 
     Index counter = 0;
     for (auto func : Query::functions()) {
-        debug("[DEBUG][Query::BoScanfLoops][%u/%u] Function %s\n", counter++,
+        debug("[DEBUG][Query::BoLoops][%u/%u] Function %s\n", counter++,
               numFuncs, func->name().c_str());
         if (ignore.count(func->name())) {
             continue;
