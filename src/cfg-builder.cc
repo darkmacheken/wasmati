@@ -43,6 +43,7 @@ void CFG::generateCFG() {
             Node* insts = *instNodeQuery.begin();
             if (f->exprs.empty()) {
                 new CFGEdge(insts, returnFuncNode);
+                func_index++;
                 continue;
             }
             new CFGEdge(insts, ast.exprNodes.at(&f->exprs.front()));
@@ -53,6 +54,7 @@ void CFG::generateCFG() {
             if (!unreachable) {
                 insertEdgeFromLastExpr(f->exprs, returnFuncNode);
             } else {
+                func_index++;
                 continue;
             }
             auto childlessReturn = Query::BFS(
