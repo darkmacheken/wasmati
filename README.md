@@ -1,4 +1,4 @@
-[![pipeline status](https://turbina.gsd.inesc-id.pt:8080/pedrodaniel10/wasm-ast/badges/master/pipeline.svg)](https://turbina.gsd.inesc-id.pt:8080/pedrodaniel10/wasm-ast/commits/master)
+Article: [Wasmati: An efficient static vulnerability scanner for WebAssembly](https://www.sciencedirect.com/science/article/pii/S0167404822001407)
 # Wasmati
 
 This project aims to parse WAT and WASM files and get an AST, CFG and PDG.
